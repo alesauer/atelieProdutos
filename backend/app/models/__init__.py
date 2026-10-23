@@ -4,6 +4,15 @@ from app.models.user import User, PasswordResetToken
 from app.models.category import Category
 from app.models.unit import UnitOfMeasure
 from app.models.product import Product, ProductImage, ItemType
+from app.models.stock import StockMovement, MovementType
+from app.models.production import (
+    ProductionRecipe,
+    ProductionRecipeItem,
+    ProductionOrder,
+    ProductionOrderItem,
+    ProductionOrderStatus,
+)
+from app.models.sale import Customer, Sale, SaleItem, SaleStatus
 
 __all__ = [
     "Base",
@@ -15,4 +24,15 @@ __all__ = [
     "Product",
     "ProductImage",
     "ItemType",
+    "StockMovement",
+    "MovementType",
+    "ProductionRecipe",
+    "ProductionRecipeItem",
+    "ProductionOrder",
+    "ProductionOrderItem",
+    "ProductionOrderStatus",
+    "Customer",
+    "Sale",
+    "SaleItem",
+    "SaleStatus",
 ]

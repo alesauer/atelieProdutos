@@ -6,6 +6,9 @@ import { Header } from './components/Header';
 import { LoginPage } from './pages/LoginPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { StockPage } from './pages/StockPage';
+import { ProductionPage } from './pages/ProductionPage';
+import { SalesPage } from './pages/SalesPage';
 import { PlaceholderTab } from './pages/PlaceholderTab';
 
 export function App() {
@@ -85,45 +88,10 @@ export function App() {
         <main style={{ flex: 1 }}>
           {currentTab === 'dashboard' && <DashboardPage onNavigate={setCurrentTab} />}
           {currentTab === 'produtos' && <ProductsPage />}
-          {currentTab === 'estoque' && (
-            <PlaceholderTab
-              title="Estoque & Movimentações"
-              phase="Fase 5 — Próxima Etapa"
-              description="Controle imutável de entradas, saídas, perdas e ajustes com justificativa obrigatória e prevenção de saldo negativo."
-              features={[
-                'Registro de movimentações rastreáveis com fotografia de custo unitário',
-                'Ajuste manual de inventário exigindo justificativa formal',
-                'Bloqueio estrito de saldo negativo por padrão',
-                'Histórico imutável para auditoria',
-              ]}
-            />
-          )}
-          {currentTab === 'producao' && (
-            <PlaceholderTab
-              title="Produção Artesanal & Fichas Técnicas"
-              phase="Fase 5 — Próxima Etapa"
-              description="Criação de fichas técnicas (BOM) e execução de ordens de fabricação com fluxo em duas etapas (rascunho e confirmação atômica)."
-              features={[
-                'Fichas técnicas com componentes e rendimento padrão',
-                'Ordem de produção em rascunho sem alterar estoque',
-                'Ajuste fino de consumo real e perdas na bancada',
-                'Confirmação atômica: baixa de insumos e entrada do produto acabado em transação única',
-              ]}
-            />
-          )}
-          {currentTab === 'vendas' && (
-            <PlaceholderTab
-              title="Vendas & Pedidos"
-              phase="Fase 5 — Próxima Etapa"
-              description="Registro manual de vendas com cliente opcional e baixa automática de estoque na confirmação."
-              features={[
-                'Cadastro opcional de compradores e histórico',
-                'Venda em rascunho sem impacto no estoque físico',
-                'Confirmação com validação de saldo e baixa atômica',
-                'Cancelamento de venda com estorno rastreável automático',
-              ]}
-            />
-          )}
+          {currentTab === 'estoque' && <StockPage />}
+          {currentTab === 'producao' && <ProductionPage />}
+          {currentTab === 'vendas' && <SalesPage />}
+
           {currentTab === 'relatorios' && (
             <PlaceholderTab
               title="Relatórios & Alertas"

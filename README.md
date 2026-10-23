@@ -66,10 +66,12 @@ casa-luma-estoque/
   - [x] Tela de autenticação com persistência segura do token JWT.
   - [x] Catálogo de produtos com busca, filtros de tipo/categoria, modais de cadastro e galeria de fotos.
   - [x] Build de produção compilado com sucesso com Vite e TypeScript (0 erros).
-- [ ] **Fase 5: Estoque, Produção Artesanal e Vendas**
-  - [ ] Motor de movimentações imutáveis com bloqueio de saldo negativo.
-  - [ ] Fichas técnicas e ordens de produção com confirmação transacional atômica.
-  - [ ] Módulo de vendas com cliente opcional e cancelamento com reversão rastreável.
+- [x] **Fase 5: Estoque, Produção Artesanal e Vendas**
+  - [x] Motor de movimentações imutáveis com bloqueio de saldo negativo e livro-razão auditável.
+  - [x] Fichas técnicas (BOM) e ordens de produção em rascunho com confirmação e estorno atômicos.
+  - [x] Módulo de vendas com cliente opcional, cálculo histórico e cancelamento com reversão de estoque.
+  - [x] Telas completas no frontend (StockPage, ProductionPage, SalesPage) integradas ao Design System.
+  - [x] 23 testes automatizados com `pytest` aprovados.
 - [ ] **Fase 6: Dashboard, Relatórios, Notificações e PWA**
   - [ ] Métricas em tempo real e relatórios com exportação para CSV.
   - [ ] Serviço de alerta por e-mail com deduplicação.
