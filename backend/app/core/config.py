@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     CORS_ORIGINS: Union[List[str], str] = [
         "http://localhost",
         "http://localhost:80",
+        "http://localhost:6700",
+        "http://127.0.0.1:6700",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]

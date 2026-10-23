@@ -58,7 +58,7 @@ flowchart TD
 
     UI -->|HTTPS / REST API| Nginx
     Nginx -->|Porta 8000| API
-    Nginx -->|Porta 80| UI
+    Nginx -->|Porta 6700| UI
     API --> AuthMod
     API --> Services
     Services --> ORM

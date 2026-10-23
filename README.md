@@ -102,7 +102,7 @@ docker compose exec backend python -m app.scripts.create_initial_admin
 ```
 
 O sistema estará acessível em:
-- **Aplicação Web / PWA:** `http://localhost` (ou o domínio apontado para a VPS)
+- **Aplicação Web / PWA:** `http://localhost:6700` (ou o domínio apontado para a VPS)
 - **API REST & Swagger Docs:** `http://localhost:8000/api/v1/docs`
 
 ---
