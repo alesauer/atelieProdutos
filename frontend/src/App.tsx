@@ -1,122 +1,146 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useState, useEffect } from 'react';
+import { api } from './api/client';
+import type { User } from './types';
+import { Sidebar } from './components/Sidebar';
+import { Header } from './components/Header';
+import { LoginPage } from './pages/LoginPage';
+import { ProductsPage } from './pages/ProductsPage';
+import { DashboardPage } from './pages/DashboardPage';
+import { PlaceholderTab } from './pages/PlaceholderTab';
 
-function App() {
-  const [count, setCount] = useState(0)
+export function App() {
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    const saved = localStorage.getItem('casaluma_user');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+
+  const [currentTab, setCurrentTab] = useState<string>('produtos');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setCurrentUser(null);
+    };
+    window.addEventListener('casaluma:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('casaluma:unauthorized', handleUnauthorized);
+  }, []);
+
+  const handleLogout = () => {
+    api.logout();
+    setCurrentUser(null);
+  };
+
+  if (!currentUser) {
+    return <LoginPage onLoginSuccess={(user) => setCurrentUser(user)} />;
+  }
+
+  const getPageInfo = () => {
+    switch (currentTab) {
+      case 'dashboard':
+        return { title: 'Painel Geral', subtitle: 'Métricas e visão geral do ateliê' };
+      case 'produtos':
+        return { title: 'Catálogo de Itens', subtitle: 'Produtos acabados, matérias-primas e embalagens' };
+      case 'estoque':
+        return { title: 'Estoque & Movimentações', subtitle: 'Livro-razão e ajustes de inventário' };
+      case 'producao':
+        return { title: 'Produção Artesanal', subtitle: 'Ordens de fabricação e fichas técnicas (BOM)' };
+      case 'vendas':
+        return { title: 'Vendas & Pedidos', subtitle: 'Registro e baixa de estoque de pedidos' };
+      case 'relatorios':
+        return { title: 'Relatórios Analíticos', subtitle: 'Extratos, valorização e exportação CSV' };
+      default:
+        return { title: 'Casa Luma Estoque', subtitle: '' };
+    }
+  };
+
+  const pageInfo = getPageInfo();
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--bg-app)' }}>
+      {/* Sidebar Lateral */}
+      <Sidebar
+        currentTab={currentTab}
+        onSelectTab={setCurrentTab}
+        onLogout={handleLogout}
+        userName={currentUser.full_name}
+        isMobileOpen={isMobileMenuOpen}
+        onCloseMobile={() => setIsMobileMenuOpen(false)}
+      />
 
-      <div className="ticks"></div>
+      {/* Conteúdo Principal */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <Header
+          title={pageInfo.title}
+          subtitle={pageInfo.subtitle}
+          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+        />
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+        <main style={{ flex: 1 }}>
+          {currentTab === 'dashboard' && <DashboardPage onNavigate={setCurrentTab} />}
+          {currentTab === 'produtos' && <ProductsPage />}
+          {currentTab === 'estoque' && (
+            <PlaceholderTab
+              title="Estoque & Movimentações"
+              phase="Fase 5 — Próxima Etapa"
+              description="Controle imutável de entradas, saídas, perdas e ajustes com justificativa obrigatória e prevenção de saldo negativo."
+              features={[
+                'Registro de movimentações rastreáveis com fotografia de custo unitário',
+                'Ajuste manual de inventário exigindo justificativa formal',
+                'Bloqueio estrito de saldo negativo por padrão',
+                'Histórico imutável para auditoria',
+              ]}
+            />
+          )}
+          {currentTab === 'producao' && (
+            <PlaceholderTab
+              title="Produção Artesanal & Fichas Técnicas"
+              phase="Fase 5 — Próxima Etapa"
+              description="Criação de fichas técnicas (BOM) e execução de ordens de fabricação com fluxo em duas etapas (rascunho e confirmação atômica)."
+              features={[
+                'Fichas técnicas com componentes e rendimento padrão',
+                'Ordem de produção em rascunho sem alterar estoque',
+                'Ajuste fino de consumo real e perdas na bancada',
+                'Confirmação atômica: baixa de insumos e entrada do produto acabado em transação única',
+              ]}
+            />
+          )}
+          {currentTab === 'vendas' && (
+            <PlaceholderTab
+              title="Vendas & Pedidos"
+              phase="Fase 5 — Próxima Etapa"
+              description="Registro manual de vendas com cliente opcional e baixa automática de estoque na confirmação."
+              features={[
+                'Cadastro opcional de compradores e histórico',
+                'Venda em rascunho sem impacto no estoque físico',
+                'Confirmação com validação de saldo e baixa atômica',
+                'Cancelamento de venda com estorno rastreável automático',
+              ]}
+            />
+          )}
+          {currentTab === 'relatorios' && (
+            <PlaceholderTab
+              title="Relatórios & Alertas"
+              phase="Fase 6 — Etapa Seguinte"
+              description="Extratos analíticos de estoque, consumo de matéria-prima, vendas por período e exportação para CSV."
+              features={[
+                'Relatório de valorização estimada (saldo × custo cadastrado)',
+                'Exportação em formato CSV padrão',
+                'Notificações por e-mail para estoque mínimo e zerado',
+                'Deduplicação de alertas para evitar envios repetitivos',
+              ]}
+            />
+          )}
+        </main>
+      </div>
+    </div>
+  );
 }
 
-export default App
+export default App;

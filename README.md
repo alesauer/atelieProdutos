@@ -60,9 +60,12 @@ casa-luma-estoque/
   - [x] CRUD de Categorias, Unidades de Medida e Produtos (com validação de SKU único).
   - [x] Serviço de upload, validação MIME e persistência de fotos dos produtos.
   - [x] 17 testes automatizados com `pytest` cobrindo autenticação, produtos e imagens.
-- [ ] **Fase 4: Frontend — Design System e Cadastros Iniciais**
-  - [ ] Configuração de tokens CSS baseados na identidade Casa Luma (Cormorant Garamond + Manrope).
-  - [ ] Layout responsivo com sidebar e telas de autenticação e produtos.
+- [x] **Fase 4: Frontend — Design System e Cadastros Iniciais**
+  - [x] Configuração de tokens CSS baseados na identidade Casa Luma (paleta `#e9e1d7`, Cormorant Garamond + Manrope).
+  - [x] Layout responsivo com sidebar recolhível no desktop e drawer no mobile.
+  - [x] Tela de autenticação com persistência segura do token JWT.
+  - [x] Catálogo de produtos com busca, filtros de tipo/categoria, modais de cadastro e galeria de fotos.
+  - [x] Build de produção compilado com sucesso com Vite e TypeScript (0 erros).
 - [ ] **Fase 5: Estoque, Produção Artesanal e Vendas**
   - [ ] Motor de movimentações imutáveis com bloqueio de saldo negativo.
   - [ ] Fichas técnicas e ordens de produção com confirmação transacional atômica.
