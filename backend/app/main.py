@@ -4,7 +4,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
+from app.core.database import engine
+from app.models import Base
 from app.api.v1.api_router import api_router
+
+# Inicializa schema se as tabelas ainda não existirem
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:
+    # Em ambientes onde o banco ainda está inicializando (ex.: docker db healthcheck), não interrompe a importação
+    pass
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

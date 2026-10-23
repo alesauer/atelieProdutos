@@ -39,7 +39,7 @@ def create_initial_admin(email: str, password: str, name: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Criar administrador inicial do Casa Luma Estoque")
     parser.add_argument("--email", default="admin@casaluma.com.br", help="E-mail do administrador")
-    parser.add_argument("--password", required=True, help="Senha forte do administrador")
+    parser.add_argument("--password", default="admin123", help="Senha do administrador (padrão: admin123)")
     parser.add_argument("--name", default="Administrador Casa Luma", help="Nome completo")
 
     args = parser.parse_args()
