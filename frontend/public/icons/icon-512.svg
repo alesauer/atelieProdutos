@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#e9e1d7" />
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="none" stroke="#d8cabb" stroke-width="4" />
+  <g transform="translate(256, 256)">
+    <!-- Ramo Botânico Acolhedor -->
+    <path d="M0,120 C-26,53 -40,-26 0,-120 C40,-26 26,53 0,120 Z" fill="#bfa58d" opacity="0.35" />
+    <path d="M-5,-110 C-60,-50 -75,26 -40,92" fill="none" stroke="#685b50" stroke-width="8" stroke-linecap="round" />
+    <circle cx="-42" cy="-32" r="14" fill="#8c7a6b" />
+    <circle cx="-64" cy="32" r="16" fill="#8c7a6b" />
+    <circle cx="-26" cy="80" r="11" fill="#8c7a6b" />
+    
+    <!-- Monograma CL Elegante -->
+    <text x="20" y="42" font-family="'Cormorant Garamond', serif, Georgia" font-size="118" font-weight="600" fill="#2d2926" letter-spacing="-3">CL</text>
+  </g>
+</svg>

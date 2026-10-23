@@ -9,7 +9,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { StockPage } from './pages/StockPage';
 import { ProductionPage } from './pages/ProductionPage';
 import { SalesPage } from './pages/SalesPage';
-import { PlaceholderTab } from './pages/PlaceholderTab';
+import { ReportsPage } from './pages/ReportsPage';
 
 export function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -91,20 +91,7 @@ export function App() {
           {currentTab === 'estoque' && <StockPage />}
           {currentTab === 'producao' && <ProductionPage />}
           {currentTab === 'vendas' && <SalesPage />}
-
-          {currentTab === 'relatorios' && (
-            <PlaceholderTab
-              title="Relatórios & Alertas"
-              phase="Fase 6 — Etapa Seguinte"
-              description="Extratos analíticos de estoque, consumo de matéria-prima, vendas por período e exportação para CSV."
-              features={[
-                'Relatório de valorização estimada (saldo × custo cadastrado)',
-                'Exportação em formato CSV padrão',
-                'Notificações por e-mail para estoque mínimo e zerado',
-                'Deduplicação de alertas para evitar envios repetitivos',
-              ]}
-            />
-          )}
+          {currentTab === 'relatorios' && <ReportsPage />}
         </main>
       </div>
     </div>

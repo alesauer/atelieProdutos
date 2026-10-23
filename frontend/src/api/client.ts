@@ -2,14 +2,20 @@ import type {
   AuthResponse,
   Category,
   Customer,
+  DashboardMetrics,
+  MovementReportItem,
+  NotificationLogItem,
   Product,
   ProductFormData,
   ProductImage,
   ProductionOrder,
+  ProductionReportResponse,
   Recipe,
   Sale,
+  SalesReportResponse,
   StockBalanceItem,
   StockMovementItem,
+  StockReportItem,
   UnitOfMeasure,
   User,
 } from '../types';
@@ -319,6 +325,127 @@ class ApiClient {
     return this.request<Sale>(`/sales/${saleId}/cancel`, {
       method: 'POST',
     });
+  }
+
+  // --- Dashboard & Relatórios (Fase 6) ---
+  async getDashboardMetrics(): Promise<DashboardMetrics> {
+    return this.request<DashboardMetrics>('/dashboard/metrics');
+  }
+
+  async getReportsStock(params?: {
+    item_type?: string;
+    category_id?: number;
+    low_stock_only?: boolean;
+  }): Promise<StockReportItem[]> {
+    const query = new URLSearchParams();
+    if (params?.item_type) query.set('item_type', params.item_type);
+    if (params?.category_id) query.set('category_id', String(params.category_id));
+    if (params?.low_stock_only) query.set('low_stock_only', 'true');
+    query.set('format', 'json');
+    return this.request<StockReportItem[]>(`/reports/stock?${query.toString()}`);
+  }
+
+  async getReportsMovements(params?: {
+    start_date?: string;
+    end_date?: string;
+    product_id?: number;
+    movement_type?: string;
+  }): Promise<MovementReportItem[]> {
+    const query = new URLSearchParams();
+    if (params?.start_date) query.set('start_date', params.start_date);
+    if (params?.end_date) query.set('end_date', params.end_date);
+    if (params?.product_id) query.set('product_id', String(params.product_id));
+    if (params?.movement_type) query.set('movement_type', params.movement_type);
+    query.set('format', 'json');
+    return this.request<MovementReportItem[]>(`/reports/movements?${query.toString()}`);
+  }
+
+  async getReportsSales(params?: {
+    start_date?: string;
+    end_date?: string;
+    status?: string;
+  }): Promise<SalesReportResponse> {
+    const query = new URLSearchParams();
+    if (params?.start_date) query.set('start_date', params.start_date);
+    if (params?.end_date) query.set('end_date', params.end_date);
+    if (params?.status) query.set('status', params.status);
+    query.set('format', 'json');
+    return this.request<SalesReportResponse>(`/reports/sales?${query.toString()}`);
+  }
+
+  async getReportsProduction(params?: {
+    start_date?: string;
+    end_date?: string;
+  }): Promise<ProductionReportResponse> {
+    const query = new URLSearchParams();
+    if (params?.start_date) query.set('start_date', params.start_date);
+    if (params?.end_date) query.set('end_date', params.end_date);
+    query.set('format', 'json');
+    return this.request<ProductionReportResponse>(`/reports/production?${query.toString()}`);
+  }
+
+  async downloadReportCsv(
+    reportType: 'stock' | 'movements' | 'sales' | 'production',
+    params?: Record<string, string | number | boolean | undefined>,
+    defaultFilename: string = 'relatorio.csv'
+  ): Promise<void> {
+    const query = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, val]) => {
+        if (val !== undefined && val !== null && val !== '') {
+          query.set(key, String(val));
+        }
+      });
+    }
+    query.set('format', 'csv');
+
+    const url = `${API_BASE_URL}/reports/${reportType}?${query.toString()}`;
+    const headers: Record<string, string> = {};
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+
+    const res = await fetch(url, { headers });
+    if (!res.ok) {
+      throw new Error('Falha ao exportar relatório CSV.');
+    }
+
+    const blob = await res.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+
+    const disposition = res.headers.get('content-disposition');
+    let filename = defaultFilename;
+    if (disposition && disposition.includes('filename=')) {
+      const match = disposition.match(/filename="?([^";]+)"?/);
+      if (match && match[1]) {
+        filename = match[1];
+      }
+    }
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(downloadUrl);
+  }
+
+  async triggerStockAlertCheck(): Promise<{
+    status: string;
+    processed_count: number;
+    results: any[];
+  }> {
+    return this.request<{
+      status: string;
+      processed_count: number;
+      results: any[];
+    }>('/reports/check-alerts', {
+      method: 'POST',
+    });
+  }
+
+  async getNotificationLogs(limit: number = 50): Promise<NotificationLogItem[]> {
+    return this.request<NotificationLogItem[]>(`/reports/notifications-log?limit=${limit}`);
   }
 }
 

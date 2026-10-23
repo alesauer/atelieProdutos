@@ -13,6 +13,7 @@ from app.models.production import (
     ProductionOrderStatus,
 )
 from app.models.sale import Customer, Sale, SaleItem, SaleStatus
+from app.models.notification import EmailNotificationLog, NotificationStatus
 
 __all__ = [
     "Base",
@@ -35,4 +36,6 @@ __all__ = [
     "Sale",
     "SaleItem",
     "SaleStatus",
+    "EmailNotificationLog",
+    "NotificationStatus",
 ]

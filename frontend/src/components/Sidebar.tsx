@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Package,
   Boxes,
@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   LogOut,
   Sparkles,
+  Download,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -27,6 +28,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isMobileOpen,
   onCloseMobile,
 }) => {
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const choice = await deferredPrompt.userChoice;
+    if (choice.outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
   const navItems = [
     { id: 'dashboard', label: 'Painel Geral', icon: LayoutDashboard },
     { id: 'produtos', label: 'Produtos & Itens', icon: Package },
@@ -135,6 +155,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })}
         </div>
       </nav>
+
+      {/* Botão de Instalação PWA (quando disponível pelo navegador) */}
+      {deferredPrompt && (
+        <div style={{ padding: '0 16px 12px' }}>
+          <button
+            onClick={handleInstallClick}
+            className="btn-secondary"
+            style={{
+              width: '100%',
+              padding: '8px 12px',
+              fontSize: '0.82rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              backgroundColor: 'var(--bg-sand-light)',
+              borderColor: 'var(--brand-accent)',
+              color: 'var(--brand-primary)',
+            }}
+          >
+            <Download size={14} color="var(--brand-accent)" />
+            <span>Instalar Aplicativo</span>
+          </button>
+        </div>
+      )}
 
       {/* Rodapé da Sidebar / Usuário */}
       <div

@@ -211,3 +211,146 @@ export interface Sale {
   created_at: string;
   items: SaleItem[];
 }
+
+// --- Dashboard & Relatórios (Fase 6) ---
+export interface CriticalStockItem {
+  id: number;
+  sku: string;
+  name: string;
+  item_type: ItemType;
+  unit: string;
+  current_stock: number;
+  min_stock: number;
+  status: 'ZERO' | 'LOW';
+}
+
+export interface DashboardMetrics {
+  catalog: {
+    total_active_items: number;
+    items_low_stock: number;
+    items_zero_stock: number;
+    total_valuation: number;
+  };
+  critical_items: CriticalStockItem[];
+  recent_movements: {
+    id: number;
+    product_id: number;
+    product_name: string;
+    product_sku: string;
+    movement_type: MovementType;
+    quantity: number;
+    unit: string;
+    created_at: string;
+    justification?: string | null;
+  }[];
+  sales_summary: {
+    confirmed_count_30d: number;
+    revenue_30d: number;
+    draft_pending_count: number;
+  };
+  production_summary: {
+    completed_count_30d: number;
+    units_produced_30d: number;
+    draft_pending_count: number;
+  };
+}
+
+export interface StockReportItem {
+  product_id: number;
+  sku: string;
+  name: string;
+  category: string;
+  item_type: ItemType;
+  unit: string;
+  current_stock: number;
+  min_stock: number;
+  unit_cost: number;
+  valuation: number;
+  status: 'NORMAL' | 'BAIXO' | 'ZERADO';
+}
+
+export interface MovementReportItem {
+  id: number;
+  created_at: string;
+  sku: string;
+  product_name: string;
+  movement_type: MovementType;
+  quantity: number;
+  unit: string;
+  unit_cost: number;
+  user: string;
+  reference: string;
+  justification: string;
+}
+
+export interface SalesReportSummary {
+  total_sales_count: number;
+  confirmed_count: number;
+  total_revenue: number;
+  average_ticket: number;
+}
+
+export interface SalesReportSaleItem {
+  id: number;
+  sale_code: string;
+  created_at: string;
+  status: string;
+  customer_name: string;
+  total_items: number;
+  total_amount: number;
+}
+
+export interface SalesReportTopProduct {
+  sku: string;
+  name: string;
+  quantity: number;
+  revenue: number;
+}
+
+export interface SalesReportResponse {
+  summary: SalesReportSummary;
+  sales: SalesReportSaleItem[];
+  top_products: SalesReportTopProduct[];
+}
+
+export interface ProductionReportSummary {
+  total_orders: number;
+  completed_orders: number;
+  total_finished_units: number;
+}
+
+export interface ProductionReportOrderItem {
+  id: number;
+  order_number: string;
+  created_at: string;
+  status: string;
+  product_name: string;
+  product_sku: string;
+  quantity: number;
+  unit: string;
+  notes: string;
+}
+
+export interface ProductionReportConsumedMaterial {
+  sku: string;
+  name: string;
+  unit: string;
+  quantity: number;
+}
+
+export interface ProductionReportResponse {
+  summary: ProductionReportSummary;
+  orders: ProductionReportOrderItem[];
+  raw_materials_consumed: ProductionReportConsumedMaterial[];
+}
+
+export interface NotificationLogItem {
+  id: number;
+  event_type: string;
+  deduplication_key?: string | null;
+  recipient: string;
+  subject: string;
+  status: 'SENT' | 'FAILED' | 'SKIPPED' | 'MOCK';
+  error_message?: string | null;
+  sent_at: string;
+}

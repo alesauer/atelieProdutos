@@ -72,13 +72,15 @@ casa-luma-estoque/
   - [x] Módulo de vendas com cliente opcional, cálculo histórico e cancelamento com reversão de estoque.
   - [x] Telas completas no frontend (StockPage, ProductionPage, SalesPage) integradas ao Design System.
   - [x] 23 testes automatizados com `pytest` aprovados.
-- [ ] **Fase 6: Dashboard, Relatórios, Notificações e PWA**
-  - [ ] Métricas em tempo real e relatórios com exportação para CSV.
-  - [ ] Serviço de alerta por e-mail com deduplicação.
-  - [ ] Manifest e Service Worker para PWA instalável.
-- [ ] **Fase 7: Testes Automatizados e Homologação**
-  - [ ] Cobertura de testes automatizados com `pytest`.
-  - [ ] Validação de builds de produção e roteiro de backup.
+- [x] **Fase 6: Dashboard, Relatórios, Notificações e PWA**
+  - [x] Métricas em tempo real e consolidação de itens críticos no Dashboard.
+  - [x] Relatórios de Estoque/Valorização, Extrato de Movimentações, Vendas e Produção com exportação para CSV (UTF-8 BOM).
+  - [x] Serviço de alerta e notificação por e-mail com múltiplos drivers (log, mock, smtp) e deduplicação de 24h.
+  - [x] Web App Manifest, ícones botânicos minimalistas e Service Worker com estratégia de cache e integridade offline para PWA instalável.
+  - [x] 29 testes automatizados com `pytest` aprovados e build Vite sem warnings.
+- [ ] **Fase 7: Homologação Final, Backup e Entrega**
+  - [ ] Script e rotina de backup/restauração do MySQL e volume de mídias.
+  - [ ] Revisão completa dos critérios de aceite da especificação.
 
 ---
 
