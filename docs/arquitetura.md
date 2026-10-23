@@ -194,5 +194,7 @@ A aplicação foi desenhada para deploy simples e confiável em qualquer **Virtu
 2. **Reverse Proxy & TLS:**
    - Na VPS, um proxy reverso (Nginx ou Caddy) gerencia os certificados SSL/TLS automáticos (Let's Encrypt) e redireciona `/api` para o backend e `/` para o frontend.
 3. **Backup e Persistência:**
-   - Volumes declarados para o MySQL (`mysql_data`) e para uploads (`media_data`).
-   - Rotinas de dump lógico diário (`mysqldump`) e compactação do diretório de mídias para backup externo.
+   - Volumes declarados para o MySQL (`casaluma_db_data`) e para uploads (`casaluma_media_data`).
+   - Scripts automatizados fornecidos na pasta `scripts/`:
+     - `scripts/backup.sh` / `scripts/backup.ps1`: exporta dump transacional do MySQL comprimido em `.sql.gz` e compacta o volume de mídias em `.tar.gz`, gerando manifesto de integridade `manifest.json`. Suporta rotação automática de retenção (14 dias).
+     - `scripts/restore.sh` / `scripts/restore.ps1`: rotina para restauração completa de dados e mídias a partir de qualquer pasta de backup gerada.
