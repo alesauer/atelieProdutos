@@ -1,0 +1,29 @@
+from typing import List
+from fastapi import APIRouter, Depends, status
+from sqlalchemy.orm import Session
+
+from app.core.dependencies import get_db, get_current_user
+from app.models.user import User
+from app.schemas.unit import UnitCreate, UnitResponse
+from app.services.product_service import product_service
+
+router = APIRouter()
+
+
+@router.get("", response_model=List[UnitResponse])
+def list_units(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Lista unidades de medida disponíveis (UN, KG, G, L, ML, etc.)."""
+    return product_service.list_units(db)
+
+
+@router.post("", response_model=UnitResponse, status_code=status.HTTP_201_CREATED)
+def create_unit(
+    unit_in: UnitCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Adiciona nova unidade de medida ao sistema."""
+    return product_service.create_unit(db, unit_in)

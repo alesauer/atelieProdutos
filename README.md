@@ -54,11 +54,12 @@ casa-luma-estoque/
   - [x] Arquivos `.env.example` com todas as chaves documentadas.
   - [x] Scaffolding e build validado do frontend (Vite + React + TS).
   - [x] Estrutura e Dockerfile do backend FastAPI com healthcheck.
-- [ ] **Fase 3: Backend — Autenticação, Usuários e Cadastro de Itens**
-  - [ ] Modelos SQLAlchemy 2.0 e migração inicial Alembic.
-  - [ ] Autenticação JWT com endpoints de login, recuperação de senha e gestão de usuários.
-  - [ ] CRUD de Categorias, Unidades de Medida e Produtos.
-  - [ ] Serviço de upload, validação e persistência de fotos dos produtos.
+- [x] **Fase 3: Backend — Autenticação, Usuários e Cadastro de Itens**
+  - [x] Modelos SQLAlchemy 2.0 e configuração do Alembic.
+  - [x] Autenticação JWT com endpoints de login, recuperação de senha e gestão de usuários.
+  - [x] CRUD de Categorias, Unidades de Medida e Produtos (com validação de SKU único).
+  - [x] Serviço de upload, validação MIME e persistência de fotos dos produtos.
+  - [x] 17 testes automatizados com `pytest` cobrindo autenticação, produtos e imagens.
 - [ ] **Fase 4: Frontend — Design System e Cadastros Iniciais**
   - [ ] Configuração de tokens CSS baseados na identidade Casa Luma (Cormorant Garamond + Manrope).
   - [ ] Layout responsivo com sidebar e telas de autenticação e produtos.

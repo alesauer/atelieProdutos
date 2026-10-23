@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
+from app.api.v1.api_router import api_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -32,6 +33,9 @@ app.mount(
     StaticFiles(directory=settings.MEDIA_DIR),
     name="media",
 )
+
+# Inclusão das rotas da API v1
+app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get(f"{settings.API_V1_PREFIX}/health", tags=["Sistema"])

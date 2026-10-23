@@ -1,0 +1,99 @@
+import pytest
+from fastapi.testclient import TestClient
+from app.models.category import Category
+from app.models.unit import UnitOfMeasure
+from app.models.product import Product
+
+
+def test_create_category(client: TestClient, admin_token: str):
+    response = client.post(
+        "/api/v1/categories",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"name": "Aromaterapia", "description": "Óleos e difusores"},
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["name"] == "Aromaterapia"
+    assert data["id"] is not None
+
+
+def test_create_unit(client: TestClient, admin_token: str):
+    response = client.post(
+        "/api/v1/units",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"code": "KG", "name": "Quilograma", "allows_decimals": True},
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["code"] == "KG"
+    assert data["allows_decimals"] is True
+
+
+def test_create_product(client: TestClient, admin_token: str, sample_category: Category, sample_unit: UnitOfMeasure):
+    response = client.post(
+        "/api/v1/products",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "sku": "VELA-BAUNILHA-180",
+            "name": "Vela Baunilha Nobre 180g",
+            "description": "Cera vegetal com notas doces de baunilha de Madagascar",
+            "item_type": "PRODUTO_ACABADO",
+            "category_id": sample_category.id,
+            "unit_id": sample_unit.id,
+            "unit_cost": "18.0000",
+            "sale_price": "52.00",
+            "min_stock": "8.000",
+        },
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["sku"] == "VELA-BAUNILHA-180"
+    assert data["name"] == "Vela Baunilha Nobre 180g"
+    assert data["category"]["id"] == sample_category.id
+    assert data["unit"]["id"] == sample_unit.id
+
+
+def test_create_product_duplicate_sku(client: TestClient, admin_token: str, sample_product: Product):
+    response = client.post(
+        "/api/v1/products",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "sku": sample_product.sku,  # SKU idêntico
+            "name": "Outro Produto com Mesmo SKU",
+            "item_type": "PRODUTO_ACABADO",
+            "unit_id": sample_product.unit_id,
+            "unit_cost": "10.0000",
+            "min_stock": "1.000",
+        },
+    )
+    assert response.status_code == 400
+    assert "já está em uso" in response.json()["detail"]
+
+
+def test_list_products_and_search(client: TestClient, admin_token: str, sample_product: Product):
+    # Buscar por nome parcial
+    response = client.get(
+        "/api/v1/products?search=lavanda",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200
+    items = response.json()
+    assert len(items) == 1
+    assert items[0]["sku"] == sample_product.sku
+
+    # Buscar por algo inexistente
+    response_empty = client.get(
+        "/api/v1/products?search=inexistente_xyz",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response_empty.status_code == 200
+    assert len(response_empty.json()) == 0
+
+
+def test_toggle_product_status(client: TestClient, admin_token: str, sample_product: Product):
+    response = client.put(
+        f"/api/v1/products/{sample_product.id}/status?is_active=false",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["is_active"] is False
