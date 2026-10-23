@@ -49,9 +49,11 @@ casa-luma-estoque/
   - [x] Especificação de arquitetura técnica (`docs/arquitetura.md`).
   - [x] Modelagem do banco relacional e diagrama ER (`docs/modelo-de-dados.md`).
   - [x] Definição de contratos da API REST (`docs/api.md`).
-- [ ] **Fase 2: Infraestrutura Base & Ambiente Docker**
-  - [ ] Arquivo `docker-compose.yml` com serviços `db` (MySQL), `backend` e `frontend`.
-  - [ ] Arquivos `.env.example` com todas as chaves documentadas.
+- [x] **Fase 2: Infraestrutura Base & Ambiente Docker**
+  - [x] Arquivo `docker-compose.yml` com serviços `db` (MySQL), `backend` e `frontend`.
+  - [x] Arquivos `.env.example` com todas as chaves documentadas.
+  - [x] Scaffolding e build validado do frontend (Vite + React + TS).
+  - [x] Estrutura e Dockerfile do backend FastAPI com healthcheck.
 - [ ] **Fase 3: Backend — Autenticação, Usuários e Cadastro de Itens**
   - [ ] Modelos SQLAlchemy 2.0 e migração inicial Alembic.
   - [ ] Autenticação JWT com endpoints de login, recuperação de senha e gestão de usuários.
@@ -71,3 +73,37 @@ casa-luma-estoque/
 - [ ] **Fase 7: Testes Automatizados e Homologação**
   - [ ] Cobertura de testes automatizados com `pytest`.
   - [ ] Validação de builds de produção e roteiro de backup.
+
+---
+
+## 5. Como Executar
+
+### 5.1 Com Docker Compose (Produção / VPS)
+```bash
+# 1. Copiar variáveis de ambiente
+cp .env.example .env
+
+# 2. Iniciar os containers em segundo plano
+docker compose up -d --build
+
+# 3. Verificar status dos serviços
+docker compose ps
+```
+
+### 5.2 Em Desenvolvimento Local
+**Backend:**
+```bash
+cd backend
+python -m venv .venv
+# Ativar venv: .venv\Scripts\activate (Windows) ou source .venv/bin/activate (Linux/Mac)
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm install
+npm run dev
+```
+

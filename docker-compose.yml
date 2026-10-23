@@ -1,0 +1,77 @@
+version: "3.8"
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: casaluma_db
+    restart: unless-stopped
+    command: >
+      --default-authentication-plugin=caching_sha2_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-casaluma_root_secret}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-casaluma_estoque}
+      MYSQL_USER: ${MYSQL_USER:-casaluma_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-casaluma_password}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - casaluma_net
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$${MYSQL_ROOT_PASSWORD:-casaluma_root_secret}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # Porta não exposta publicamente para garantir a segurança na VPS
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: casaluma_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-casaluma_user}:${MYSQL_PASSWORD:-casaluma_password}@db:3306/${MYSQL_DATABASE:-casaluma_estoque}?charset=utf8mb4
+      SECRET_KEY: ${SECRET_KEY:-chave_secreta_padrao_para_desenvolvimento_trocar_em_producao}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-480}
+      MEDIA_DIR: /app/media
+      MAX_IMAGE_SIZE_MB: ${MAX_IMAGE_SIZE_MB:-3}
+      MAX_IMAGES_PER_PRODUCT: ${MAX_IMAGES_PER_PRODUCT:-5}
+      EMAIL_DRIVER: ${EMAIL_DRIVER:-log}
+      EMAIL_FROM: ${EMAIL_FROM:-estoque@casaluma.com.br}
+      EMAIL_API_KEY: ${EMAIL_API_KEY:-}
+    volumes:
+      - media_data:/app/media
+    networks:
+      - casaluma_net
+    expose:
+      - "8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: casaluma_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    networks:
+      - casaluma_net
+
+volumes:
+  mysql_data:
+    name: casaluma_mysql_data
+  media_data:
+    name: casaluma_media_data
+
+networks:
+  casaluma_net:
+    name: casaluma_network
+    driver: bridge
