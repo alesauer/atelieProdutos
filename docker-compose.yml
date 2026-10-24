@@ -49,6 +49,8 @@ services:
       - media_data:/app/media
     networks:
       - casaluma_net
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
     expose:
       - "8000"
 

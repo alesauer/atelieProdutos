@@ -759,7 +759,7 @@ export const ProductsPage: React.FC = () => {
                   }}
                 >
                   <img
-                    src={img.url || `${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}/media/${img.file_path}`}
+                    src={img.url || `${import.meta.env.VITE_API_URL || '/api/v1'}/media/${img.file_path}`}
                     alt={img.original_filename}
                     style={{
                       width: '100%',
