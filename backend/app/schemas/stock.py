@@ -41,7 +41,7 @@ class StockBalanceResponse(BaseModel):
     product_id: int
     sku: str
     name: str
-    item_type: ItemType
+    item_type: str
     category_name: Optional[str] = None
     unit_code: str
     current_stock: Decimal

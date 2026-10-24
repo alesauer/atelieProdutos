@@ -171,7 +171,7 @@ class EmailService:
             f"O item '{product.name}' (SKU: {product.sku}) atingiu o limite de estoque mínimo cadastrado.\n\n"
             f"- Saldo Atual: {current_stock} {product.unit.code if product.unit else 'un'}\n"
             f"- Estoque Mínimo Definido: {product.min_stock} {product.unit.code if product.unit else 'un'}\n"
-            f"- Tipo de Item: {product.item_type.value}\n\n"
+            f"- Tipo de Item: {getattr(product.item_type, 'value', str(product.item_type))}\n\n"
             f"Por favor, verifique a necessidade de emitir compra ou abrir uma nova Ordem de Produção.\n\n"
             f"Ateliê Casa Luma — Gestão de Estoque"
         )
@@ -200,7 +200,7 @@ class EmailService:
         body = (
             f"Atenção Administrador do Ateliê Casa Luma,\n\n"
             f"O item '{product.name}' (SKU: {product.sku}) está totalmente esgotado (saldo 0).\n\n"
-            f"- Tipo de Item: {product.item_type.value}\n"
+            f"- Tipo de Item: {getattr(product.item_type, 'value', str(product.item_type))}\n"
             f"- Estoque Mínimo Recomendado: {product.min_stock} {product.unit.code if product.unit else 'un'}\n\n"
             f"Ações urgentes podem ser necessárias para evitar pausas na produção artesanal ou cancelamento de pedidos.\n\n"
             f"Ateliê Casa Luma — Gestão de Estoque"

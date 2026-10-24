@@ -14,13 +14,14 @@ import {
 import { api } from '../api/client';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
-import type { Category, ItemType, Product, ProductFormData, UnitOfMeasure } from '../types';
+import type { Category, ItemType, ItemTypeDefinition, Product, ProductFormData, UnitOfMeasure } from '../types';
 
 
 export const ProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [units, setUnits] = useState<UnitOfMeasure[]>([]);
+  const [itemTypes, setItemTypes] = useState<ItemTypeDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,6 +46,14 @@ export const ProductsPage: React.FC = () => {
     is_active: true,
   });
 
+  // Modal Novo Tipo de Item
+  const [isNewTypeModalOpen, setIsNewTypeModalOpen] = useState(false);
+  const [newTypeName, setNewTypeName] = useState('');
+  const [newTypeCode, setNewTypeCode] = useState('');
+  const [newTypeDescription, setNewTypeDescription] = useState('');
+  const [savingNewType, setSavingNewType] = useState(false);
+  const [newTypeError, setNewTypeError] = useState<string | null>(null);
+
   // Modal de Fotos
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [imageModalProduct, setImageModalProduct] = useState<Product | null>(null);
@@ -55,15 +64,17 @@ export const ProductsPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [prodsData, catsData, unitsData] = await Promise.all([
+      const [prodsData, catsData, unitsData, itemTypesData] = await Promise.all([
         api.listProducts({ active_only: false }),
         api.listCategories(),
         api.listUnits(),
+        api.listItemTypes(),
       ]);
 
       setProducts(prodsData);
       setCategories(catsData);
       setUnits(unitsData);
+      setItemTypes(itemTypesData);
 
       // Se não houver unidades no banco, sugerir as padrões
       if (unitsData.length > 0 && !formData.unit_id) {
@@ -110,6 +121,30 @@ export const ProductsPage: React.FC = () => {
       is_active: true,
     });
     setIsFormModalOpen(true);
+  };
+
+  const handleCreateItemType = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTypeName.trim()) return;
+    setSavingNewType(true);
+    setNewTypeError(null);
+    try {
+      const created = await api.createItemType(
+        newTypeName.trim(),
+        newTypeCode.trim() ? newTypeCode.trim().toUpperCase() : undefined,
+        newTypeDescription.trim() || undefined
+      );
+      setItemTypes((prev) => [...prev, created]);
+      setFormData((prev) => ({ ...prev, item_type: created.code }));
+      setIsNewTypeModalOpen(false);
+      setNewTypeName('');
+      setNewTypeCode('');
+      setNewTypeDescription('');
+    } catch (err: any) {
+      setNewTypeError(err.message || 'Erro ao cadastrar tipo de item.');
+    } finally {
+      setSavingNewType(false);
+    }
   };
 
   const handleOpenEditModal = (prod: Product) => {
@@ -289,10 +324,20 @@ export const ProductsPage: React.FC = () => {
             style={{ width: 'auto', minWidth: '180px' }}
           >
             <option value="TODOS">Todos os Tipos</option>
-            <option value="PRODUTO_ACABADO">Produtos Acabados</option>
-            <option value="MATERIA_PRIMA">Matérias-Primas</option>
-            <option value="EMBALAGEM">Embalagens</option>
-            <option value="MATERIAL_AUXILIAR">Materiais Auxiliares</option>
+            {itemTypes.length > 0 ? (
+              itemTypes.map((t) => (
+                <option key={t.code} value={t.code}>
+                  {t.name}
+                </option>
+              ))
+            ) : (
+              <>
+                <option value="PRODUTO_ACABADO">Produtos Acabados</option>
+                <option value="MATERIA_PRIMA">Matérias-Primas</option>
+                <option value="EMBALAGEM">Embalagens</option>
+                <option value="MATERIAL_AUXILIAR">Materiais Auxiliares</option>
+              </>
+            )}
           </select>
 
           {categories.length > 0 && (
@@ -539,16 +584,54 @@ export const ProductsPage: React.FC = () => {
               />
             </div>
             <div>
-              <label htmlFor="prod-type">Tipo de Item *</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label htmlFor="prod-type" style={{ margin: 0 }}>Tipo de Item *</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewTypeName('');
+                    setNewTypeCode('');
+                    setNewTypeDescription('');
+                    setNewTypeError(null);
+                    setIsNewTypeModalOpen(true);
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--brand-accent)',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '2px 6px',
+                    borderRadius: 'var(--radius-sm)',
+                  }}
+                  title="Cadastrar novo tipo de item"
+                >
+                  <Plus size={14} /> Novo Tipo
+                </button>
+              </div>
               <select
                 id="prod-type"
                 value={formData.item_type}
                 onChange={(e) => setFormData({ ...formData, item_type: e.target.value as ItemType })}
               >
-                <option value="PRODUTO_ACABADO">Produto Acabado</option>
-                <option value="MATERIA_PRIMA">Matéria-Prima</option>
-                <option value="EMBALAGEM">Embalagem</option>
-                <option value="MATERIAL_AUXILIAR">Material Auxiliar</option>
+                {itemTypes.length > 0 ? (
+                  itemTypes.map((t) => (
+                    <option key={t.code} value={t.code}>
+                      {t.name}
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="PRODUTO_ACABADO">Produto Acabado</option>
+                    <option value="MATERIA_PRIMA">Matéria-Prima</option>
+                    <option value="EMBALAGEM">Embalagem</option>
+                    <option value="MATERIAL_AUXILIAR">Material Auxiliar</option>
+                  </>
+                )}
               </select>
             </div>
           </div>
@@ -827,6 +910,84 @@ export const ProductsPage: React.FC = () => {
             </div>
           )}
         </div>
+      </Modal>
+
+      {/* Modal de Cadastro de Novo Tipo de Item */}
+      <Modal
+        isOpen={isNewTypeModalOpen}
+        onClose={() => setIsNewTypeModalOpen(false)}
+        title="Novo Tipo de Item"
+        subtitle="Adicione uma nova classificação para os itens do catálogo"
+        maxWidth="480px"
+      >
+        <form onSubmit={handleCreateItemType}>
+          {newTypeError && (
+            <div
+              style={{
+                padding: '10px 14px',
+                backgroundColor: 'var(--status-danger-bg)',
+                color: 'var(--status-danger-text)',
+                borderRadius: 'var(--radius-sm)',
+                marginBottom: '16px',
+                fontSize: '0.85rem',
+              }}
+            >
+              {newTypeError}
+            </div>
+          )}
+
+          <div style={{ marginBottom: '16px' }}>
+            <label htmlFor="new-type-name">Nome do Tipo *</label>
+            <input
+              id="new-type-name"
+              type="text"
+              required
+              placeholder="Ex.: Acessório, Brinde, Rótulo & Tag..."
+              value={newTypeName}
+              onChange={(e) => setNewTypeName(e.target.value)}
+              autoFocus
+            />
+          </div>
+
+          <div style={{ marginBottom: '16px' }}>
+            <label htmlFor="new-type-code">Código Identificador (Opcional)</label>
+            <input
+              id="new-type-code"
+              type="text"
+              placeholder="Ex.: ACESSORIO (gerado automaticamente se vazio)"
+              value={newTypeCode}
+              onChange={(e) => setNewTypeCode(e.target.value.toUpperCase())}
+            />
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', display: 'block', marginTop: '4px' }}>
+              Identificador único sem espaços. Se deixar em branco, geramos automaticamente.
+            </span>
+          </div>
+
+          <div style={{ marginBottom: '24px' }}>
+            <label htmlFor="new-type-desc">Descrição (Opcional)</label>
+            <textarea
+              id="new-type-desc"
+              rows={2}
+              placeholder="Finalidade ou detalhes deste tipo de item..."
+              value={newTypeDescription}
+              onChange={(e) => setNewTypeDescription(e.target.value)}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+            <button
+              type="button"
+              onClick={() => setIsNewTypeModalOpen(false)}
+              className="btn-secondary"
+              disabled={savingNewType}
+            >
+              Cancelar
+            </button>
+            <button type="submit" className="btn-primary" disabled={savingNewType}>
+              {savingNewType ? 'Salvando...' : 'Salvar Tipo de Item'}
+            </button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

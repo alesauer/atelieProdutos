@@ -2,7 +2,18 @@ export type ItemType =
   | 'PRODUTO_ACABADO'
   | 'MATERIA_PRIMA'
   | 'EMBALAGEM'
-  | 'MATERIAL_AUXILIAR';
+  | 'MATERIAL_AUXILIAR'
+  | (string & {});
+
+export interface ItemTypeDefinition {
+  id: number;
+  code: string;
+  name: string;
+  description?: string;
+  is_system: boolean;
+  is_active: boolean;
+  created_at?: string;
+}
 
 export type MovementType =
   | 'ENTRADA_INICIAL'

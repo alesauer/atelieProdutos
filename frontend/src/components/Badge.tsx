@@ -11,7 +11,7 @@ interface BadgeProps {
 
 export const Badge: React.FC<BadgeProps> = ({ type, status, variant, label, children }) => {
   if (type) {
-    const config: Record<ItemType, { label: string; bg: string; text: string; border: string }> = {
+    const config: Record<string, { label: string; bg: string; text: string; border: string }> = {
       PRODUTO_ACABADO: {
         label: 'Produto Acabado',
         bg: '#fbf3ea',
@@ -38,7 +38,12 @@ export const Badge: React.FC<BadgeProps> = ({ type, status, variant, label, chil
       },
     };
 
-    const c = config[type];
+    const c = config[type] || {
+      label: label || type.replace(/_/g, ' '),
+      bg: '#fbf5ee',
+      text: '#6d4c41',
+      border: '#e4d5c7',
+    };
     return (
       <span
         style={{

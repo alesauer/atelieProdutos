@@ -23,8 +23,8 @@ class Product(Base, TimestampMixin):
     sku: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(150), index=True, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    item_type: Mapped[ItemType] = mapped_column(
-        Enum(ItemType, native_enum=False, length=30),
+    item_type: Mapped[str] = mapped_column(
+        String(50),
         index=True,
         nullable=False,
     )

@@ -3,6 +3,7 @@ import type {
   Category,
   Customer,
   DashboardMetrics,
+  ItemTypeDefinition,
   MovementReportItem,
   NotificationLogItem,
   Product,
@@ -126,6 +127,18 @@ class ApiClient {
     return this.request<UnitOfMeasure>('/units', {
       method: 'POST',
       body: JSON.stringify({ code, name, allows_decimals }),
+    });
+  }
+
+  // --- Tipos de Itens ---
+  async listItemTypes(): Promise<ItemTypeDefinition[]> {
+    return this.request<ItemTypeDefinition[]>('/item-types');
+  }
+
+  async createItemType(name: string, code?: string, description?: string): Promise<ItemTypeDefinition> {
+    return this.request<ItemTypeDefinition>('/item-types', {
+      method: 'POST',
+      body: JSON.stringify({ name, code, description }),
     });
   }
 

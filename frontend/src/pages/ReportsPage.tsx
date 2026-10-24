@@ -12,6 +12,7 @@ import {
 import { api } from '../api/client';
 import type {
   Category,
+  ItemTypeDefinition,
   StockReportItem,
   MovementReportItem,
   SalesReportResponse,
@@ -23,6 +24,7 @@ import { Badge } from '../components/Badge';
 export const ReportsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'stock' | 'movements' | 'sales' | 'production' | 'notifications'>('stock');
   const [categories, setCategories] = useState<Category[]>([]);
+  const [itemTypes, setItemTypes] = useState<ItemTypeDefinition[]>([]);
   const [isExporting, setIsExporting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,9 +53,10 @@ export const ReportsPage: React.FC = () => {
   // Notificações
   const [notificationLogs, setNotificationLogs] = useState<NotificationLogItem[]>([]);
 
-  // Carrega Categorias
+  // Carrega Categorias e Tipos de Itens
   useEffect(() => {
     api.listCategories().then(setCategories).catch(() => {});
+    api.listItemTypes().then(setItemTypes).catch(() => {});
   }, []);
 
   // Executa Busca conforme a aba ativa
@@ -336,10 +339,20 @@ export const ReportsPage: React.FC = () => {
                   style={{ width: '180px' }}
                 >
                   <option value="">Todos os tipos</option>
-                  <option value="PRODUTO_ACABADO">Produto Acabado</option>
-                  <option value="MATERIA_PRIMA">Matéria-Prima</option>
-                  <option value="EMBALAGEM">Embalagem</option>
-                  <option value="MATERIAL_AUXILIAR">Material Auxiliar</option>
+                  {itemTypes.length > 0 ? (
+                    itemTypes.map((t) => (
+                      <option key={t.code} value={t.code}>
+                        {t.name}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="PRODUTO_ACABADO">Produto Acabado</option>
+                      <option value="MATERIA_PRIMA">Matéria-Prima</option>
+                      <option value="EMBALAGEM">Embalagem</option>
+                      <option value="MATERIAL_AUXILIAR">Material Auxiliar</option>
+                    </>
+                  )}
                 </select>
               </div>
 

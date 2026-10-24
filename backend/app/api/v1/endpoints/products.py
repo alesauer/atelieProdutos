@@ -42,7 +42,7 @@ def _enrich_product_response(product: Product) -> ProductResponse:
 
 @router.get("", response_model=List[ProductResponse])
 def list_products(
-    item_type: Optional[ItemType] = None,
+    item_type: Optional[str] = None,
     category_id: Optional[int] = None,
     search: Optional[str] = None,
     active_only: bool = True,

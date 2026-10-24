@@ -27,7 +27,7 @@ class ProductBase(BaseModel):
     sku: str = Field(..., min_length=2, max_length=50)
     name: str = Field(..., min_length=2, max_length=150)
     description: Optional[str] = None
-    item_type: ItemType
+    item_type: str = Field(..., min_length=2, max_length=50)
     category_id: Optional[int] = None
     unit_id: int
     unit_cost: Decimal = Field(default=Decimal("0.0000"), ge=0)
@@ -44,7 +44,7 @@ class ProductUpdate(BaseModel):
     sku: Optional[str] = Field(None, min_length=2, max_length=50)
     name: Optional[str] = Field(None, min_length=2, max_length=150)
     description: Optional[str] = None
-    item_type: Optional[ItemType] = None
+    item_type: Optional[str] = Field(None, min_length=2, max_length=50)
     category_id: Optional[int] = None
     unit_id: Optional[int] = None
     unit_cost: Optional[Decimal] = Field(None, ge=0)

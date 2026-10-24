@@ -114,7 +114,7 @@ class ProductService:
     @staticmethod
     def list_products(
         db: Session,
-        item_type: Optional[ItemType] = None,
+        item_type: Optional[str] = None,
         category_id: Optional[int] = None,
         search: Optional[str] = None,
         active_only: bool = True,

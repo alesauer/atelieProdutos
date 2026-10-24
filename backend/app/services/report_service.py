@@ -60,7 +60,7 @@ class ReportService:
                 "sku": prod.sku,
                 "name": prod.name,
                 "category": prod.category.name if prod.category else "Sem Categoria",
-                "item_type": prod.item_type.value,
+                "item_type": getattr(prod.item_type, "value", str(prod.item_type)),
                 "unit": prod.unit.code if prod.unit else "un",
                 "current_stock": float(balance),
                 "min_stock": float(min_stk),
