@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -8,12 +9,15 @@ from app.core.database import engine
 from app.models import Base
 from app.api.v1.api_router import api_router
 
-# Inicializa schema se as tabelas ainda não existirem
-try:
-    Base.metadata.create_all(bind=engine)
-except Exception as e:
-    # Em ambientes onde o banco ainda está inicializando (ex.: docker db healthcheck), não interrompe a importação
-    pass
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"[!] Aviso durante criacao das tabelas no startup: {e}")
+    yield
+
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -21,6 +25,7 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
     docs_url=f"{settings.API_V1_PREFIX}/docs",
     redoc_url=f"{settings.API_V1_PREFIX}/redoc",
+    lifespan=lifespan,
 )
 
 # Configuração de CORS flexível e segura (suporta localhost, IP do VPS e domínios)
