@@ -54,6 +54,13 @@ export const ProductsPage: React.FC = () => {
   const [savingNewType, setSavingNewType] = useState(false);
   const [newTypeError, setNewTypeError] = useState<string | null>(null);
 
+  // Modal Nova Categoria
+  const [isNewCategoryModalOpen, setIsNewCategoryModalOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryDescription, setNewCategoryDescription] = useState('');
+  const [savingNewCategory, setSavingNewCategory] = useState(false);
+  const [newCategoryError, setNewCategoryError] = useState<string | null>(null);
+
   // Modal de Fotos
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [imageModalProduct, setImageModalProduct] = useState<Product | null>(null);
@@ -144,6 +151,28 @@ export const ProductsPage: React.FC = () => {
       setNewTypeError(err.message || 'Erro ao cadastrar tipo de item.');
     } finally {
       setSavingNewType(false);
+    }
+  };
+
+  const handleCreateCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCategoryName.trim()) return;
+    setSavingNewCategory(true);
+    setNewCategoryError(null);
+    try {
+      const created = await api.createCategory(
+        newCategoryName.trim(),
+        newCategoryDescription.trim() || undefined
+      );
+      setCategories((prev) => [...prev, created]);
+      setFormData((prev) => ({ ...prev, category_id: created.id }));
+      setIsNewCategoryModalOpen(false);
+      setNewCategoryName('');
+      setNewCategoryDescription('');
+    } catch (err: any) {
+      setNewCategoryError(err.message || 'Erro ao cadastrar categoria.');
+    } finally {
+      setSavingNewCategory(false);
     }
   };
 
@@ -356,10 +385,28 @@ export const ProductsPage: React.FC = () => {
           )}
         </div>
 
-        <button onClick={handleOpenCreateModal} className="btn-primary">
-          <Plus size={18} />
-          <span>Novo Item</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
+            type="button"
+            onClick={() => {
+              setNewCategoryName('');
+              setNewCategoryDescription('');
+              setNewCategoryError(null);
+              setIsNewCategoryModalOpen(true);
+            }}
+            className="btn-secondary"
+            title="Cadastrar nova categoria de produtos"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Plus size={16} />
+            <span>Nova Categoria</span>
+          </button>
+
+          <button onClick={handleOpenCreateModal} className="btn-primary">
+            <Plus size={18} />
+            <span>Novo Item</span>
+          </button>
+        </div>
       </div>
 
       {/* Conteúdo Principal: Tabela / Cartões Responsivos */}
@@ -650,7 +697,34 @@ export const ProductsPage: React.FC = () => {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
             <div>
-              <label htmlFor="prod-cat">Categoria</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label htmlFor="prod-cat" style={{ margin: 0 }}>Categoria</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewCategoryName('');
+                    setNewCategoryDescription('');
+                    setNewCategoryError(null);
+                    setIsNewCategoryModalOpen(true);
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--brand-accent)',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '2px 6px',
+                    borderRadius: 'var(--radius-sm)',
+                  }}
+                  title="Cadastrar nova categoria"
+                >
+                  <Plus size={14} /> Nova Categoria
+                </button>
+              </div>
               <select
                 id="prod-cat"
                 value={formData.category_id || ''}
@@ -985,6 +1059,70 @@ export const ProductsPage: React.FC = () => {
             </button>
             <button type="submit" className="btn-primary" disabled={savingNewType}>
               {savingNewType ? 'Salvando...' : 'Salvar Tipo de Item'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal de Cadastro de Nova Categoria */}
+      <Modal
+        isOpen={isNewCategoryModalOpen}
+        onClose={() => setIsNewCategoryModalOpen(false)}
+        title="Nova Categoria"
+        subtitle="Organize seus produtos por coleções, kits ou especificações"
+        maxWidth="480px"
+      >
+        <form onSubmit={handleCreateCategory}>
+          {newCategoryError && (
+            <div
+              style={{
+                padding: '10px 14px',
+                backgroundColor: 'var(--status-danger-bg)',
+                color: 'var(--status-danger-text)',
+                borderRadius: 'var(--radius-sm)',
+                marginBottom: '16px',
+                fontSize: '0.85rem',
+              }}
+            >
+              {newCategoryError}
+            </div>
+          )}
+
+          <div style={{ marginBottom: '16px' }}>
+            <label htmlFor="new-cat-name">Nome da Categoria *</label>
+            <input
+              id="new-cat-name"
+              type="text"
+              required
+              placeholder="Ex.: Kit, Peças Individuais, Peças Únicas..."
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              autoFocus
+            />
+          </div>
+
+          <div style={{ marginBottom: '24px' }}>
+            <label htmlFor="new-cat-desc">Descrição (Opcional)</label>
+            <textarea
+              id="new-cat-desc"
+              rows={2}
+              placeholder="Ex.: Linha exclusiva para presentes e edições limitadas..."
+              value={newCategoryDescription}
+              onChange={(e) => setNewCategoryDescription(e.target.value)}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+            <button
+              type="button"
+              onClick={() => setIsNewCategoryModalOpen(false)}
+              className="btn-secondary"
+              disabled={savingNewCategory}
+            >
+              Cancelar
+            </button>
+            <button type="submit" className="btn-primary" disabled={savingNewCategory}>
+              {savingNewCategory ? 'Salvando...' : 'Salvar Categoria'}
             </button>
           </div>
         </form>

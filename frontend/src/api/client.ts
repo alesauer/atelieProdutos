@@ -119,6 +119,12 @@ class ApiClient {
     });
   }
 
+  async deleteCategory(categoryId: number): Promise<void> {
+    return this.request<void>(`/categories/${categoryId}`, {
+      method: 'DELETE',
+    });
+  }
+
   async listUnits(): Promise<UnitOfMeasure[]> {
     return this.request<UnitOfMeasure[]>('/units');
   }

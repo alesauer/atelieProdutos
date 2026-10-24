@@ -45,3 +45,14 @@ def update_category(
             detail="Categoria não encontrada.",
         )
     return product_service.update_category(db, category, category_in)
+
+
+@router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_category(
+    category_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Remove uma categoria cadastrada."""
+    product_service.delete_category(db, category_id)
+    return None

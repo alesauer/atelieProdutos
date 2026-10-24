@@ -17,6 +17,19 @@ def test_create_category(client: TestClient, admin_token: str):
     assert data["id"] is not None
 
 
+def test_list_categories_seeds_initial_categories(client: TestClient, admin_token: str):
+    response = client.get(
+        "/api/v1/categories",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    names = [c["name"] for c in data]
+    assert "Kit" in names
+    assert "Peças Individuais" in names
+    assert "Peças Únicas" in names
+
+
 def test_create_unit(client: TestClient, admin_token: str):
     response = client.post(
         "/api/v1/units",

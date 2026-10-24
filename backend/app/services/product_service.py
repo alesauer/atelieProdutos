@@ -13,8 +13,40 @@ from app.schemas.product import ProductCreate, ProductUpdate, ImageReorderItem
 from app.services.storage_service import storage_service
 
 
+DEFAULT_INITIAL_CATEGORIES = [
+    {
+        "name": "Kit",
+        "description": "Kits e conjuntos temáticos de produtos",
+    },
+    {
+        "name": "Peças Individuais",
+        "description": "Produtos artesanais vendidos separadamente",
+    },
+    {
+        "name": "Peças Únicas",
+        "description": "Peças exclusivas, edições limitadas e designs autorais únicos",
+    },
+]
+
+
 class ProductService:
     # --- Categorias ---
+    @staticmethod
+    def seed_initial_categories(db: Session) -> None:
+        """Garante a existência das categorias iniciais solicitadas se não existirem."""
+        count = db.execute(select(func.count(Category.id))).scalar() or 0
+        if count == 0:
+            for item in DEFAULT_INITIAL_CATEGORIES:
+                existing = ProductService.get_category_by_name(db, item["name"])
+                if not existing:
+                    new_cat = Category(
+                        name=item["name"],
+                        description=item["description"],
+                        is_active=True,
+                    )
+                    db.add(new_cat)
+            db.commit()
+
     @staticmethod
     def get_category_by_id(db: Session, category_id: int) -> Optional[Category]:
         return db.get(Category, category_id)
@@ -26,6 +58,7 @@ class ProductService:
 
     @staticmethod
     def list_categories(db: Session, active_only: bool = False) -> List[Category]:
+        ProductService.seed_initial_categories(db)
         stmt = select(Category)
         if active_only:
             stmt = stmt.where(Category.is_active.is_(True))
@@ -67,6 +100,17 @@ class ProductService:
         db.commit()
         db.refresh(category)
         return category
+
+    @staticmethod
+    def delete_category(db: Session, category_id: int) -> None:
+        category = ProductService.get_category_by_id(db, category_id)
+        if not category:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Categoria não encontrada.",
+            )
+        db.delete(category)
+        db.commit()
 
     # --- Unidades de Medida ---
     @staticmethod
