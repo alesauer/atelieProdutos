@@ -45,6 +45,7 @@ services:
       EMAIL_DRIVER: ${EMAIL_DRIVER:-log}
       EMAIL_FROM: ${EMAIL_FROM:-estoque@casaluma.com.br}
       EMAIL_API_KEY: ${EMAIL_API_KEY:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
     volumes:
       - media_data:/app/media
     networks:

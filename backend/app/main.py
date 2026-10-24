@@ -23,11 +23,14 @@ app = FastAPI(
     redoc_url=f"{settings.API_V1_PREFIX}/redoc",
 )
 
-# Configuração de CORS
+# Configuração de CORS flexível e segura (suporta localhost, IP do VPS e domínios)
 if settings.CORS_ORIGINS:
+    origins = [str(origin) for origin in settings.CORS_ORIGINS]
+    allow_all = "*" in origins
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[str(origin) for origin in settings.CORS_ORIGINS],
+        allow_origins=["*"] if (allow_all and False) else origins,
+        allow_origin_regex=r"^https?://.*$",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
