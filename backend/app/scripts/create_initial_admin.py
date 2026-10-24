@@ -5,13 +5,15 @@ Uso:
 """
 import argparse
 import sys
-from app.core.database import SessionLocal
+from app.core.database import engine, SessionLocal
+from app.models import Base
 from app.models.user import User
 from app.schemas.user import UserCreate
 from app.services.user_service import user_service
 
 
 def create_initial_admin(email: str, password: str, name: str):
+    Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
         existing = user_service.get_by_email(db, email)
