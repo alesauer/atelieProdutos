@@ -74,6 +74,14 @@ export interface ProductImage {
   url?: string;
 }
 
+export interface CostComponentItem {
+  id: string;
+  name: string;
+  quantity: number;
+  unit_cost: number;
+  total: number;
+}
+
 export interface Product {
   id: number;
   sku: string;
@@ -83,6 +91,7 @@ export interface Product {
   category_id?: number | null;
   unit_id: number;
   unit_cost: string | number;
+  cost_breakdown?: string | null;
   sale_price?: string | number | null;
   min_stock: string | number;
   is_active: boolean;
@@ -103,6 +112,7 @@ export interface ProductFormData {
   category_id?: number | null;
   unit_id: number;
   unit_cost: number | string;
+  cost_breakdown?: string | null;
   sale_price?: number | string | null;
   min_stock: number | string;
   is_active: boolean;

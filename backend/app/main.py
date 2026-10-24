@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
+from sqlalchemy import text
 from app.core.database import engine
 from app.models import Base
 from app.api.v1.api_router import api_router
@@ -14,6 +15,12 @@ from app.api.v1.api_router import api_router
 async def lifespan(app: FastAPI):
     try:
         Base.metadata.create_all(bind=engine)
+        with engine.connect() as conn:
+            try:
+                conn.execute(text("ALTER TABLE products ADD COLUMN cost_breakdown TEXT NULL;"))
+                conn.commit()
+            except Exception:
+                pass
     except Exception as e:
         print(f"[!] Aviso durante criacao das tabelas no startup: {e}")
     yield

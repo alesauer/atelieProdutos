@@ -10,11 +10,12 @@ import {
   AlertCircle,
   Loader2,
   Package,
+  Calculator,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
-import type { Category, ItemType, ItemTypeDefinition, Product, ProductFormData, UnitOfMeasure } from '../types';
+import type { Category, CostComponentItem, ItemType, ItemTypeDefinition, Product, ProductFormData, UnitOfMeasure } from '../types';
 
 
 export const ProductsPage: React.FC = () => {
@@ -41,10 +42,18 @@ export const ProductsPage: React.FC = () => {
     category_id: null,
     unit_id: 1,
     unit_cost: '0.0000',
+    cost_breakdown: '',
     sale_price: '0.00',
     min_stock: '5.000',
     is_active: true,
   });
+
+  // Calculadora de Composição de Custo Manual
+  const [isCostCalculatorOpen, setIsCostCalculatorOpen] = useState(false);
+  const [costItems, setCostItems] = useState<CostComponentItem[]>([]);
+  const [newCostItemName, setNewCostItemName] = useState('');
+  const [newCostItemQuantity, setNewCostItemQuantity] = useState('1');
+  const [newCostItemUnitCost, setNewCostItemUnitCost] = useState('');
 
   // Modal Novo Tipo de Item
   const [isNewTypeModalOpen, setIsNewTypeModalOpen] = useState(false);
@@ -122,6 +131,7 @@ export const ProductsPage: React.FC = () => {
 
   // Abertura do formulário de criação/edição
   const handleOpenCreateModal = () => {
+    setCostItems([]);
     setEditingProduct(null);
     setFormData({
       sku: '',
@@ -131,11 +141,89 @@ export const ProductsPage: React.FC = () => {
       category_id: categories.length > 0 ? categories[0].id : null,
       unit_id: units.length > 0 ? units[0].id : 1,
       unit_cost: '0.0000',
+      cost_breakdown: '',
       sale_price: '0.00',
       min_stock: '5.000',
       is_active: true,
     });
     setIsFormModalOpen(true);
+  };
+
+  const handleOpenEditModal = (prod: Product) => {
+    let parsedCostItems: CostComponentItem[] = [];
+    if (prod.cost_breakdown) {
+      try {
+        parsedCostItems = JSON.parse(prod.cost_breakdown);
+      } catch {}
+    }
+    setCostItems(parsedCostItems);
+    setEditingProduct(prod);
+    setFormData({
+      sku: prod.sku,
+      name: prod.name,
+      description: prod.description || '',
+      item_type: prod.item_type,
+      category_id: prod.category_id || null,
+      unit_id: prod.unit_id,
+      unit_cost: prod.unit_cost,
+      cost_breakdown: prod.cost_breakdown || '',
+      sale_price: prod.sale_price || '',
+      min_stock: prod.min_stock,
+      is_active: prod.is_active,
+    });
+    setIsFormModalOpen(true);
+  };
+
+  // Gestão de Itens de Custo Individual
+  const handleAddCostItem = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newCostItemName.trim()) return;
+    const qty = parseFloat(newCostItemQuantity.replace(',', '.')) || 1;
+    const unitPrice = parseFloat(newCostItemUnitCost.replace(',', '.')) || 0;
+    const total = qty * unitPrice;
+
+    const newItem: CostComponentItem = {
+      id: Date.now().toString(),
+      name: newCostItemName.trim(),
+      quantity: qty,
+      unit_cost: unitPrice,
+      total: total,
+    };
+
+    const updated = [...costItems, newItem];
+    setCostItems(updated);
+    setNewCostItemName('');
+    setNewCostItemQuantity('1');
+    setNewCostItemUnitCost('');
+
+    // Atualiza automaticamente o custo manual com a soma de todos os itens
+    const totalSum = updated.reduce((acc, item) => acc + item.total, 0);
+    setFormData((prev) => ({
+      ...prev,
+      unit_cost: totalSum.toFixed(4),
+      cost_breakdown: JSON.stringify(updated),
+    }));
+  };
+
+  const handleRemoveCostItem = (id: string) => {
+    const updated = costItems.filter((item) => item.id !== id);
+    setCostItems(updated);
+    const totalSum = updated.reduce((acc, item) => acc + item.total, 0);
+    setFormData((prev) => ({
+      ...prev,
+      unit_cost: totalSum.toFixed(4),
+      cost_breakdown: JSON.stringify(updated),
+    }));
+  };
+
+  const handleApplyCalculatedCost = () => {
+    const totalSum = costItems.reduce((acc, item) => acc + item.total, 0);
+    setFormData((prev) => ({
+      ...prev,
+      unit_cost: totalSum.toFixed(4),
+      cost_breakdown: JSON.stringify(costItems),
+    }));
+    setIsCostCalculatorOpen(false);
   };
 
   const handleCreateItemType = async (e: React.FormEvent) => {
@@ -206,23 +294,6 @@ export const ProductsPage: React.FC = () => {
     } finally {
       setSavingNewUnit(false);
     }
-  };
-
-  const handleOpenEditModal = (prod: Product) => {
-    setEditingProduct(prod);
-    setFormData({
-      sku: prod.sku,
-      name: prod.name,
-      description: prod.description || '',
-      item_type: prod.item_type,
-      category_id: prod.category_id || null,
-      unit_id: prod.unit_id,
-      unit_cost: prod.unit_cost,
-      sale_price: prod.sale_price || '',
-      min_stock: prod.min_stock,
-      is_active: prod.is_active,
-    });
-    setIsFormModalOpen(true);
   };
 
   const handleSaveProduct = async (e: React.FormEvent) => {
@@ -821,7 +892,29 @@ export const ProductsPage: React.FC = () => {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
             <div>
-              <label htmlFor="prod-cost">Custo Manual (R$)</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label htmlFor="prod-cost" style={{ margin: 0 }}>Custo Manual (R$)</label>
+                <button
+                  type="button"
+                  onClick={() => setIsCostCalculatorOpen(true)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--brand-accent)',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '2px 4px',
+                    borderRadius: 'var(--radius-sm)',
+                  }}
+                  title="Calcular e somar custos de insumos individuais"
+                >
+                  <Calculator size={14} /> Somar Itens
+                </button>
+              </div>
               <input
                 id="prod-cost"
                 type="number"
@@ -830,6 +923,25 @@ export const ProductsPage: React.FC = () => {
                 value={formData.unit_cost}
                 onChange={(e) => setFormData({ ...formData, unit_cost: e.target.value })}
               />
+              {costItems.length > 0 && (
+                <div style={{ marginTop: '4px' }}>
+                  <span
+                    onClick={() => setIsCostCalculatorOpen(true)}
+                    style={{
+                      fontSize: '0.73rem',
+                      color: 'var(--brand-accent)',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                    title="Clique para ver ou editar a composição de custos"
+                  >
+                    Σ {costItems.length} {costItems.length === 1 ? 'item somado' : 'itens somados'} (editar)
+                  </span>
+                </div>
+              )}
             </div>
             <div>
               <label htmlFor="prod-price">Preço Venda (R$)</label>
@@ -1264,6 +1376,251 @@ export const ProductsPage: React.FC = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal de Composição e Soma de Custos Individuais */}
+      <Modal
+        isOpen={isCostCalculatorOpen}
+        onClose={() => setIsCostCalculatorOpen(false)}
+        title="Composição de Custo Manual"
+        subtitle={`Calcule o custo total somando cada insumo e etapa de '${formData.name || 'Novo Item'}'`}
+        maxWidth="620px"
+      >
+        <div>
+          {/* Formulário de Adição de Item de Custo */}
+          <div
+            style={{
+              padding: '16px',
+              backgroundColor: 'var(--bg-sand-light)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-medium)',
+              marginBottom: '20px',
+            }}
+          >
+            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--brand-primary)', display: 'block', marginBottom: '10px' }}>
+              + Adicionar Componente ou Insumo
+            </span>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: '10px', alignItems: 'flex-end' }}>
+              <div>
+                <label htmlFor="cost-item-name" style={{ fontSize: '0.75rem', marginBottom: '4px' }}>
+                  Insumo / Descrição *
+                </label>
+                <input
+                  id="cost-item-name"
+                  type="text"
+                  list="suggested-insumos"
+                  placeholder="Ex.: Cera de Soja, Pavio, Pote..."
+                  value={newCostItemName}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setNewCostItemName(val);
+                    const found = products.find((p) => p.name.toLowerCase() === val.toLowerCase());
+                    if (found && found.unit_cost && !newCostItemUnitCost) {
+                      setNewCostItemUnitCost(found.unit_cost.toString());
+                    }
+                  }}
+                  autoFocus
+                />
+                <datalist id="suggested-insumos">
+                  {products
+                    .filter((p) => p.item_type !== 'PRODUTO_ACABADO')
+                    .map((p) => (
+                      <option key={p.id} value={p.name}>
+                        {p.name} (R$ {Number(p.unit_cost).toFixed(2)})
+                      </option>
+                    ))}
+                </datalist>
+              </div>
+
+              <div>
+                <label htmlFor="cost-item-qty" style={{ fontSize: '0.75rem', marginBottom: '4px' }}>
+                  Qtd
+                </label>
+                <input
+                  id="cost-item-qty"
+                  type="text"
+                  placeholder="1"
+                  value={newCostItemQuantity}
+                  onChange={(e) => setNewCostItemQuantity(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="cost-item-cost" style={{ fontSize: '0.75rem', marginBottom: '4px' }}>
+                  Custo (R$) *
+                </label>
+                <input
+                  id="cost-item-cost"
+                  type="text"
+                  placeholder="0.00"
+                  value={newCostItemUnitCost}
+                  onChange={(e) => setNewCostItemUnitCost(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddCostItem();
+                    }
+                  }}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAddCostItem}
+                className="btn-primary"
+                style={{ height: '38px', padding: '0 14px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                title="Adicionar à soma de custos"
+              >
+                <Plus size={16} />
+                <span>Adicionar</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Lista de Itens Cadastrados */}
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Itens Somados ({costItems.length})
+              </span>
+              {costItems.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCostItems([]);
+                    setFormData((prev) => ({ ...prev, unit_cost: '0.0000', cost_breakdown: '' }));
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--status-danger-text)',
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Limpar todos
+                </button>
+              )}
+            </div>
+
+            {costItems.length === 0 ? (
+              <div
+                style={{
+                  padding: '24px',
+                  textAlign: 'center',
+                  backgroundColor: 'var(--bg-white)',
+                  border: '1px dashed var(--border-medium)',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--text-tertiary)',
+                  fontSize: '0.85rem',
+                }}
+              >
+                <Calculator size={28} color="var(--brand-accent)" style={{ margin: '0 auto 8px', opacity: 0.6 }} />
+                <p style={{ margin: 0, fontWeight: 500 }}>Nenhum insumo adicionado ainda.</p>
+                <span style={{ fontSize: '0.78rem' }}>
+                  Preencha o insumo, quantidade e valor acima para calcular o custo manual total.
+                </span>
+              </div>
+            ) : (
+              <div
+                style={{
+                  maxHeight: '220px',
+                  overflowY: 'auto',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--bg-white)',
+                }}
+              >
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: 'var(--bg-sand-light)', borderBottom: '1px solid var(--border-subtle)', textAlign: 'left' }}>
+                      <th style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-secondary)' }}>Item</th>
+                      <th style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center' }}>Qtd</th>
+                      <th style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'right' }}>Unit. (R$)</th>
+                      <th style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'right' }}>Total (R$)</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'center', width: '40px' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {costItems.map((item) => (
+                      <tr key={item.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 500, color: 'var(--text-primary)' }}>{item.name}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'center', color: 'var(--text-secondary)' }}>{item.quantity}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--text-secondary)' }}>
+                          R$ {item.unit_cost.toFixed(2)}
+                        </td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: 'var(--brand-primary)' }}>
+                          R$ {item.total.toFixed(2)}
+                        </td>
+                        <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCostItem(item.id)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--status-danger-text)',
+                              cursor: 'pointer',
+                              padding: '2px',
+                            }}
+                            title="Remover este item do custo"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Card Resumo do Custo Total Somado */}
+          <div
+            style={{
+              padding: '16px 20px',
+              backgroundColor: '#fbf3ea',
+              border: '1px solid #ecd6c5',
+              borderRadius: 'var(--radius-md)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '20px',
+            }}
+          >
+            <div>
+              <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--brand-accent)', textTransform: 'uppercase' }}>
+                Custo Manual Total Calculado
+              </span>
+              <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                Soma de todos os {costItems.length} componentes individuais
+              </p>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <span style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--brand-primary)' }}>
+                R$ {costItems.reduce((acc, item) => acc + item.total, 0).toFixed(2)}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+            <button
+              type="button"
+              onClick={() => setIsCostCalculatorOpen(false)}
+              className="btn-secondary"
+            >
+              Fechar
+            </button>
+            <button
+              type="button"
+              onClick={handleApplyCalculatedCost}
+              className="btn-primary"
+            >
+              Aplicar Custo ao Produto
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

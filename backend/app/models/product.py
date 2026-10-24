@@ -37,6 +37,7 @@ class Product(Base, TimestampMixin):
     unit_cost: Mapped[Decimal] = mapped_column(
         Numeric(10, 4), default=Decimal("0.0000"), nullable=False
     )
+    cost_breakdown: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     sale_price: Mapped[Optional[Decimal]] = mapped_column(
         Numeric(10, 2), nullable=True
     )

@@ -110,3 +110,44 @@ def test_toggle_product_status(client: TestClient, admin_token: str, sample_prod
     )
     assert response.status_code == 200
     assert response.json()["is_active"] is False
+
+
+def test_create_and_update_product_cost_breakdown(
+    client: TestClient, admin_token: str, sample_category: Category, sample_unit: UnitOfMeasure
+):
+    breakdown_json = '[{"id":"1","name":"Cera de Coco","quantity":2,"unit_cost":12.5,"total":25.0}]'
+    # Create product with cost breakdown
+    response = client.post(
+        "/api/v1/products",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "sku": "VELA-COCO-200",
+            "name": "Vela Coco 200g",
+            "item_type": "PRODUTO_ACABADO",
+            "category_id": sample_category.id,
+            "unit_id": sample_unit.id,
+            "unit_cost": "25.0000",
+            "cost_breakdown": breakdown_json,
+            "min_stock": "5.000",
+        },
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["cost_breakdown"] == breakdown_json
+    product_id = data["id"]
+
+    # Update cost breakdown
+    updated_breakdown = '[{"id":"1","name":"Cera de Coco","quantity":3,"unit_cost":12.5,"total":37.5}]'
+    update_response = client.put(
+        f"/api/v1/products/{product_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "unit_cost": "37.5000",
+            "cost_breakdown": updated_breakdown,
+        },
+    )
+    assert update_response.status_code == 200
+    updated_data = update_response.json()
+    assert updated_data["cost_breakdown"] == updated_breakdown
+    assert float(updated_data["unit_cost"]) == 37.5
+
