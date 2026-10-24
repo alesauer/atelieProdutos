@@ -166,6 +166,41 @@ async def upload_product_image(
     return resp
 
 
+@router.post("/{product_id}/images/batch", response_model=List[ProductImageResponse], status_code=status.HTTP_201_CREATED)
+async def upload_product_images_batch(
+    product_id: int,
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """
+    Realiza upload em lote de múltiplas fotos para o produto com validação
+    individual de tipo MIME e limites.
+    """
+    product = product_service.get_product_by_id(db, product_id)
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item não encontrado.",
+        )
+
+    results = []
+    for file in files:
+        safe_filename, original_filename, file_size, mime_type = await storage_service.save_image(file)
+        image = product_service.add_product_image(
+            db,
+            product=product,
+            file_path=safe_filename,
+            original_filename=original_filename,
+            file_size=file_size,
+            mime_type=mime_type,
+        )
+        resp = ProductImageResponse.model_validate(image)
+        resp.url = f"{settings.API_V1_PREFIX}/media/{image.file_path}"
+        results.append(resp)
+    return results
+
+
 @router.get("/{product_id}/images", response_model=List[ProductImageResponse])
 def list_product_images(
     product_id: int,

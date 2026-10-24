@@ -11,12 +11,22 @@ import {
   Loader2,
   Package,
   Calculator,
+  LayoutGrid,
+  List,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import type { Category, CostComponentItem, ItemType, ItemTypeDefinition, Product, ProductFormData, UnitOfMeasure } from '../types';
 
+interface PendingImage {
+  id: string;
+  file: File;
+  previewUrl: string;
+  isPrimary: boolean;
+}
 
 export const ProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -84,6 +94,18 @@ export const ProductsPage: React.FC = () => {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
 
+  // Modo de Exibição (Tabela detalhada ou Grade com fotos)
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+
+  // Fotos para Upload no Formulário de Produto (Novo ou Edição)
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const [savingProduct, setSavingProduct] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // Visualizador / Lightbox de Fotos da Grid
+  const [lightboxProduct, setLightboxProduct] = useState<Product | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
   const loadData = async () => {
     setLoading(true);
     setError(null);
@@ -131,6 +153,9 @@ export const ProductsPage: React.FC = () => {
 
   // Abertura do formulário de criação/edição
   const handleOpenCreateModal = () => {
+    pendingImages.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+    setPendingImages([]);
+    setFormError(null);
     setCostItems([]);
     setEditingProduct(null);
     setFormData({
@@ -150,6 +175,9 @@ export const ProductsPage: React.FC = () => {
   };
 
   const handleOpenEditModal = (prod: Product) => {
+    pendingImages.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+    setPendingImages([]);
+    setFormError(null);
     let parsedCostItems: CostComponentItem[] = [];
     if (prod.cost_breakdown) {
       try {
@@ -296,18 +324,142 @@ export const ProductsPage: React.FC = () => {
     }
   };
 
+  // Gestão de Fotos para Upload no Formulário
+  const handleSelectPendingImages = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setFormError(null);
+
+    const existingCount = (editingProduct?.images?.length || 0) + pendingImages.length;
+    const maxAllowed = 5;
+
+    const validFiles: PendingImage[] = [];
+    const errors: string[] = [];
+
+    Array.from(files).forEach((file, index) => {
+      if (existingCount + validFiles.length >= maxAllowed) {
+        errors.push(`Limite de ${maxAllowed} fotos atingido.`);
+        return;
+      }
+
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        errors.push(`"${file.name}": Formato inválido (use JPG, PNG ou WebP).`);
+        return;
+      }
+
+      if (file.size > 3 * 1024 * 1024) {
+        errors.push(`"${file.name}": Excede 3 MB.`);
+        return;
+      }
+
+      const previewUrl = URL.createObjectURL(file);
+      const isFirst = existingCount === 0 && validFiles.length === 0;
+
+      validFiles.push({
+        id: `${Date.now()}-${index}-${Math.random().toString(36).substring(2, 7)}`,
+        file,
+        previewUrl,
+        isPrimary: isFirst,
+      });
+    });
+
+    if (errors.length > 0) {
+      setFormError(errors.join(' '));
+    }
+
+    if (validFiles.length > 0) {
+      setPendingImages((prev) => [...prev, ...validFiles]);
+    }
+  };
+
+  const handleRemovePendingImage = (id: string) => {
+    setPendingImages((prev) => {
+      const itemToRemove = prev.find((p) => p.id === id);
+      if (itemToRemove) {
+        URL.revokeObjectURL(itemToRemove.previewUrl);
+      }
+      const remaining = prev.filter((p) => p.id !== id);
+      if (itemToRemove?.isPrimary && remaining.length > 0 && (!editingProduct || editingProduct.images.length === 0)) {
+        remaining[0].isPrimary = true;
+      }
+      return remaining;
+    });
+  };
+
+  const handleSetPendingPrimary = (id: string) => {
+    setPendingImages((prev) =>
+      prev.map((item) => ({
+        ...item,
+        isPrimary: item.id === id,
+      }))
+    );
+  };
+
+  const handleDeleteExistingImageInEdit = async (imageId: number) => {
+    if (!editingProduct) return;
+    if (!confirm('Deseja remover esta foto do produto?')) return;
+    try {
+      await api.deleteProductImage(editingProduct.id, imageId);
+      const updated = await api.getProduct(editingProduct.id);
+      setEditingProduct(updated);
+      await loadData();
+    } catch (err: any) {
+      setFormError(err.message || 'Erro ao remover foto.');
+    }
+  };
+
+  const handleSetExistingPrimaryInEdit = async (imageId: number) => {
+    if (!editingProduct) return;
+    try {
+      await api.setPrimaryImage(editingProduct.id, imageId);
+      const updated = await api.getProduct(editingProduct.id);
+      setEditingProduct(updated);
+      await loadData();
+    } catch (err: any) {
+      setFormError(err.message || 'Erro ao definir foto principal.');
+    }
+  };
+
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSavingProduct(true);
+    setFormError(null);
+
     try {
+      let savedProduct: Product;
       if (editingProduct) {
-        await api.updateProduct(editingProduct.id, formData);
+        savedProduct = await api.updateProduct(editingProduct.id, formData);
       } else {
-        await api.createProduct(formData);
+        savedProduct = await api.createProduct(formData);
       }
+
+      // Se há fotos selecionadas para upload
+      if (pendingImages.length > 0) {
+        const filesToUpload = pendingImages.map((p) => p.file);
+        try {
+          const uploadedImages = await api.uploadProductImagesBatch(savedProduct.id, filesToUpload);
+          const primaryIndex = pendingImages.findIndex((p) => p.isPrimary);
+          if (primaryIndex > 0 && uploadedImages[primaryIndex]) {
+            await api.setPrimaryImage(savedProduct.id, uploadedImages[primaryIndex].id);
+          }
+        } catch (batchErr) {
+          // Fallback individual
+          for (let i = 0; i < pendingImages.length; i++) {
+            const uploaded = await api.uploadProductImage(savedProduct.id, pendingImages[i].file);
+            if (pendingImages[i].isPrimary && i > 0) {
+              await api.setPrimaryImage(savedProduct.id, uploaded.id);
+            }
+          }
+        }
+      }
+
+      pendingImages.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+      setPendingImages([]);
       setIsFormModalOpen(false);
       await loadData();
     } catch (err: any) {
-      alert(err.message || 'Erro ao salvar produto.');
+      setFormError(err.message || 'Erro ao salvar produto.');
+    } finally {
+      setSavingProduct(false);
     }
   };
 
@@ -489,6 +641,65 @@ export const ProductsPage: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {/* Seletor de Modo de Exibição: Tabela ou Grade */}
+          <div
+            style={{
+              display: 'inline-flex',
+              backgroundColor: 'var(--bg-sand-light)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '3px',
+              border: '1px solid var(--border-subtle)',
+              marginRight: '4px',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '6px 11px',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                borderRadius: 'var(--radius-xs)',
+                border: 'none',
+                backgroundColor: viewMode === 'table' ? '#fff' : 'transparent',
+                color: viewMode === 'table' ? 'var(--brand-primary)' : 'var(--text-tertiary)',
+                boxShadow: viewMode === 'table' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              title="Visualizar em Tabela detalhada"
+            >
+              <List size={15} />
+              <span>Tabela</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '6px 11px',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                borderRadius: 'var(--radius-xs)',
+                border: 'none',
+                backgroundColor: viewMode === 'grid' ? '#fff' : 'transparent',
+                color: viewMode === 'grid' ? 'var(--brand-primary)' : 'var(--text-tertiary)',
+                boxShadow: viewMode === 'grid' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              title="Visualizar em Grade de Cards com Fotos"
+            >
+              <LayoutGrid size={15} />
+              <span>Grade</span>
+            </button>
+          </div>
+
           <button
             type="button"
             onClick={() => {
@@ -512,7 +723,7 @@ export const ProductsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Conteúdo Principal: Tabela / Cartões Responsivos */}
+      {/* Conteúdo Principal: Tabela ou Grade de Cards */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '60px 20px' }}>
           <Loader2 size={32} className="spin-animation" color="var(--brand-accent)" style={{ margin: '0 auto 12px' }} />
@@ -553,13 +764,351 @@ export const ProductsPage: React.FC = () => {
             <span>Cadastrar Primeiro Item</span>
           </button>
         </div>
+      ) : viewMode === 'grid' ? (
+        /* Visualização em Grade de Cards (Vitrine com Fotos em Destaque) */
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))',
+            gap: '20px',
+          }}
+        >
+          {filteredProducts.map((prod) => {
+            const hasImage = !!prod.primary_image_url;
+            return (
+              <div
+                key={prod.id}
+                className="card"
+                style={{
+                  padding: 0,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                  border: '1px solid var(--border-subtle)',
+                }}
+              >
+                {/* Imagem de Capa do Produto */}
+                <div
+                  style={{
+                    position: 'relative',
+                    height: '210px',
+                    backgroundColor: 'var(--bg-sand-light)',
+                    cursor: hasImage ? 'pointer' : 'default',
+                    overflow: 'hidden',
+                  }}
+                  onClick={() => {
+                    if (hasImage) {
+                      setLightboxProduct(prod);
+                      setLightboxIndex(0);
+                    }
+                  }}
+                >
+                  {hasImage ? (
+                    <img
+                      src={prod.primary_image_url!}
+                      alt={prod.name}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        display: 'block',
+                        transition: 'transform 0.3s ease',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.04)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1.0)')}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        color: 'var(--text-tertiary)',
+                      }}
+                    >
+                      <ImageIcon size={38} opacity={0.5} />
+                      <span style={{ fontSize: '0.8rem' }}>Sem foto cadastrada</span>
+                    </div>
+                  )}
+
+                  {/* Badges superiores na foto */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '10px',
+                      left: '10px',
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '6px',
+                      zIndex: 2,
+                    }}
+                  >
+                    <Badge type={prod.item_type} />
+                    {prod.category && (
+                      <span
+                        style={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.94)',
+                          color: 'var(--brand-primary)',
+                          fontSize: '0.72rem',
+                          fontWeight: 600,
+                          padding: '3px 8px',
+                          borderRadius: 'var(--radius-xs)',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+                        }}
+                      >
+                        {prod.category.name}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Badge inferior com contador de fotos */}
+                  {prod.images.length > 0 && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        bottom: '10px',
+                        right: '10px',
+                        backgroundColor: 'rgba(0, 0, 0, 0.72)',
+                        color: '#fff',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        padding: '3px 8px',
+                        borderRadius: 'var(--radius-xs)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        backdropFilter: 'blur(2px)',
+                        zIndex: 2,
+                      }}
+                    >
+                      <ImageIcon size={12} />
+                      {prod.images.length} {prod.images.length === 1 ? 'foto' : 'fotos'}
+                    </span>
+                  )}
+                </div>
+
+                {/* Carrossel de Miniaturas extras se tiver mais de 1 foto */}
+                {prod.images.length > 1 && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: '6px',
+                      padding: '8px 14px',
+                      backgroundColor: 'var(--bg-sand-light)',
+                      borderBottom: '1px solid var(--border-subtle)',
+                      overflowX: 'auto',
+                    }}
+                  >
+                    {prod.images.map((img, idx) => (
+                      <div
+                        key={img.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLightboxProduct(prod);
+                          setLightboxIndex(idx);
+                        }}
+                        style={{
+                          position: 'relative',
+                          width: '38px',
+                          height: '38px',
+                          borderRadius: 'var(--radius-xs)',
+                          overflow: 'hidden',
+                          flexShrink: 0,
+                          cursor: 'pointer',
+                          border: img.is_primary ? '2px solid var(--brand-accent)' : '1px solid var(--border-subtle)',
+                        }}
+                        title={img.is_primary ? 'Foto de Capa (Principal)' : `Foto ${idx + 1}`}
+                      >
+                        <img
+                          src={img.url || `${import.meta.env.VITE_API_URL || '/api/v1'}/media/${img.file_path}`}
+                          alt={img.original_filename}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                          }}
+                        />
+                        {img.is_primary && (
+                          <span
+                            style={{
+                              position: 'absolute',
+                              top: '1px',
+                              right: '1px',
+                              backgroundColor: 'var(--brand-accent)',
+                              borderRadius: '50%',
+                              width: '10px',
+                              height: '10px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <Star size={6} fill="#fff" color="#fff" />
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Dados do Produto no Card */}
+                <div style={{ padding: '16px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', marginBottom: '6px' }}>
+                    <h4
+                      style={{
+                        fontSize: '1rem',
+                        fontWeight: 700,
+                        color: 'var(--brand-primary)',
+                        margin: 0,
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      {prod.name}
+                    </h4>
+                    <span
+                      style={{
+                        fontFamily: 'monospace',
+                        fontSize: '0.72rem',
+                        color: 'var(--text-tertiary)',
+                        backgroundColor: 'var(--bg-sand-light)',
+                        padding: '2px 6px',
+                        borderRadius: 'var(--radius-xs)',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {prod.sku}
+                    </span>
+                  </div>
+
+                  {prod.description && (
+                    <p
+                      style={{
+                        fontSize: '0.8rem',
+                        color: 'var(--text-secondary)',
+                        margin: '0 0 12px',
+                        lineHeight: 1.4,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {prod.description}
+                    </p>
+                  )}
+
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: '10px',
+                      padding: '10px 12px',
+                      backgroundColor: 'var(--bg-sand-light)',
+                      borderRadius: 'var(--radius-sm)',
+                      marginBottom: '14px',
+                      marginTop: 'auto',
+                    }}
+                  >
+                    <div>
+                      <span style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', display: 'block', fontWeight: 600 }}>
+                        Custo Manual
+                      </span>
+                      <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        R$ {Number(prod.unit_cost).toFixed(2)}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', display: 'block', fontWeight: 600 }}>
+                        Preço Venda
+                      </span>
+                      <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--brand-accent)' }}>
+                        {prod.sale_price ? `R$ ${Number(prod.sale_price).toFixed(2)}` : '—'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingTop: '10px',
+                      borderTop: '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        Estoque: <strong>{Number(prod.min_stock)} {prod.unit?.code}</strong>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleStatus(prod)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                        title="Alternar status"
+                      >
+                        <Badge status={prod.is_active ? 'active' : 'inactive'} />
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenImageModal(prod)}
+                        className="btn-icon"
+                        title="Gerenciar Fotos"
+                        style={{ position: 'relative' }}
+                      >
+                        <ImageIcon size={15} />
+                        {prod.images.length > 0 && (
+                          <span
+                            style={{
+                              position: 'absolute',
+                              top: '-3px',
+                              right: '-3px',
+                              backgroundColor: 'var(--brand-accent)',
+                              color: '#fff',
+                              fontSize: '0.6rem',
+                              fontWeight: 700,
+                              width: '14px',
+                              height: '14px',
+                              borderRadius: '50%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            {prod.images.length}
+                          </span>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditModal(prod)}
+                        className="btn-icon"
+                        title="Editar Item"
+                      >
+                        <Edit2 size={15} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       ) : (
+        /* Visualização em Tabela Detalhada com Coluna de Fotos Aprimorada */
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ backgroundColor: 'var(--bg-sand-light)', borderBottom: '1px solid var(--border-subtle)' }}>
-                  <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>FOTO</th>
+                  <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>FOTOS</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>ITEM / SKU</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>TIPO</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>CATEGORIA</th>
@@ -572,7 +1121,7 @@ export const ProductsPage: React.FC = () => {
               </thead>
               <tbody>
                 {filteredProducts.map((prod) => {
-                  const hasImage = prod.primary_image_url;
+                  const hasImage = !!prod.primary_image_url;
                   return (
                     <tr
                       key={prod.id}
@@ -583,33 +1132,71 @@ export const ProductsPage: React.FC = () => {
                       onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-surface-hover)')}
                       onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                     >
-                      {/* Miniatura da Foto */}
+                      {/* Miniatura e Grupo de Fotos */}
                       <td style={{ padding: '12px 20px' }}>
                         {hasImage ? (
-                          <img
-                            src={prod.primary_image_url!}
-                            alt={prod.name}
-                            style={{
-                              width: '46px',
-                              height: '46px',
-                              borderRadius: 'var(--radius-sm)',
-                              objectFit: 'cover',
-                              border: '1px solid var(--border-subtle)',
+                          <div
+                            onClick={() => {
+                              setLightboxProduct(prod);
+                              setLightboxIndex(0);
                             }}
-                          />
+                            style={{
+                              position: 'relative',
+                              width: '50px',
+                              height: '50px',
+                              borderRadius: 'var(--radius-sm)',
+                              overflow: 'hidden',
+                              border: '1px solid var(--border-subtle)',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                              cursor: 'pointer',
+                            }}
+                            title="Clique para ver fotos em tamanho real"
+                          >
+                            <img
+                              src={prod.primary_image_url!}
+                              alt={prod.name}
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                                display: 'block',
+                              }}
+                            />
+                            {prod.images.length > 1 && (
+                              <span
+                                style={{
+                                  position: 'absolute',
+                                  bottom: '2px',
+                                  right: '2px',
+                                  backgroundColor: 'rgba(0, 0, 0, 0.74)',
+                                  color: '#fff',
+                                  fontSize: '0.62rem',
+                                  fontWeight: 700,
+                                  padding: '1px 4px',
+                                  borderRadius: '3px',
+                                  lineHeight: 1.1,
+                                }}
+                              >
+                                +{prod.images.length - 1}
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <div
+                            onClick={() => handleOpenImageModal(prod)}
                             style={{
-                              width: '46px',
-                              height: '46px',
+                              width: '50px',
+                              height: '50px',
                               borderRadius: 'var(--radius-sm)',
                               backgroundColor: 'var(--bg-sand-light)',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
                               color: 'var(--text-tertiary)',
-                              border: '1px solid var(--border-subtle)',
+                              border: '1px dashed var(--border-medium)',
+                              cursor: 'pointer',
                             }}
+                            title="Adicionar fotos a este produto"
                           >
                             <ImageIcon size={20} />
                           </div>
@@ -715,10 +1302,14 @@ export const ProductsPage: React.FC = () => {
       {/* Modal de Cadastro / Edição de Produto */}
       <Modal
         isOpen={isFormModalOpen}
-        onClose={() => setIsFormModalOpen(false)}
+        onClose={() => {
+          pendingImages.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+          setPendingImages([]);
+          setIsFormModalOpen(false);
+        }}
         title={editingProduct ? 'Editar Item' : 'Novo Item do Ateliê'}
-        subtitle="Informe os dados cadastrais, tipo e especificações"
-        maxWidth="620px"
+        subtitle="Informe os dados cadastrais, tipo, especificações e fotos"
+        maxWidth="680px"
       >
         <form onSubmit={handleSaveProduct}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
@@ -968,26 +1559,512 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ marginBottom: '24px' }}>
+          <div style={{ marginBottom: '20px' }}>
             <label htmlFor="prod-desc">Descrição / Observações</label>
             <textarea
               id="prod-desc"
-              rows={3}
+              rows={2}
               value={formData.description || ''}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="Notas aromáticas, insumos chaves ou fornecedor..."
             />
           </div>
 
+          {formError && (
+            <div
+              style={{
+                padding: '12px 16px',
+                backgroundColor: 'var(--status-danger-bg)',
+                color: 'var(--status-danger-text)',
+                borderRadius: 'var(--radius-sm)',
+                marginBottom: '18px',
+                fontSize: '0.85rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              <AlertCircle size={18} />
+              <span>{formError}</span>
+            </div>
+          )}
+
+          {/* Seção de Upload de Fotos do Produto */}
+          <div style={{ marginBottom: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <label style={{ margin: 0, fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <ImageIcon size={16} color="var(--brand-accent)" />
+                Fotos do Produto (Upload Único ou Múltiplo)
+              </label>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                {((editingProduct?.images?.length || 0) + pendingImages.length)}/5 fotos selecionadas
+              </span>
+            </div>
+
+            {/* Dropzone de Seleção de Arquivos */}
+            <div
+              style={{
+                border: '2px dashed var(--border-medium)',
+                borderRadius: 'var(--radius-md)',
+                padding: '18px 14px',
+                textAlign: 'center',
+                backgroundColor: 'var(--bg-sand-light)',
+                position: 'relative',
+                cursor: ((editingProduct?.images?.length || 0) + pendingImages.length >= 5) ? 'not-allowed' : 'pointer',
+                transition: 'border-color 0.2s ease, background 0.2s ease',
+              }}
+            >
+              <input
+                type="file"
+                multiple
+                accept="image/png, image/jpeg, image/webp"
+                disabled={((editingProduct?.images?.length || 0) + pendingImages.length >= 5) || savingProduct}
+                onChange={(e) => {
+                  handleSelectPendingImages(e.target.files);
+                  e.target.value = '';
+                }}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  opacity: 0,
+                  cursor: ((editingProduct?.images?.length || 0) + pendingImages.length >= 5) ? 'not-allowed' : 'pointer',
+                }}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                <Upload size={22} color="var(--brand-accent)" />
+                <p style={{ fontWeight: 600, color: 'var(--brand-primary)', fontSize: '0.88rem', margin: 0 }}>
+                  {((editingProduct?.images?.length || 0) + pendingImages.length >= 5)
+                    ? 'Limite máximo de 5 fotos atingido'
+                    : 'Clique ou arraste uma ou várias fotos do produto'}
+                </p>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-tertiary)' }}>
+                  Selecione 1 ou mais imagens (PNG, JPG ou WebP até 3 MB cada)
+                </span>
+              </div>
+            </div>
+
+            {/* Galeria de Fotos no Formulário (Existentes e Pendentes) */}
+            {((editingProduct?.images && editingProduct.images.length > 0) || pendingImages.length > 0) && (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(115px, 1fr))',
+                  gap: '12px',
+                  marginTop: '14px',
+                }}
+              >
+                {/* Fotos já salvas no banco (se estiver editando) */}
+                {editingProduct?.images?.map((img) => (
+                  <div
+                    key={img.id}
+                    style={{
+                      position: 'relative',
+                      borderRadius: 'var(--radius-sm)',
+                      overflow: 'hidden',
+                      border: img.is_primary ? '2px solid var(--brand-accent)' : '1px solid var(--border-subtle)',
+                      backgroundColor: '#fff',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                    }}
+                  >
+                    <img
+                      src={img.url || `${import.meta.env.VITE_API_URL || '/api/v1'}/media/${img.file_path}`}
+                      alt={img.original_filename}
+                      style={{ width: '100%', height: '88px', objectFit: 'cover', display: 'block' }}
+                    />
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: '4px',
+                        left: '4px',
+                        backgroundColor: img.is_primary ? 'var(--brand-accent)' : 'rgba(0,0,0,0.6)',
+                        color: '#fff',
+                        fontSize: '0.62rem',
+                        fontWeight: 700,
+                        padding: '2px 5px',
+                        borderRadius: '3px',
+                      }}
+                    >
+                      {img.is_primary ? '★ Capa' : 'Salva'}
+                    </span>
+                    <div
+                      style={{
+                        padding: '4px 6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        backgroundColor: 'var(--bg-sand-light)',
+                        borderTop: '1px solid var(--border-subtle)',
+                      }}
+                    >
+                      {!img.is_primary ? (
+                        <button
+                          type="button"
+                          onClick={() => handleSetExistingPrimaryInEdit(img.id)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            fontSize: '0.68rem',
+                            color: 'var(--brand-accent)',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            padding: 0,
+                          }}
+                          title="Definir como foto de capa"
+                        >
+                          Virar Capa
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>Principal</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteExistingImageInEdit(img.id)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--status-danger-text)',
+                          cursor: 'pointer',
+                          padding: '2px',
+                        }}
+                        title="Excluir esta foto"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Fotos Novas Pendentes para Upload */}
+                {pendingImages.map((pImg) => (
+                  <div
+                    key={pImg.id}
+                    style={{
+                      position: 'relative',
+                      borderRadius: 'var(--radius-sm)',
+                      overflow: 'hidden',
+                      border: pImg.isPrimary ? '2px solid var(--brand-accent)' : '1px dashed var(--brand-accent)',
+                      backgroundColor: '#fff',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                    }}
+                  >
+                    <img
+                      src={pImg.previewUrl}
+                      alt={pImg.file.name}
+                      style={{ width: '100%', height: '88px', objectFit: 'cover', display: 'block' }}
+                    />
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: '4px',
+                        left: '4px',
+                        backgroundColor: pImg.isPrimary ? 'var(--brand-accent)' : 'var(--brand-primary)',
+                        color: '#fff',
+                        fontSize: '0.62rem',
+                        fontWeight: 700,
+                        padding: '2px 5px',
+                        borderRadius: '3px',
+                      }}
+                    >
+                      {pImg.isPrimary ? '★ Capa' : '+ Nova'}
+                    </span>
+                    <div
+                      style={{
+                        padding: '4px 6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        backgroundColor: 'var(--bg-sand-light)',
+                        borderTop: '1px solid var(--border-subtle)',
+                      }}
+                    >
+                      {!pImg.isPrimary ? (
+                        <button
+                          type="button"
+                          onClick={() => handleSetPendingPrimary(pImg.id)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            fontSize: '0.68rem',
+                            color: 'var(--brand-accent)',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            padding: 0,
+                          }}
+                          title="Definir esta nova foto como capa"
+                        >
+                          Virar Capa
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>Capa</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePendingImage(pImg.id)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--status-danger-text)',
+                          cursor: 'pointer',
+                          padding: '2px',
+                        }}
+                        title="Remover foto da seleção"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-            <button type="button" onClick={() => setIsFormModalOpen(false)} className="btn-secondary">
+            <button
+              type="button"
+              onClick={() => {
+                pendingImages.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+                setPendingImages([]);
+                setIsFormModalOpen(false);
+              }}
+              className="btn-secondary"
+              disabled={savingProduct}
+            >
               Cancelar
             </button>
-            <button type="submit" className="btn-primary">
-              {editingProduct ? 'Salvar Alterações' : 'Criar Item'}
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={savingProduct}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              {savingProduct ? (
+                <>
+                  <Loader2 size={16} className="spin-animation" />
+                  <span>{pendingImages.length > 0 ? 'Salvando Item e Fotos...' : 'Salvando...'}</span>
+                </>
+              ) : (
+                <span>
+                  {editingProduct
+                    ? 'Salvar Alterações'
+                    : pendingImages.length > 0
+                    ? `Criar Item (${pendingImages.length} fotos)`
+                    : 'Criar Item'}
+                </span>
+              )}
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal Lightbox / Galeria de Fotos em Alta Resolução */}
+      <Modal
+        isOpen={!!lightboxProduct}
+        onClose={() => setLightboxProduct(null)}
+        title={lightboxProduct ? `Galeria: ${lightboxProduct.name}` : 'Visualizador de Fotos'}
+        subtitle={lightboxProduct ? `SKU: ${lightboxProduct.sku} • Foto ${lightboxIndex + 1} de ${lightboxProduct.images.length || 1}` : ''}
+        maxWidth="720px"
+      >
+        {lightboxProduct && (
+          <div>
+            {lightboxProduct.images && lightboxProduct.images.length > 0 ? (
+              <div>
+                {/* Visualizador da Foto Principal */}
+                <div
+                  style={{
+                    position: 'relative',
+                    width: '100%',
+                    height: '420px',
+                    backgroundColor: '#1a1816',
+                    borderRadius: 'var(--radius-md)',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: '16px',
+                  }}
+                >
+                  <img
+                    src={
+                      lightboxProduct.images[lightboxIndex]?.url ||
+                      `${import.meta.env.VITE_API_URL || '/api/v1'}/media/${lightboxProduct.images[lightboxIndex]?.file_path}`
+                    }
+                    alt={lightboxProduct.name}
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '100%',
+                      objectFit: 'contain',
+                    }}
+                  />
+
+                  {/* Badge de Capa */}
+                  {lightboxProduct.images[lightboxIndex]?.is_primary && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: '12px',
+                        left: '12px',
+                        backgroundColor: 'var(--brand-accent)',
+                        color: '#fff',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        padding: '4px 10px',
+                        borderRadius: 'var(--radius-xs)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                      }}
+                    >
+                      <Star size={12} fill="#fff" />
+                      Foto de Capa Principal
+                    </span>
+                  )}
+
+                  {/* Botões de Navegação Anterior / Próximo */}
+                  {lightboxProduct.images.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setLightboxIndex((prev) =>
+                            prev === 0 ? lightboxProduct.images.length - 1 : prev - 1
+                          )
+                        }
+                        style={{
+                          position: 'absolute',
+                          left: '12px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '50%',
+                          width: '38px',
+                          height: '38px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          transition: 'background 0.2s ease',
+                        }}
+                        title="Foto anterior"
+                      >
+                        <ChevronLeft size={22} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setLightboxIndex((prev) =>
+                            prev === lightboxProduct.images.length - 1 ? 0 : prev + 1
+                          )
+                        }
+                        style={{
+                          position: 'absolute',
+                          right: '12px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '50%',
+                          width: '38px',
+                          height: '38px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          transition: 'background 0.2s ease',
+                        }}
+                        title="Próxima foto"
+                      >
+                        <ChevronRight size={22} />
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {/* Tira de Miniaturas inferior */}
+                {lightboxProduct.images.length > 1 && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: '10px',
+                      overflowX: 'auto',
+                      paddingBottom: '12px',
+                      marginBottom: '16px',
+                    }}
+                  >
+                    {lightboxProduct.images.map((img, idx) => (
+                      <div
+                        key={img.id}
+                        onClick={() => setLightboxIndex(idx)}
+                        style={{
+                          position: 'relative',
+                          width: '64px',
+                          height: '64px',
+                          borderRadius: 'var(--radius-sm)',
+                          overflow: 'hidden',
+                          flexShrink: 0,
+                          cursor: 'pointer',
+                          border: idx === lightboxIndex ? '3px solid var(--brand-accent)' : '1px solid var(--border-medium)',
+                          opacity: idx === lightboxIndex ? 1 : 0.65,
+                          transition: 'opacity 0.2s ease, border 0.2s ease',
+                        }}
+                      >
+                        <img
+                          src={img.url || `${import.meta.env.VITE_API_URL || '/api/v1'}/media/${img.file_path}`}
+                          alt={img.original_filename}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div
+                style={{
+                  padding: '40px 20px',
+                  textAlign: 'center',
+                  color: 'var(--text-tertiary)',
+                  backgroundColor: 'var(--bg-sand-light)',
+                  borderRadius: 'var(--radius-md)',
+                  marginBottom: '16px',
+                }}
+              >
+                <ImageIcon size={40} style={{ margin: '0 auto 10px', opacity: 0.5 }} />
+                <p style={{ margin: 0, fontWeight: 500 }}>Nenhuma foto cadastrada para este produto.</p>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const prod = lightboxProduct;
+                  setLightboxProduct(null);
+                  handleOpenImageModal(prod);
+                }}
+                className="btn-secondary"
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Upload size={15} />
+                <span>Gerenciar / Enviar Novas Fotos</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setLightboxProduct(null)}
+                className="btn-primary"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Modal de Gestão de Fotos */}

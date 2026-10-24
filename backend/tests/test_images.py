@@ -104,3 +104,23 @@ def test_set_primary_and_delete_image(client: TestClient, admin_token: str, samp
     assert len(images) == 1
     assert images[0]["id"] == img1_id
     assert images[0]["is_primary"] is True
+
+
+def test_upload_product_images_batch(client: TestClient, admin_token: str, sample_product: Product):
+    img1 = _create_test_image_bytes(format="JPEG", color=(100, 100, 200))
+    img2 = _create_test_image_bytes(format="PNG", color=(200, 100, 100))
+
+    response = client.post(
+        f"/api/v1/products/{sample_product.id}/images/batch",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        files=[
+            ("files", ("foto_batch_1.jpg", img1, "image/jpeg")),
+            ("files", ("foto_batch_2.png", img2, "image/png")),
+        ],
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert len(data) == 2
+    assert data[0]["original_filename"] == "foto_batch_1.jpg"
+    assert data[1]["original_filename"] == "foto_batch_2.png"
+

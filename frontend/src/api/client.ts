@@ -200,6 +200,18 @@ class ApiClient {
     });
   }
 
+  async uploadProductImagesBatch(productId: number, files: File[]): Promise<ProductImage[]> {
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append('files', file);
+    });
+
+    return this.request<ProductImage[]>(`/products/${productId}/images/batch`, {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
   async setPrimaryImage(productId: number, imageId: number): Promise<ProductImage> {
     return this.request<ProductImage>(`/products/${productId}/images/${imageId}/primary`, {
       method: 'PUT',
