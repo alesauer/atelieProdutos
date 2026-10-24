@@ -29,6 +29,19 @@ DEFAULT_INITIAL_CATEGORIES = [
 ]
 
 
+DEFAULT_INITIAL_UNITS = [
+    {"code": "UN", "name": "Unidade", "allows_decimals": False},
+    {"code": "KG", "name": "Quilograma", "allows_decimals": True},
+    {"code": "G", "name": "Grama", "allows_decimals": True},
+    {"code": "L", "name": "Litro", "allows_decimals": True},
+    {"code": "ML", "name": "Mililitro", "allows_decimals": True},
+    {"code": "CM", "name": "Centímetro", "allows_decimals": True},
+    {"code": "M", "name": "Metro", "allows_decimals": True},
+    {"code": "PCT", "name": "Pacote", "allows_decimals": False},
+    {"code": "CX", "name": "Caixa", "allows_decimals": False},
+]
+
+
 class ProductService:
     # --- Categorias ---
     @staticmethod
@@ -123,7 +136,24 @@ class ProductService:
         return db.execute(stmt).scalars().first()
 
     @staticmethod
+    def seed_initial_units(db: Session) -> None:
+        """Garante a existência das unidades de medida padrão (UN, KG, G, L, ML, CM, M, PCT, CX)."""
+        count = db.execute(select(func.count(UnitOfMeasure.id))).scalar() or 0
+        if count == 0:
+            for item in DEFAULT_INITIAL_UNITS:
+                existing = ProductService.get_unit_by_code(db, item["code"])
+                if not existing:
+                    new_unit = UnitOfMeasure(
+                        code=item["code"],
+                        name=item["name"],
+                        allows_decimals=item["allows_decimals"],
+                    )
+                    db.add(new_unit)
+            db.commit()
+
+    @staticmethod
     def list_units(db: Session) -> List[UnitOfMeasure]:
+        ProductService.seed_initial_units(db)
         stmt = select(UnitOfMeasure).order_by(UnitOfMeasure.code)
         return list(db.execute(stmt).scalars().all())
 

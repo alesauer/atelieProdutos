@@ -61,6 +61,14 @@ export const ProductsPage: React.FC = () => {
   const [savingNewCategory, setSavingNewCategory] = useState(false);
   const [newCategoryError, setNewCategoryError] = useState<string | null>(null);
 
+  // Modal Nova Unidade de Medida
+  const [isNewUnitModalOpen, setIsNewUnitModalOpen] = useState(false);
+  const [newUnitCode, setNewUnitCode] = useState('');
+  const [newUnitName, setNewUnitName] = useState('');
+  const [newUnitAllowsDecimals, setNewUnitAllowsDecimals] = useState(true);
+  const [savingNewUnit, setSavingNewUnit] = useState(false);
+  const [newUnitError, setNewUnitError] = useState<string | null>(null);
+
   // Modal de Fotos
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [imageModalProduct, setImageModalProduct] = useState<Product | null>(null);
@@ -173,6 +181,30 @@ export const ProductsPage: React.FC = () => {
       setNewCategoryError(err.message || 'Erro ao cadastrar categoria.');
     } finally {
       setSavingNewCategory(false);
+    }
+  };
+
+  const handleCreateUnit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUnitCode.trim() || !newUnitName.trim()) return;
+    setSavingNewUnit(true);
+    setNewUnitError(null);
+    try {
+      const created = await api.createUnit(
+        newUnitCode.trim().toUpperCase(),
+        newUnitName.trim(),
+        newUnitAllowsDecimals
+      );
+      setUnits((prev) => [...prev, created]);
+      setFormData((prev) => ({ ...prev, unit_id: created.id }));
+      setIsNewUnitModalOpen(false);
+      setNewUnitCode('');
+      setNewUnitName('');
+      setNewUnitAllowsDecimals(true);
+    } catch (err: any) {
+      setNewUnitError(err.message || 'Erro ao cadastrar unidade de medida.');
+    } finally {
+      setSavingNewUnit(false);
     }
   };
 
@@ -744,7 +776,35 @@ export const ProductsPage: React.FC = () => {
               </select>
             </div>
             <div>
-              <label htmlFor="prod-unit">Unidade de Medida *</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label htmlFor="prod-unit" style={{ margin: 0 }}>Unidade de Medida *</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewUnitCode('');
+                    setNewUnitName('');
+                    setNewUnitAllowsDecimals(true);
+                    setNewUnitError(null);
+                    setIsNewUnitModalOpen(true);
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--brand-accent)',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '2px 6px',
+                    borderRadius: 'var(--radius-sm)',
+                  }}
+                  title="Cadastrar nova unidade de medida"
+                >
+                  <Plus size={14} /> Nova Unidade
+                </button>
+              </div>
               <select
                 id="prod-unit"
                 value={formData.unit_id}
@@ -1123,6 +1183,84 @@ export const ProductsPage: React.FC = () => {
             </button>
             <button type="submit" className="btn-primary" disabled={savingNewCategory}>
               {savingNewCategory ? 'Salvando...' : 'Salvar Categoria'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal de Cadastro de Nova Unidade de Medida */}
+      <Modal
+        isOpen={isNewUnitModalOpen}
+        onClose={() => setIsNewUnitModalOpen(false)}
+        title="Nova Unidade de Medida"
+        subtitle="Cadastre uma nova métrica para estoque e receitas do ateliê"
+        maxWidth="480px"
+      >
+        <form onSubmit={handleCreateUnit}>
+          {newUnitError && (
+            <div
+              style={{
+                padding: '10px 14px',
+                backgroundColor: 'var(--status-danger-bg)',
+                color: 'var(--status-danger-text)',
+                borderRadius: 'var(--radius-sm)',
+                marginBottom: '16px',
+                fontSize: '0.85rem',
+              }}
+            >
+              {newUnitError}
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '14px', marginBottom: '16px' }}>
+            <div>
+              <label htmlFor="new-unit-code">Código / Sigla *</label>
+              <input
+                id="new-unit-code"
+                type="text"
+                required
+                placeholder="Ex.: KG, CM, L..."
+                value={newUnitCode}
+                onChange={(e) => setNewUnitCode(e.target.value.toUpperCase())}
+                autoFocus
+              />
+            </div>
+            <div>
+              <label htmlFor="new-unit-name">Nome da Unidade *</label>
+              <input
+                id="new-unit-name"
+                type="text"
+                required
+                placeholder="Ex.: Quilograma, Centímetro..."
+                value={newUnitName}
+                onChange={(e) => setNewUnitName(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.88rem' }}>
+              <input
+                type="checkbox"
+                checked={newUnitAllowsDecimals}
+                onChange={(e) => setNewUnitAllowsDecimals(e.target.checked)}
+                style={{ width: '18px', height: '18px' }}
+              />
+              <span>Permite quantidades fracionadas / decimais (ex.: 1.500 kg, 0.250 l)</span>
+            </label>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+            <button
+              type="button"
+              onClick={() => setIsNewUnitModalOpen(false)}
+              className="btn-secondary"
+              disabled={savingNewUnit}
+            >
+              Cancelar
+            </button>
+            <button type="submit" className="btn-primary" disabled={savingNewUnit}>
+              {savingNewUnit ? 'Salvando...' : 'Salvar Unidade'}
             </button>
           </div>
         </form>
