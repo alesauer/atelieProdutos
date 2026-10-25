@@ -30,7 +30,7 @@ class ProductBase(BaseModel):
     item_type: str = Field(..., min_length=2, max_length=50)
     category_id: Optional[int] = None
     unit_id: int
-    unit_cost: Decimal = Field(default=Decimal("0.0000"), ge=0)
+    unit_cost: Decimal = Field(default=Decimal("0.00"), ge=0)
     cost_breakdown: Optional[str] = None
     sales_links: Optional[str] = None
     color: Optional[str] = Field(None, max_length=50)

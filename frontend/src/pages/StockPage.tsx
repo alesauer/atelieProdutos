@@ -574,7 +574,7 @@ export const StockPage: React.FC = () => {
               <input
                 id="entry-cost"
                 type="number"
-                step="0.0001"
+                step="0.01"
                 min="0"
                 value={entryCost}
                 onChange={(e) => setEntryCost(e.target.value)}

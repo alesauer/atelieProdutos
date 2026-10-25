@@ -56,7 +56,7 @@ export const ProductsPage: React.FC = () => {
     item_type: 'PRODUTO_ACABADO',
     category_id: null,
     unit_id: 1,
-    unit_cost: '0.0000',
+    unit_cost: '0.00',
     cost_breakdown: '',
     sales_links: '',
     sale_price: '0.00',
@@ -167,7 +167,7 @@ export const ProductsPage: React.FC = () => {
       item_type: 'PRODUTO_ACABADO',
       category_id: categories.length > 0 ? categories[0].id : null,
       unit_id: defaultUnit ? defaultUnit.id : 1,
-      unit_cost: '0.0000',
+      unit_cost: '0.00',
       cost_breakdown: '',
       sales_links: '',
       sale_price: '0.00',
@@ -208,10 +208,10 @@ export const ProductsPage: React.FC = () => {
       item_type: prod.item_type,
       category_id: prod.category_id || null,
       unit_id: prod.unit_id,
-      unit_cost: prod.unit_cost,
+      unit_cost: prod.unit_cost ? Number(prod.unit_cost).toFixed(2) : '0.00',
       cost_breakdown: prod.cost_breakdown || '',
       sales_links: prod.sales_links || '',
-      sale_price: prod.sale_price || '',
+      sale_price: prod.sale_price ? Number(prod.sale_price).toFixed(2) : '',
       min_stock: prod.min_stock,
       is_active: prod.is_active,
     });
@@ -354,7 +354,7 @@ export const ProductsPage: React.FC = () => {
     const totalSum = updated.reduce((acc, item) => acc + item.total, 0);
     setFormData((prev) => ({
       ...prev,
-      unit_cost: totalSum.toFixed(4),
+      unit_cost: totalSum.toFixed(2),
       cost_breakdown: JSON.stringify(updated),
     }));
   };
@@ -365,7 +365,7 @@ export const ProductsPage: React.FC = () => {
     const totalSum = updated.reduce((acc, item) => acc + item.total, 0);
     setFormData((prev) => ({
       ...prev,
-      unit_cost: totalSum.toFixed(4),
+      unit_cost: totalSum.toFixed(2),
       cost_breakdown: JSON.stringify(updated),
     }));
   };
@@ -374,7 +374,7 @@ export const ProductsPage: React.FC = () => {
     const totalSum = costItems.reduce((acc, item) => acc + item.total, 0);
     setFormData((prev) => ({
       ...prev,
-      unit_cost: totalSum.toFixed(4),
+      unit_cost: totalSum.toFixed(2),
       cost_breakdown: JSON.stringify(costItems),
     }));
     setIsCostCalculatorOpen(false);
@@ -1778,7 +1778,7 @@ export const ProductsPage: React.FC = () => {
               <input
                 id="prod-cost"
                 type="number"
-                step="0.0001"
+                step="0.01"
                 min="0"
                 value={formData.unit_cost}
                 onChange={(e) => setFormData({ ...formData, unit_cost: e.target.value })}
@@ -2755,7 +2755,7 @@ export const ProductsPage: React.FC = () => {
                     setNewCostItemName(val);
                     const found = products.find((p) => p.name.toLowerCase() === val.toLowerCase());
                     if (found && found.unit_cost && !newCostItemUnitCost) {
-                      setNewCostItemUnitCost(found.unit_cost.toString());
+                      setNewCostItemUnitCost(Number(found.unit_cost).toFixed(2));
                     }
                   }}
                   autoFocus
@@ -2827,7 +2827,7 @@ export const ProductsPage: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setCostItems([]);
-                    setFormData((prev) => ({ ...prev, unit_cost: '0.0000', cost_breakdown: '' }));
+                    setFormData((prev) => ({ ...prev, unit_cost: '0.00', cost_breakdown: '' }));
                   }}
                   style={{
                     background: 'none',
