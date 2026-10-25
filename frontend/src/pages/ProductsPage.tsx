@@ -66,7 +66,7 @@ export const ProductsPage: React.FC = () => {
 
   // Links de Vendas em Marketplaces
   const [salesLinks, setSalesLinks] = useState<SalesLinkItem[]>([]);
-  const [newLinkPlatform, setNewLinkPlatform] = useState('');
+  const [newLinkPlatform, setNewLinkPlatform] = useState('Mercado Livre');
   const [newLinkUrl, setNewLinkUrl] = useState('');
 
   // Calculadora de Composição de Custo Manual
@@ -1864,69 +1864,25 @@ export const ProductsPage: React.FC = () => {
               Cadastre os links diretos dos anúncios deste produto nos marketplaces para divulgação e acompanhamento das vendas.
             </p>
 
-            {/* Sugestões rápidas de Marketplaces (1 clique para selecionar) */}
-            <div style={{ marginBottom: '10px' }}>
-              <span style={{ fontSize: '0.73rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
-                Selecione o canal ou digite outro:
-              </span>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {['Mercado Livre', 'Shopee', 'Amazon', 'Elo7', 'Shein', 'Magalu', 'Site Oficial', 'Instagram'].map((name) => {
-                  const style = getMarketplaceStyle(name);
-                  const isSelected = newLinkPlatform.toLowerCase() === name.toLowerCase();
-                  return (
-                    <button
-                      key={name}
-                      type="button"
-                      onClick={() => {
-                        setNewLinkPlatform(name);
-                        const inputUrl = document.getElementById('marketplace-url-input');
-                        if (inputUrl) inputUrl.focus();
-                      }}
-                      style={{
-                        padding: '4px 10px',
-                        fontSize: '0.74rem',
-                        fontWeight: 700,
-                        borderRadius: '14px',
-                        border: isSelected ? '2px solid var(--brand-accent)' : `1px solid ${style.border}`,
-                        backgroundColor: isSelected ? '#ffffff' : style.bg,
-                        color: isSelected ? 'var(--brand-primary)' : style.color,
-                        boxShadow: isSelected ? '0 0 0 2px var(--brand-accent)' : 'none',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                      }}
-                    >
-                      <span>{isSelected ? '✓ ' : '+ '}{name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Inputs para adicionar novo link */}
-            <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr auto', gap: '8px', alignItems: 'center', marginBottom: '6px' }}>
+            {/* Inputs para adicionar novo link com Combobox */}
+            <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr auto', gap: '8px', alignItems: 'center', marginBottom: '6px' }}>
               <div>
-                <input
-                  type="text"
+                <select
                   id="marketplace-platform-input"
-                  list="marketplace-suggestions"
-                  placeholder="Marketplace..."
-                  value={newLinkPlatform}
+                  value={newLinkPlatform || 'Mercado Livre'}
                   onChange={(e) => setNewLinkPlatform(e.target.value)}
                   style={{ fontSize: '0.85rem', padding: '8px 10px', width: '100%' }}
-                />
-                <datalist id="marketplace-suggestions">
-                  <option value="Mercado Livre" />
-                  <option value="Shopee" />
-                  <option value="Amazon" />
-                  <option value="Elo7" />
-                  <option value="Shein" />
-                  <option value="Magalu" />
-                  <option value="Site Oficial" />
-                  <option value="Instagram" />
-                </datalist>
+                >
+                  <option value="Mercado Livre">Mercado Livre</option>
+                  <option value="Shopee">Shopee</option>
+                  <option value="Amazon">Amazon</option>
+                  <option value="Elo7">Elo7</option>
+                  <option value="Shein">Shein</option>
+                  <option value="Magalu">Magalu</option>
+                  <option value="Site Oficial">Site Oficial</option>
+                  <option value="Instagram">Instagram</option>
+                  <option value="Outro Canal">Outro Canal</option>
+                </select>
               </div>
 
               <div>
