@@ -20,7 +20,7 @@ class ProductionRecipe(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     product_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("products.id", ondelete="RESTRICT"), unique=True, nullable=False
+        Integer, ForeignKey("products.id", ondelete="CASCADE"), unique=True, nullable=False
     )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     yield_quantity: Mapped[Decimal] = mapped_column(
@@ -45,7 +45,7 @@ class ProductionRecipeItem(Base):
         Integer, ForeignKey("production_recipes.id", ondelete="CASCADE"), nullable=False
     )
     component_product_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("products.id", ondelete="RESTRICT"), nullable=False
+        Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False
     )
     standard_quantity: Mapped[Decimal] = mapped_column(
         Numeric(10, 3), nullable=False
@@ -61,7 +61,7 @@ class ProductionOrder(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     order_number: Mapped[str] = mapped_column(String(30), unique=True, index=True, nullable=False)
     product_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("products.id", ondelete="RESTRICT"), nullable=False
+        Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False
     )
     recipe_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("production_recipes.id", ondelete="SET NULL"), nullable=True
@@ -103,7 +103,7 @@ class ProductionOrderItem(Base):
         Integer, ForeignKey("production_orders.id", ondelete="CASCADE"), nullable=False
     )
     component_product_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("products.id", ondelete="RESTRICT"), nullable=False
+        Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False
     )
     planned_quantity: Mapped[Decimal] = mapped_column(
         Numeric(10, 3), nullable=False

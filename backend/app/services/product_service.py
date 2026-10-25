@@ -410,7 +410,8 @@ class ProductService:
             except Exception:
                 pass
 
-        # 8. Remover produto (imagens filhas são deletadas em cascata pelo SQLAlchemy)
+        # 8. Sincronizar exclusões intermediárias e remover o produto
+        db.flush()
         db.delete(product)
         db.commit()
 

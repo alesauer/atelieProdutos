@@ -135,7 +135,7 @@ def delete_product(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    """Exclui um item cadastrado se não houver vínculos operacionais."""
+    """Exclui permanentemente um produto do catálogo e limpa registros associados."""
     product = product_service.get_product_by_id(db, product_id)
     if not product:
         raise HTTPException(

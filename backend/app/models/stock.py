@@ -31,7 +31,7 @@ class StockMovement(Base):
     )
     product_id: Mapped[int] = mapped_column(
 
-        Integer, ForeignKey("products.id", ondelete="RESTRICT"), nullable=False, index=True
+        Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True
     )
     movement_type: Mapped[MovementType] = mapped_column(
         Enum(MovementType, native_enum=False, length=30),

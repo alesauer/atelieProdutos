@@ -73,7 +73,7 @@ class SaleItem(Base):
         Integer, ForeignKey("sales.id", ondelete="CASCADE"), nullable=False
     )
     product_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("products.id", ondelete="RESTRICT"), nullable=False
+        Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False
     )
     quantity: Mapped[Decimal] = mapped_column(
         Numeric(10, 3), nullable=False
