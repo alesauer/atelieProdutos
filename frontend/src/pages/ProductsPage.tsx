@@ -682,7 +682,7 @@ export const ProductsPage: React.FC = () => {
 
   const handleDeleteProduct = async (prod: Product) => {
     const confirmDelete = confirm(
-      `Deseja realmente excluir permanentemente o item "${prod.name}" (SKU: ${prod.sku})?\n\nEsta ação removerá o produto e suas fotos do catálogo.`
+      `Deseja realmente excluir permanentemente o item "${prod.name}" (SKU: ${prod.sku})?\n\nEsta ação removerá o produto, suas fotos e registros associados do catálogo.`
     );
     if (!confirmDelete) return;
 
@@ -693,30 +693,7 @@ export const ProductsPage: React.FC = () => {
       }
       await loadData();
     } catch (err: any) {
-      const errorMsg = err.message || 'Erro ao excluir produto.';
-      if (
-        errorMsg.includes('movimentação') ||
-        errorMsg.includes('venda') ||
-        errorMsg.includes('receita') ||
-        errorMsg.includes('ordens')
-      ) {
-        const confirmInactivate = confirm(
-          `${errorMsg}\n\nDeseja INATIVAR o item em vez de excluir? (Ele deixará de aparecer nas operações ativas do catálogo)`
-        );
-        if (confirmInactivate) {
-          try {
-            await api.toggleProductStatus(prod.id, false);
-            if (editingProduct?.id === prod.id) {
-              setIsFormModalOpen(false);
-            }
-            await loadData();
-          } catch (inactErr: any) {
-            alert(inactErr.message || 'Erro ao inativar item.');
-          }
-        }
-      } else {
-        alert(errorMsg);
-      }
+      alert(err.message || 'Erro ao excluir produto.');
     }
   };
 

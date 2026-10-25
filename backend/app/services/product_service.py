@@ -1,5 +1,5 @@
 from typing import List, Optional
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
@@ -336,12 +336,12 @@ class ProductService:
     @staticmethod
     def delete_product(db: Session, product: Product) -> None:
         """
-        Exclui um item cadastrado do catálogo se não possuir vínculos operacionais
-        (movimentações de estoque, vendas, receitas ou ordens de produção).
-        Remove também os arquivos físicos de fotos associados.
+        Exclui permanentemente um produto do catálogo e limpa registros
+        associados (fotos em disco/banco, movimentações de estoque, itens de receitas,
+        ordens de produção e itens de vendas associados).
         """
         from app.models.stock import StockMovement
-        from app.models.sale import SaleItem
+        from app.models.sale import Sale, SaleItem
         from app.models.production import (
             ProductionRecipe,
             ProductionRecipeItem,
@@ -349,60 +349,49 @@ class ProductService:
             ProductionOrderItem,
         )
 
-        # 1. Validar integridade referencial com movimentações de estoque
-        has_movements = db.execute(
-            select(func.count(StockMovement.id)).where(StockMovement.product_id == product.id)
-        ).scalar() or 0
-        if has_movements > 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Não é possível excluir '{product.name}' pois existem {has_movements} movimentação(ões) de estoque associadas. Você pode inativá-lo.",
-            )
+        # 1. Remover movimentações de estoque deste produto
+        db.execute(delete(StockMovement).where(StockMovement.product_id == product.id))
 
-        # 2. Validar integridade referencial com vendas
-        has_sales = db.execute(
-            select(func.count(SaleItem.id)).where(SaleItem.product_id == product.id)
-        ).scalar() or 0
-        if has_sales > 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Não é possível excluir '{product.name}' pois existem {has_sales} venda(s) vinculadas. Recomendamos inativar o produto.",
-            )
+        # 2. Remover itens de ordens de produção onde o produto é insumo
+        db.execute(delete(ProductionOrderItem).where(ProductionOrderItem.component_product_id == product.id))
 
-        # 3. Validar se é produto de receita ou matéria-prima de receita
-        has_recipes = db.execute(
-            select(func.count(ProductionRecipe.id)).where(ProductionRecipe.product_id == product.id)
-        ).scalar() or 0
-        has_recipe_items = db.execute(
-            select(func.count(ProductionRecipeItem.id)).where(ProductionRecipeItem.component_product_id == product.id)
-        ).scalar() or 0
-        if has_recipes > 0 or has_recipe_items > 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Não é possível excluir '{product.name}' pois ele faz parte de receitas de produção. Remova-o da receita antes de excluir.",
-            )
+        # 3. Remover ordens de produção onde o produto é o produto acabado principal (e seus itens)
+        stmt_orders = select(ProductionOrder).where(ProductionOrder.product_id == product.id)
+        orders = list(db.execute(stmt_orders).scalars().all())
+        for order in orders:
+            db.delete(order)
 
-        # 4. Validar ordens de produção
-        has_orders = db.execute(
-            select(func.count(ProductionOrder.id)).where(ProductionOrder.product_id == product.id)
-        ).scalar() or 0
-        has_order_items = db.execute(
-            select(func.count(ProductionOrderItem.id)).where(ProductionOrderItem.component_product_id == product.id)
-        ).scalar() or 0
-        if has_orders > 0 or has_order_items > 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Não é possível excluir '{product.name}' pois ele está vinculado a ordens de produção.",
-            )
+        # 4. Remover itens de receitas onde o produto é insumo
+        db.execute(delete(ProductionRecipeItem).where(ProductionRecipeItem.component_product_id == product.id))
 
-        # 5. Excluir arquivos físicos de fotos do produto do disco
+        # 5. Remover receitas onde o produto é o produto acabado principal (e seus itens)
+        stmt_recipes = select(ProductionRecipe).where(ProductionRecipe.product_id == product.id)
+        recipes = list(db.execute(stmt_recipes).scalars().all())
+        for recipe in recipes:
+            db.delete(recipe)
+
+        # 6. Remover itens de venda deste produto e atualizar vendas vinculadas
+        stmt_sales = select(SaleItem.sale_id).where(SaleItem.product_id == product.id).distinct()
+        affected_sale_ids = list(db.execute(stmt_sales).scalars().all())
+        db.execute(delete(SaleItem).where(SaleItem.product_id == product.id))
+
+        for s_id in affected_sale_ids:
+            sale = db.get(Sale, s_id)
+            if sale:
+                db.refresh(sale)
+                if len(sale.items) == 0:
+                    db.delete(sale)
+                else:
+                    sale.total_amount = sum(it.total_price for it in sale.items)
+
+        # 7. Excluir arquivos físicos de fotos do produto do disco
         for img in product.images:
             try:
                 storage_service.delete_file(img.file_path)
             except Exception:
                 pass
 
-        # 6. Remover produto (imagens e registros filhos deletados em cascata)
+        # 8. Remover produto (imagens filhas são deletadas em cascata pelo SQLAlchemy)
         db.delete(product)
         db.commit()
 

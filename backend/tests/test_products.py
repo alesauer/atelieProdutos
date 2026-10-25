@@ -223,7 +223,7 @@ def test_delete_product_success(client: TestClient, admin_token: str, sample_cat
     assert get_resp.status_code == 404
 
 
-def test_delete_product_with_stock_movement_fails(client: TestClient, admin_token: str, sample_product: Product):
+def test_delete_product_with_stock_movement_succeeds(client: TestClient, admin_token: str, sample_product: Product):
     # Registrar movimentação de estoque
     entry_resp = client.post(
         "/api/v1/stock/entries",
@@ -237,14 +237,20 @@ def test_delete_product_with_stock_movement_fails(client: TestClient, admin_toke
     )
     assert entry_resp.status_code == 201
 
-    # Tentar excluir produto com histórico de estoque
+    # Excluir produto mesmo com histórico de movimentações
     del_resp = client.delete(
         f"/api/v1/products/{sample_product.id}",
         headers={"Authorization": f"Bearer {admin_token}"},
     )
-    assert del_resp.status_code == 400
-    assert "Não é possível excluir" in del_resp.json()["detail"]
-    assert "movimentação(ões) de estoque associadas" in del_resp.json()["detail"]
+    assert del_resp.status_code == 204
+
+    # Verificar que o produto foi removido
+    get_resp = client.get(
+        f"/api/v1/products/{sample_product.id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert get_resp.status_code == 404
+
 
 
 def test_create_and_update_product_color(client: TestClient, admin_token: str, sample_category, sample_unit):
