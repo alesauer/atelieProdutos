@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     # Armazenamento e Limites de Mídias
     MEDIA_DIR: str = "/app/media"
     MAX_IMAGE_SIZE_MB: int = 15
-    MAX_IMAGES_PER_PRODUCT: int = 5
+    MAX_IMAGES_PER_PRODUCT: int = 10
 
     # CORS
     CORS_ORIGINS: Union[List[str], str] = [

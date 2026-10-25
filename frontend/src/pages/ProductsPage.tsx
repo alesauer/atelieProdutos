@@ -453,7 +453,7 @@ export const ProductsPage: React.FC = () => {
     setFormError(null);
 
     const existingCount = (editingProduct?.images?.length || 0) + pendingImages.length;
-    const maxAllowed = 5;
+    const maxAllowed = 10;
 
     const validFiles: PendingImage[] = [];
     const errors: string[] = [];
@@ -693,6 +693,10 @@ export const ProductsPage: React.FC = () => {
     setUploadingImage(true);
     try {
       const fileList = Array.from(files);
+      if (imageModalProduct.images.length + fileList.length > 10) {
+        setImageError(`Limite de 10 fotos por produto atingido. O produto já possui ${imageModalProduct.images.length} fotos.`);
+        return;
+      }
       if (fileList.length === 1) {
         await api.uploadProductImage(imageModalProduct.id, fileList[0]);
       } else {
@@ -2342,7 +2346,7 @@ export const ProductsPage: React.FC = () => {
                 Fotos do Produto (Upload Único ou Múltiplo)
               </label>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-                {((editingProduct?.images?.length || 0) + pendingImages.length)}/5 fotos selecionadas
+                {((editingProduct?.images?.length || 0) + pendingImages.length)}/10 fotos selecionadas
               </span>
             </div>
 
@@ -2355,7 +2359,7 @@ export const ProductsPage: React.FC = () => {
                 textAlign: 'center',
                 backgroundColor: 'var(--bg-sand-light)',
                 position: 'relative',
-                cursor: ((editingProduct?.images?.length || 0) + pendingImages.length >= 5) ? 'not-allowed' : 'pointer',
+                cursor: ((editingProduct?.images?.length || 0) + pendingImages.length >= 10) ? 'not-allowed' : 'pointer',
                 transition: 'border-color 0.2s ease, background 0.2s ease',
               }}
             >
@@ -2363,7 +2367,7 @@ export const ProductsPage: React.FC = () => {
                 type="file"
                 multiple
                 accept="image/png, image/jpeg, image/webp"
-                disabled={((editingProduct?.images?.length || 0) + pendingImages.length >= 5) || savingProduct}
+                disabled={((editingProduct?.images?.length || 0) + pendingImages.length >= 10) || savingProduct}
                 onChange={(e) => {
                   handleSelectPendingImages(e.target.files);
                   e.target.value = '';
@@ -2375,18 +2379,18 @@ export const ProductsPage: React.FC = () => {
                   width: '100%',
                   height: '100%',
                   opacity: 0,
-                  cursor: ((editingProduct?.images?.length || 0) + pendingImages.length >= 5) ? 'not-allowed' : 'pointer',
+                  cursor: ((editingProduct?.images?.length || 0) + pendingImages.length >= 10) ? 'not-allowed' : 'pointer',
                 }}
               />
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
                 <Upload size={22} color="var(--brand-accent)" />
                 <p style={{ fontWeight: 600, color: 'var(--brand-primary)', fontSize: '0.88rem', margin: 0 }}>
-                  {((editingProduct?.images?.length || 0) + pendingImages.length >= 5)
-                    ? 'Limite máximo de 5 fotos atingido'
+                  {((editingProduct?.images?.length || 0) + pendingImages.length >= 10)
+                    ? 'Limite máximo de 10 fotos atingido'
                     : 'Clique ou arraste uma ou várias fotos do produto'}
                 </p>
                 <span style={{ fontSize: '0.74rem', color: 'var(--text-tertiary)' }}>
-                  Selecione 1 ou mais imagens (PNG, JPG ou WebP até 10 MB cada)
+                  Selecione 1 ou mais imagens (PNG, JPG ou WebP até 10 MB cada - até 10 fotos)
                 </span>
               </div>
             </div>
@@ -2903,7 +2907,7 @@ export const ProductsPage: React.FC = () => {
                 Clique ou arraste uma ou várias fotos para enviar
               </p>
               <span style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>
-                PNG, JPG ou WebP até 10 MB cada (máximo 5 fotos por produto)
+                PNG, JPG ou WebP até 10 MB cada (máximo 10 fotos por produto)
               </span>
             </div>
           )}
@@ -2912,7 +2916,7 @@ export const ProductsPage: React.FC = () => {
         {/* Galeria de Fotos */}
         <div>
           <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--brand-primary)', marginBottom: '12px' }}>
-            Fotos Cadastradas ({imageModalProduct?.images.length || 0}/5)
+            Fotos Cadastradas ({imageModalProduct?.images.length || 0}/10)
           </h4>
 
           {(!imageModalProduct?.images || imageModalProduct.images.length === 0) ? (
