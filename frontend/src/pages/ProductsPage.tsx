@@ -82,8 +82,8 @@ export const ProductsPage: React.FC = () => {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
 
-  // Modo de Exibição (Tabela detalhada ou Grade com fotos)
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  // Modo de Exibição (Padrão: Grade com fotos)
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('grid');
 
   // Fotos para Upload no Formulário de Produto (Novo ou Edição)
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
