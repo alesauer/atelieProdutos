@@ -236,6 +236,23 @@ export const ProductsPage: React.FC = () => {
     return { bg: '#f4ede6', color: '#4a3b32', border: '#e1d5ca' };
   };
 
+  const COLOR_PRESETS = [
+    'Branco',
+    'Natural / Off-White',
+    'Baunilha',
+    'Lavanda',
+    'Rosa Claro',
+    'Terracota',
+    'Verde Oliva',
+    'Azul Sereno',
+    'Dourado',
+    'Preto',
+    'Caramelo',
+    'Âmbar',
+    'Cinza',
+    'Vinho',
+  ];
+
   const getColorHex = (colorName?: string | null): string => {
     if (!colorName) return '#ccc';
     const c = colorName.toLowerCase().trim();
@@ -1621,7 +1638,7 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1.2fr', gap: '16px', marginBottom: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '16px', marginBottom: '16px' }}>
             <div>
               <label htmlFor="prod-name">Nome do Produto *</label>
               <input
@@ -1664,186 +1681,64 @@ export const ProductsPage: React.FC = () => {
                   </span>
                 )}
               </div>
-              <input
+              <select
                 id="prod-color"
-                type="text"
-                list="color-preset-list"
                 value={formData.color || ''}
-                onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                placeholder="Ex.: Lavanda, Branco..."
-              />
-              <datalist id="color-preset-list">
-                <option value="Branco" />
-                <option value="Natural / Off-White" />
-                <option value="Baunilha" />
-                <option value="Lavanda" />
-                <option value="Rosa Claro" />
-                <option value="Terracota" />
-                <option value="Verde Oliva" />
-                <option value="Azul Sereno" />
-                <option value="Dourado" />
-                <option value="Preto" />
-                <option value="Caramelo" />
-                <option value="Âmbar" />
-              </datalist>
-
-              {/* Sugestões rápidas de cores em 1 clique */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
-                {[
-                  { name: 'Branco', hex: '#ffffff', border: '#ccc' },
-                  { name: 'Natural', hex: '#f7f4ea', border: '#e0d8c3' },
-                  { name: 'Lavanda', hex: '#d8b4fe', border: '#c084fc' },
-                  { name: 'Rosa', hex: '#fbcfe8', border: '#f472b6' },
-                  { name: 'Terracota', hex: '#c86d51', border: '#9c4227' },
-                  { name: 'Verde', hex: '#86efac', border: '#4ade80' },
-                  { name: 'Dourado', hex: '#fde047', border: '#eab308' },
-                  { name: 'Preto', hex: '#2c2824', border: '#111' },
-                ].map((c) => {
-                  const isSelected = formData.color?.toLowerCase() === c.name.toLowerCase();
-                  return (
-                    <button
-                      key={c.name}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, color: c.name })}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        padding: '1px 6px',
-                        fontSize: '0.7rem',
-                        fontWeight: 600,
-                        borderRadius: '10px',
-                        border: isSelected ? '2px solid var(--brand-accent)' : `1px solid ${c.border}`,
-                        backgroundColor: isSelected ? 'var(--brand-accent-light, #fbf2ec)' : '#ffffff',
-                        color: 'var(--brand-primary)',
-                        cursor: 'pointer',
-                      }}
-                      title={`Selecionar cor: ${c.name}`}
-                    >
-                      <span
-                        style={{
-                          width: '7px',
-                          height: '7px',
-                          borderRadius: '50%',
-                          backgroundColor: c.hex,
-                          border: '1px solid rgba(0,0,0,0.2)',
-                          display: 'inline-block',
-                        }}
-                      />
-                      <span>{c.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
+                onChange={(e) => setFormData({ ...formData, color: e.target.value || undefined })}
+              >
+                <option value="">Sem cor especificada</option>
+                {COLOR_PRESETS.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+                {formData.color && !COLOR_PRESETS.includes(formData.color) && (
+                  <option value={formData.color}>{formData.color}</option>
+                )}
+              </select>
             </div>
           </div>
 
-          <div style={{ marginBottom: '16px' }}>
-            <label htmlFor="prod-cat">Categoria</label>
-            <select
-              id="prod-cat"
-              value={formData.category_id || ''}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  category_id: e.target.value ? Number(e.target.value) : null,
-                })
-              }
-            >
-              <option value="">Sem categoria</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div style={{ marginBottom: '18px' }}>
-            <label style={{ margin: '0 0 8px', fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-primary)', display: 'block' }}>
-              Unidade de Medida *
-            </label>
-
-            {/* Radio Buttons para seleção da Unidade de Medida */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
-                gap: '8px',
-              }}
-              role="radiogroup"
-              aria-label="Selecione a unidade de medida do produto"
-            >
-              {units.map((u) => {
-                const isSelected = formData.unit_id === u.id;
-                return (
-                  <label
-                    key={u.id}
-                    htmlFor={`unit-radio-${u.id}`}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '8px 12px',
-                      borderRadius: 'var(--radius-sm)',
-                      border: isSelected ? '2px solid var(--brand-accent)' : '1px solid var(--border-medium)',
-                      backgroundColor: isSelected ? 'var(--brand-accent-light, #fbf2ec)' : '#ffffff',
-                      boxShadow: isSelected ? '0 1px 4px rgba(184, 115, 51, 0.12)' : 'none',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                      userSelect: 'none',
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      id={`unit-radio-${u.id}`}
-                      name="product_unit_id"
-                      value={u.id}
-                      checked={isSelected}
-                      onChange={() => setFormData({ ...formData, unit_id: u.id })}
-                      style={{
-                        accentColor: 'var(--brand-accent)',
-                        cursor: 'pointer',
-                        width: '15px',
-                        height: '15px',
-                        margin: 0,
-                        flexShrink: 0,
-                      }}
-                    />
-                    <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                      <span
-                        style={{
-                          fontSize: '0.82rem',
-                          fontWeight: isSelected ? 700 : 600,
-                          color: isSelected ? 'var(--brand-primary)' : 'var(--text-primary)',
-                          lineHeight: 1.2,
-                        }}
-                      >
-                        {u.code}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: '0.72rem',
-                          color: isSelected ? 'var(--brand-accent)' : 'var(--text-tertiary)',
-                          lineHeight: 1.2,
-                          whiteSpace: 'nowrap',
-                          textOverflow: 'ellipsis',
-                          overflow: 'hidden',
-                        }}
-                        title={u.name}
-                      >
-                        {u.name}
-                      </span>
-                    </div>
-                  </label>
-                );
-              })}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+            <div>
+              <label htmlFor="prod-cat">Categoria</label>
+              <select
+                id="prod-cat"
+                value={formData.category_id || ''}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    category_id: e.target.value ? Number(e.target.value) : null,
+                  })
+                }
+              >
+                <option value="">Sem categoria</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
             </div>
-            {units.length === 0 && (
-              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
-                Nenhuma unidade cadastrada. Clique em "+ Nova Unidade" para adicionar.
-              </p>
-            )}
+            <div>
+              <label htmlFor="prod-unit">Unidade de Medida *</label>
+              <select
+                id="prod-unit"
+                required
+                value={formData.unit_id}
+                onChange={(e) => setFormData({ ...formData, unit_id: Number(e.target.value) })}
+              >
+                {units.length > 0 ? (
+                  units.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.code} - {u.name}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">Nenhuma unidade cadastrada</option>
+                )}
+              </select>
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
