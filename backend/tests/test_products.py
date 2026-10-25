@@ -247,3 +247,36 @@ def test_delete_product_with_stock_movement_fails(client: TestClient, admin_toke
     assert "movimentação(ões) de estoque associadas" in del_resp.json()["detail"]
 
 
+def test_create_and_update_product_color(client: TestClient, admin_token: str, sample_category, sample_unit):
+    # Criar produto com cor
+    response = client.post(
+        "/api/v1/products",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "sku": "VELA-LAVANDA-ROXA",
+            "name": "Vela Aromática Lavanda Francesa",
+            "color": "Lavanda",
+            "item_type": "PRODUTO_ACABADO",
+            "category_id": sample_category.id,
+            "unit_id": sample_unit.id,
+            "unit_cost": "20.0000",
+            "sale_price": "55.00",
+            "min_stock": "5.000",
+        },
+    )
+    assert response.status_code == 201
+    prod_data = response.json()
+    assert prod_data["color"] == "Lavanda"
+
+    # Atualizar cor do produto
+    prod_id = prod_data["id"]
+    upd_resp = client.put(
+        f"/api/v1/products/{prod_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"color": "Lavanda Suave"},
+    )
+    assert upd_resp.status_code == 200
+    assert upd_resp.json()["color"] == "Lavanda Suave"
+
+
+

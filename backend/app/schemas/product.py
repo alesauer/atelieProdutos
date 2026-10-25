@@ -33,6 +33,7 @@ class ProductBase(BaseModel):
     unit_cost: Decimal = Field(default=Decimal("0.0000"), ge=0)
     cost_breakdown: Optional[str] = None
     sales_links: Optional[str] = None
+    color: Optional[str] = Field(None, max_length=50)
     sale_price: Optional[Decimal] = Field(default=None, ge=0)
     min_stock: Decimal = Field(default=Decimal("0.000"), ge=0)
     is_active: bool = True
@@ -52,6 +53,7 @@ class ProductUpdate(BaseModel):
     unit_cost: Optional[Decimal] = Field(None, ge=0)
     cost_breakdown: Optional[str] = None
     sales_links: Optional[str] = None
+    color: Optional[str] = Field(None, max_length=50)
     sale_price: Optional[Decimal] = Field(None, ge=0)
     min_stock: Optional[Decimal] = Field(None, ge=0)
     is_active: Optional[bool] = None

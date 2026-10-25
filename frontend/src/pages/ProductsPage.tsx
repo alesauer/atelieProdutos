@@ -17,6 +17,7 @@ import {
   ChevronRight,
   ExternalLink,
   Store,
+  Palette,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { Badge } from '../components/Badge';
@@ -51,6 +52,7 @@ export const ProductsPage: React.FC = () => {
     sku: '',
     name: '',
     description: '',
+    color: '',
     item_type: 'PRODUTO_ACABADO',
     category_id: null,
     unit_id: 1,
@@ -150,7 +152,8 @@ export const ProductsPage: React.FC = () => {
   const filteredProducts = products.filter((p) => {
     const matchSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.sku.toLowerCase().includes(search.toLowerCase());
+      p.sku.toLowerCase().includes(search.toLowerCase()) ||
+      (p.color && p.color.toLowerCase().includes(search.toLowerCase()));
 
     const matchType = selectedType === 'TODOS' || p.item_type === selectedType;
     const matchCategory =
@@ -174,6 +177,7 @@ export const ProductsPage: React.FC = () => {
       sku: '',
       name: '',
       description: '',
+      color: '',
       item_type: 'PRODUTO_ACABADO',
       category_id: categories.length > 0 ? categories[0].id : null,
       unit_id: units.length > 0 ? units[0].id : 1,
@@ -214,6 +218,7 @@ export const ProductsPage: React.FC = () => {
       sku: prod.sku,
       name: prod.name,
       description: prod.description || '',
+      color: prod.color || '',
       item_type: prod.item_type,
       category_id: prod.category_id || null,
       unit_id: prod.unit_id,
@@ -252,6 +257,25 @@ export const ProductsPage: React.FC = () => {
       return { bg: '#e1306c', color: '#ffffff', border: '#c1275b' };
     }
     return { bg: '#f4ede6', color: '#4a3b32', border: '#e1d5ca' };
+  };
+
+  const getColorHex = (colorName?: string | null): string => {
+    if (!colorName) return '#ccc';
+    const c = colorName.toLowerCase().trim();
+    if (c.includes('branco')) return '#ffffff';
+    if (c.includes('natural') || c.includes('cru') || c.includes('off-white')) return '#f7f4ea';
+    if (c.includes('baunilha') || c.includes('marfim')) return '#fef3c7';
+    if (c.includes('lavanda') || c.includes('lilás') || c.includes('lilas') || c.includes('roxa') || c.includes('roxo')) return '#d8b4fe';
+    if (c.includes('rosa')) return '#fbcfe8';
+    if (c.includes('terracota') || c.includes('marrom') || c.includes('cobre')) return '#c86d51';
+    if (c.includes('verde') || c.includes('oliva') || c.includes('menta')) return '#86efac';
+    if (c.includes('azul')) return '#93c5fd';
+    if (c.includes('dourad') || c.includes('ouro') || c.includes('amarelo')) return '#fde047';
+    if (c.includes('preto') || c.includes('grafite') || c.includes('cinza escuro')) return '#2c2824';
+    if (c.includes('cinza') || c.includes('prata')) return '#d1d5db';
+    if (c.includes('vermelh') || c.includes('vinho')) return '#f87171';
+    if (c.includes('laranja') || c.includes('âmbar') || c.includes('ambar')) return '#fb923c';
+    return '#e2d9cf';
   };
 
   const parseSalesLinks = (raw?: string | null): SalesLinkItem[] => {
@@ -548,6 +572,7 @@ export const ProductsPage: React.FC = () => {
 
       const productPayload: ProductFormData = {
         ...formData,
+        color: formData.color?.trim() || undefined,
         sales_links: currentSalesLinks.length > 0 ? JSON.stringify(currentSalesLinks) : '',
       };
 
@@ -1188,6 +1213,46 @@ export const ProductsPage: React.FC = () => {
                     </span>
                   </div>
 
+                  {/* Categoria e Cor do Produto na Vitrine */}
+                  {(prod.category || prod.color) && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                      {prod.category && (
+                        <span style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                          {prod.category.name}
+                        </span>
+                      )}
+                      {prod.color && (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '1px 7px',
+                            borderRadius: '10px',
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                            backgroundColor: '#ffffff',
+                            color: 'var(--brand-primary)',
+                            border: '1px solid var(--border-subtle)',
+                          }}
+                          title={`Cor: ${prod.color}`}
+                        >
+                          <span
+                            style={{
+                              width: '7px',
+                              height: '7px',
+                              borderRadius: '50%',
+                              backgroundColor: getColorHex(prod.color),
+                              border: '1px solid rgba(0,0,0,0.2)',
+                              display: 'inline-block',
+                            }}
+                          />
+                          <span>{prod.color}</span>
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {prod.description && (
                     <p
                       style={{
@@ -1471,6 +1536,35 @@ export const ProductsPage: React.FC = () => {
                           <span style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>
                             {prod.sku}
                           </span>
+                          {prod.color && (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                fontSize: '0.7rem',
+                                color: 'var(--text-secondary)',
+                                fontWeight: 600,
+                                backgroundColor: 'var(--bg-sand-light)',
+                                padding: '1px 6px',
+                                borderRadius: '10px',
+                                border: '1px solid var(--border-subtle)',
+                              }}
+                              title={`Cor: ${prod.color}`}
+                            >
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  width: '7px',
+                                  height: '7px',
+                                  borderRadius: '50%',
+                                  backgroundColor: getColorHex(prod.color),
+                                  border: '1px solid rgba(0,0,0,0.2)',
+                                }}
+                              />
+                              {prod.color}
+                            </span>
+                          )}
                           {(() => {
                             const links = parseSalesLinks(prod.sales_links);
                             if (links.length === 0) return null;
@@ -1683,16 +1777,121 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ marginBottom: '16px' }}>
-            <label htmlFor="prod-name">Nome do Item *</label>
-            <input
-              id="prod-name"
-              type="text"
-              required
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="Ex.: Vela Aromática Lavanda Francesa 180g"
-            />
+          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1.2fr', gap: '16px', marginBottom: '16px' }}>
+            <div>
+              <label htmlFor="prod-name">Nome do Produto *</label>
+              <input
+                id="prod-name"
+                type="text"
+                required
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Ex.: Vela Aromática Lavanda Francesa 180g"
+              />
+            </div>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label htmlFor="prod-color" style={{ margin: 0, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  <Palette size={14} color="var(--brand-accent)" />
+                  Cor do Produto
+                </label>
+                {formData.color && (
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '0.72rem',
+                      color: 'var(--text-secondary)',
+                      fontWeight: 600,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        backgroundColor: getColorHex(formData.color),
+                        border: '1px solid rgba(0,0,0,0.2)',
+                        display: 'inline-block',
+                      }}
+                    />
+                    {formData.color}
+                  </span>
+                )}
+              </div>
+              <input
+                id="prod-color"
+                type="text"
+                list="color-preset-list"
+                value={formData.color || ''}
+                onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                placeholder="Ex.: Lavanda, Branco..."
+              />
+              <datalist id="color-preset-list">
+                <option value="Branco" />
+                <option value="Natural / Off-White" />
+                <option value="Baunilha" />
+                <option value="Lavanda" />
+                <option value="Rosa Claro" />
+                <option value="Terracota" />
+                <option value="Verde Oliva" />
+                <option value="Azul Sereno" />
+                <option value="Dourado" />
+                <option value="Preto" />
+                <option value="Caramelo" />
+                <option value="Âmbar" />
+              </datalist>
+
+              {/* Sugestões rápidas de cores em 1 clique */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                {[
+                  { name: 'Branco', hex: '#ffffff', border: '#ccc' },
+                  { name: 'Natural', hex: '#f7f4ea', border: '#e0d8c3' },
+                  { name: 'Lavanda', hex: '#d8b4fe', border: '#c084fc' },
+                  { name: 'Rosa', hex: '#fbcfe8', border: '#f472b6' },
+                  { name: 'Terracota', hex: '#c86d51', border: '#9c4227' },
+                  { name: 'Verde', hex: '#86efac', border: '#4ade80' },
+                  { name: 'Dourado', hex: '#fde047', border: '#eab308' },
+                  { name: 'Preto', hex: '#2c2824', border: '#111' },
+                ].map((c) => {
+                  const isSelected = formData.color?.toLowerCase() === c.name.toLowerCase();
+                  return (
+                    <button
+                      key={c.name}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, color: c.name })}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '1px 6px',
+                        fontSize: '0.7rem',
+                        fontWeight: 600,
+                        borderRadius: '10px',
+                        border: isSelected ? '2px solid var(--brand-accent)' : `1px solid ${c.border}`,
+                        backgroundColor: isSelected ? 'var(--brand-accent-light, #fbf2ec)' : '#ffffff',
+                        color: 'var(--brand-primary)',
+                        cursor: 'pointer',
+                      }}
+                      title={`Selecionar cor: ${c.name}`}
+                    >
+                      <span
+                        style={{
+                          width: '7px',
+                          height: '7px',
+                          borderRadius: '50%',
+                          backgroundColor: c.hex,
+                          border: '1px solid rgba(0,0,0,0.2)',
+                          display: 'inline-block',
+                        }}
+                      />
+                      <span>{c.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>

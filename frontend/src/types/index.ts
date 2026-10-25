@@ -93,6 +93,7 @@ export interface Product {
   sku: string;
   name: string;
   description?: string;
+  color?: string | null;
   item_type: ItemType;
   category_id?: number | null;
   unit_id: number;
@@ -115,6 +116,7 @@ export interface ProductFormData {
   sku: string;
   name: string;
   description?: string;
+  color?: string;
   item_type: ItemType;
   category_id?: number | null;
   unit_id: number;

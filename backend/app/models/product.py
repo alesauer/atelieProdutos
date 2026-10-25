@@ -39,6 +39,7 @@ class Product(Base, TimestampMixin):
     )
     cost_breakdown: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     sales_links: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    color: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     sale_price: Mapped[Optional[Decimal]] = mapped_column(
         Numeric(10, 2), nullable=True
     )
