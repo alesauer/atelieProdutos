@@ -127,6 +127,13 @@ class ApiClient {
     });
   }
 
+  async updateCategory(categoryId: number, data: { name?: string; description?: string; is_active?: boolean }): Promise<Category> {
+    return this.request<Category>(`/categories/${categoryId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
   async deleteCategory(categoryId: number): Promise<void> {
     return this.request<void>(`/categories/${categoryId}`, {
       method: 'DELETE',
@@ -141,6 +148,13 @@ class ApiClient {
     return this.request<UnitOfMeasure>('/units', {
       method: 'POST',
       body: JSON.stringify({ code, name, allows_decimals }),
+    });
+  }
+
+  async updateUnit(unitId: number, data: { code?: string; name?: string; allows_decimals?: boolean }): Promise<UnitOfMeasure> {
+    return this.request<UnitOfMeasure>(`/units/${unitId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
     });
   }
 

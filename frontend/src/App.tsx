@@ -10,6 +10,7 @@ import { StockPage } from './pages/StockPage';
 import { ProductionPage } from './pages/ProductionPage';
 import { SalesPage } from './pages/SalesPage';
 import { ReportsPage } from './pages/ReportsPage';
+import { SettingsPage } from './pages/SettingsPage';
 
 export function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -58,6 +59,8 @@ export function App() {
         return { title: 'Vendas & Pedidos', subtitle: 'Registro e baixa de estoque de pedidos' };
       case 'relatorios':
         return { title: 'Relatórios Analíticos', subtitle: 'Extratos, valorização e exportação CSV' };
+      case 'configuracao':
+        return { title: 'Configurações do Ateliê', subtitle: 'Categorias, unidades de medida e cadastros auxiliares' };
       default:
         return { title: 'Casa Luma Estoque', subtitle: '' };
     }
@@ -92,6 +95,7 @@ export function App() {
           {currentTab === 'producao' && <ProductionPage />}
           {currentTab === 'vendas' && <SalesPage />}
           {currentTab === 'relatorios' && <ReportsPage />}
+          {currentTab === 'configuracao' && <SettingsPage />}
         </main>
       </div>
     </div>

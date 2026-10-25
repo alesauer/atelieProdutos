@@ -9,6 +9,7 @@ import {
   LogOut,
   Sparkles,
   Download,
+  Settings,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -54,6 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'producao', label: 'Produção Artesanal', icon: Hammer },
     { id: 'vendas', label: 'Vendas & Pedidos', icon: ShoppingBag },
     { id: 'relatorios', label: 'Relatórios', icon: BarChart3 },
+    { id: 'configuracao', label: 'Configurações', icon: Settings },
   ];
 
   const content = (

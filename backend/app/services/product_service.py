@@ -8,7 +8,7 @@ from app.models.category import Category
 from app.models.unit import UnitOfMeasure
 from app.models.product import Product, ProductImage, ItemType
 from app.schemas.category import CategoryCreate, CategoryUpdate
-from app.schemas.unit import UnitCreate
+from app.schemas.unit import UnitCreate, UnitUpdate
 from app.schemas.product import ProductCreate, ProductUpdate, ImageReorderItem
 from app.services.storage_service import storage_service
 
@@ -171,6 +171,25 @@ class ProductService:
             allows_decimals=unit_in.allows_decimals,
         )
         db.add(unit)
+        db.commit()
+        db.refresh(unit)
+        return unit
+
+    @staticmethod
+    def update_unit(db: Session, unit: UnitOfMeasure, unit_in: UnitUpdate) -> UnitOfMeasure:
+        if unit_in.code is not None:
+            clean_code = unit_in.code.upper().strip()
+            existing = ProductService.get_unit_by_code(db, clean_code)
+            if existing and existing.id != unit.id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Unidade de medida '{clean_code}' já está cadastrada.",
+                )
+            unit.code = clean_code
+        if unit_in.name is not None:
+            unit.name = unit_in.name.strip()
+        if unit_in.allows_decimals is not None:
+            unit.allows_decimals = unit_in.allows_decimals
         db.commit()
         db.refresh(unit)
         return unit
