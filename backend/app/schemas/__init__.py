@@ -19,6 +19,12 @@ from app.schemas.unit import (
     UnitCreate,
     UnitResponse,
 )
+from app.schemas.color import (
+    ColorBase,
+    ColorCreate,
+    ColorUpdate,
+    ColorResponse,
+)
 from app.schemas.product import (
     ProductBase,
     ProductCreate,
@@ -45,6 +51,10 @@ __all__ = [
     "UnitBase",
     "UnitCreate",
     "UnitResponse",
+    "ColorBase",
+    "ColorCreate",
+    "ColorUpdate",
+    "ColorResponse",
     "ProductBase",
     "ProductCreate",
     "ProductUpdate",

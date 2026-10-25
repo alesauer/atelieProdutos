@@ -3,6 +3,7 @@ from app.models.base import TimestampMixin
 from app.models.user import User, PasswordResetToken
 from app.models.category import Category
 from app.models.unit import UnitOfMeasure
+from app.models.color import ProductColor
 from app.models.product import Product, ProductImage, ItemType
 from app.models.item_type import ItemTypeModel
 from app.models.stock import StockMovement, MovementType
@@ -23,6 +24,7 @@ __all__ = [
     "PasswordResetToken",
     "Category",
     "UnitOfMeasure",
+    "ProductColor",
     "Product",
     "ProductImage",
     "ItemType",

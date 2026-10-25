@@ -7,6 +7,7 @@ import type {
   MovementReportItem,
   NotificationLogItem,
   Product,
+  ProductColor,
   ProductFormData,
   ProductImage,
   ProductionOrder,
@@ -160,6 +161,31 @@ class ApiClient {
 
   async deleteUnit(unitId: number): Promise<void> {
     return this.request<void>(`/units/${unitId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // --- Cores dos Produtos ---
+  async listColors(): Promise<ProductColor[]> {
+    return this.request<ProductColor[]>('/colors');
+  }
+
+  async createColor(name: string, hex_code?: string): Promise<ProductColor> {
+    return this.request<ProductColor>('/colors', {
+      method: 'POST',
+      body: JSON.stringify({ name, hex_code }),
+    });
+  }
+
+  async updateColor(colorId: number, data: { name?: string; hex_code?: string; is_active?: boolean }): Promise<ProductColor> {
+    return this.request<ProductColor>(`/colors/${colorId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteColor(colorId: number): Promise<void> {
+    return this.request<void>(`/colors/${colorId}`, {
       method: 'DELETE',
     });
   }

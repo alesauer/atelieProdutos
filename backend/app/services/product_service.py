@@ -6,9 +6,11 @@ from fastapi import HTTPException, status
 from app.core.config import settings
 from app.models.category import Category
 from app.models.unit import UnitOfMeasure
+from app.models.color import ProductColor
 from app.models.product import Product, ProductImage, ItemType
 from app.schemas.category import CategoryCreate, CategoryUpdate
 from app.schemas.unit import UnitCreate, UnitUpdate
+from app.schemas.color import ColorCreate, ColorUpdate
 from app.schemas.product import ProductCreate, ProductUpdate, ImageReorderItem
 from app.services.storage_service import storage_service
 
@@ -39,6 +41,24 @@ DEFAULT_INITIAL_UNITS = [
     {"code": "M", "name": "Metro", "allows_decimals": True},
     {"code": "PCT", "name": "Pacote", "allows_decimals": False},
     {"code": "CX", "name": "Caixa", "allows_decimals": False},
+]
+
+
+DEFAULT_INITIAL_COLORS = [
+    {"name": "Branco", "hex_code": "#ffffff"},
+    {"name": "Natural / Off-White", "hex_code": "#f7f4ea"},
+    {"name": "Baunilha", "hex_code": "#fef3c7"},
+    {"name": "Lavanda", "hex_code": "#d8b4fe"},
+    {"name": "Rosa Claro", "hex_code": "#fbcfe8"},
+    {"name": "Terracota", "hex_code": "#c86d51"},
+    {"name": "Verde Oliva", "hex_code": "#86efac"},
+    {"name": "Azul Sereno", "hex_code": "#93c5fd"},
+    {"name": "Dourado", "hex_code": "#fde047"},
+    {"name": "Preto", "hex_code": "#2c2824"},
+    {"name": "Caramelo", "hex_code": "#d97706"},
+    {"name": "Âmbar", "hex_code": "#fb923c"},
+    {"name": "Cinza", "hex_code": "#d1d5db"},
+    {"name": "Vinho", "hex_code": "#991b1b"},
 ]
 
 
@@ -213,6 +233,87 @@ class ProductService:
                 detail=f"Não é possível excluir a unidade '{unit.name}' ({unit.code}) pois existem {products_count} produto(s) associado(s).",
             )
         db.delete(unit)
+        db.commit()
+
+    # --- Cores dos Produtos ---
+    @staticmethod
+    def seed_initial_colors(db: Session) -> None:
+        """Garante a existência das cores padrão se não existirem."""
+        count = db.execute(select(func.count(ProductColor.id))).scalar() or 0
+        if count == 0:
+            for item in DEFAULT_INITIAL_COLORS:
+                existing = ProductService.get_color_by_name(db, item["name"])
+                if not existing:
+                    new_color = ProductColor(
+                        name=item["name"],
+                        hex_code=item["hex_code"],
+                        is_active=True,
+                    )
+                    db.add(new_color)
+            db.commit()
+
+    @staticmethod
+    def list_colors(db: Session) -> List[ProductColor]:
+        ProductService.seed_initial_colors(db)
+        stmt = select(ProductColor).order_by(ProductColor.name)
+        return list(db.execute(stmt).scalars().all())
+
+    @staticmethod
+    def get_color_by_id(db: Session, color_id: int) -> Optional[ProductColor]:
+        return db.get(ProductColor, color_id)
+
+    @staticmethod
+    def get_color_by_name(db: Session, name: str) -> Optional[ProductColor]:
+        stmt = select(ProductColor).where(func.lower(ProductColor.name) == name.lower().strip())
+        return db.execute(stmt).scalars().first()
+
+    @staticmethod
+    def create_color(db: Session, color_in: ColorCreate) -> ProductColor:
+        clean_name = color_in.name.strip()
+        existing = ProductService.get_color_by_name(db, clean_name)
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Já existe uma cor cadastrada com o nome '{clean_name}'.",
+            )
+        color = ProductColor(
+            name=clean_name,
+            hex_code=color_in.hex_code.strip() if color_in.hex_code else None,
+            is_active=color_in.is_active,
+        )
+        db.add(color)
+        db.commit()
+        db.refresh(color)
+        return color
+
+    @staticmethod
+    def update_color(db: Session, color: ProductColor, color_in: ColorUpdate) -> ProductColor:
+        if color_in.name is not None:
+            clean_name = color_in.name.strip()
+            existing = ProductService.get_color_by_name(db, clean_name)
+            if existing and existing.id != color.id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Já existe outra cor com o nome '{clean_name}'.",
+                )
+            color.name = clean_name
+        if color_in.hex_code is not None:
+            color.hex_code = color_in.hex_code.strip() if color_in.hex_code else None
+        if color_in.is_active is not None:
+            color.is_active = color_in.is_active
+        db.commit()
+        db.refresh(color)
+        return color
+
+    @staticmethod
+    def delete_color(db: Session, color_id: int) -> None:
+        color = ProductService.get_color_by_id(db, color_id)
+        if not color:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Cor não encontrada.",
+            )
+        db.delete(color)
         db.commit()
 
     # --- Produtos ---

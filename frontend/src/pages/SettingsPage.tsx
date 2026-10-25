@@ -3,6 +3,7 @@ import {
   FolderTree,
   Scale,
   Layers,
+  Palette,
   Plus,
   Search,
   Edit2,
@@ -13,10 +14,10 @@ import {
 } from 'lucide-react';
 import { api } from '../api/client';
 import { Modal } from '../components/Modal';
-import type { Category, UnitOfMeasure, ItemTypeDefinition } from '../types';
+import type { Category, UnitOfMeasure, ItemTypeDefinition, ProductColor } from '../types';
 
 export const SettingsPage: React.FC = () => {
-  const [activeSubTab, setActiveSubTab] = useState<'categorias' | 'unidades' | 'tipos'>('categorias');
+  const [activeSubTab, setActiveSubTab] = useState<'categorias' | 'unidades' | 'tipos' | 'cores'>('categorias');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,6 +25,7 @@ export const SettingsPage: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [units, setUnits] = useState<UnitOfMeasure[]>([]);
   const [itemTypes, setItemTypes] = useState<ItemTypeDefinition[]>([]);
+  const [colors, setColors] = useState<ProductColor[]>([]);
   const [search, setSearch] = useState('');
 
   // Modais de Categoria
@@ -51,18 +53,28 @@ export const SettingsPage: React.FC = () => {
   const [savingType, setSavingType] = useState(false);
   const [typeFormError, setTypeFormError] = useState<string | null>(null);
 
+  // Modais de Cor
+  const [isColorModalOpen, setIsColorModalOpen] = useState(false);
+  const [editingColor, setEditingColor] = useState<ProductColor | null>(null);
+  const [colorName, setColorName] = useState('');
+  const [colorHex, setColorHex] = useState('#d8b4fe');
+  const [savingColor, setSavingColor] = useState(false);
+  const [colorFormError, setColorFormError] = useState<string | null>(null);
+
   const loadData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [cats, unities, types] = await Promise.all([
+      const [cats, unities, types, productColors] = await Promise.all([
         api.listCategories(),
         api.listUnits(),
         api.listItemTypes(),
+        api.listColors(),
       ]);
       setCategories(cats);
       setUnits(unities);
       setItemTypes(types);
+      setColors(productColors);
     } catch (err: any) {
       setError(err.message || 'Erro ao carregar configurações do ateliê.');
     } finally {
@@ -229,6 +241,61 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
+  // --- Handlers de Cor ---
+  const handleOpenNewColor = () => {
+    setEditingColor(null);
+    setColorName('');
+    setColorHex('#d8b4fe');
+    setColorFormError(null);
+    setIsColorModalOpen(true);
+  };
+
+  const handleOpenEditColor = (c: ProductColor) => {
+    setEditingColor(c);
+    setColorName(c.name);
+    setColorHex(c.hex_code || '#d8b4fe');
+    setColorFormError(null);
+    setIsColorModalOpen(true);
+  };
+
+  const handleSaveColor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!colorName.trim()) return;
+    setSavingColor(true);
+    setColorFormError(null);
+
+    try {
+      if (editingColor) {
+        const updated = await api.updateColor(editingColor.id, {
+          name: colorName.trim(),
+          hex_code: colorHex.trim() || undefined,
+        });
+        setColors((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      } else {
+        const created = await api.createColor(
+          colorName.trim(),
+          colorHex.trim() || undefined
+        );
+        setColors((prev) => [...prev, created]);
+      }
+      setIsColorModalOpen(false);
+    } catch (err: any) {
+      setColorFormError(err.message || 'Erro ao salvar cor.');
+    } finally {
+      setSavingColor(false);
+    }
+  };
+
+  const handleDeleteColor = async (c: ProductColor) => {
+    if (!confirm(`Deseja realmente excluir a cor "${c.name}"?`)) return;
+    try {
+      await api.deleteColor(c.id);
+      setColors((prev) => prev.filter((item) => item.id !== c.id));
+    } catch (err: any) {
+      alert(err.message || 'Erro ao excluir cor.');
+    }
+  };
+
   // Filtros de busca locais
   const filteredCategories = categories.filter(
     (c) =>
@@ -246,6 +313,12 @@ export const SettingsPage: React.FC = () => {
     (t) =>
       t.name.toLowerCase().includes(search.toLowerCase()) ||
       t.code.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const filteredColors = colors.filter(
+    (c) =>
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      (c.hex_code && c.hex_code.toLowerCase().includes(search.toLowerCase()))
   );
 
   return (
@@ -371,6 +444,43 @@ export const SettingsPage: React.FC = () => {
             {itemTypes.length}
           </span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveSubTab('cores');
+            setSearch('');
+          }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '9px 18px',
+            borderRadius: 'var(--radius-sm)',
+            border: activeSubTab === 'cores' ? '1px solid var(--border-medium)' : '1px solid transparent',
+            backgroundColor: activeSubTab === 'cores' ? 'var(--bg-sand)' : 'transparent',
+            color: activeSubTab === 'cores' ? 'var(--brand-primary)' : 'var(--text-secondary)',
+            fontWeight: activeSubTab === 'cores' ? 700 : 500,
+            fontSize: '0.92rem',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <Palette size={18} color={activeSubTab === 'cores' ? 'var(--brand-accent)' : 'currentColor'} />
+          <span>Cores dos Produtos</span>
+          <span
+            style={{
+              padding: '2px 7px',
+              borderRadius: '10px',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              backgroundColor: activeSubTab === 'cores' ? 'var(--brand-accent)' : 'var(--border-subtle)',
+              color: activeSubTab === 'cores' ? '#fff' : 'var(--text-tertiary)',
+            }}
+          >
+            {colors.length}
+          </span>
+        </button>
       </div>
 
       {/* Barra de Ações: Busca e Botão de Adição */}
@@ -404,6 +514,8 @@ export const SettingsPage: React.FC = () => {
                 ? 'Buscar por nome ou descrição da categoria...'
                 : activeSubTab === 'unidades'
                 ? 'Buscar por código ou nome da unidade...'
+                : activeSubTab === 'cores'
+                ? 'Buscar por nome ou código hexadecimal da cor...'
                 : 'Buscar por nome ou código do tipo...'
             }
             value={search}
@@ -430,6 +542,13 @@ export const SettingsPage: React.FC = () => {
           <button onClick={handleOpenNewType} className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
             <Plus size={18} />
             <span>Novo Tipo</span>
+          </button>
+        )}
+
+        {activeSubTab === 'cores' && (
+          <button onClick={handleOpenNewColor} className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <Plus size={18} />
+            <span>Nova Cor</span>
           </button>
         )}
       </div>
@@ -672,6 +791,99 @@ export const SettingsPage: React.FC = () => {
               )}
             </div>
           )}
+          {/* TAB 4: CORES DOS PRODUTOS */}
+          {activeSubTab === 'cores' && (
+            <div className="card" style={{ overflow: 'hidden' }}>
+              <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', backgroundColor: 'var(--bg-sand-light)' }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--brand-primary)' }}>
+                  Paleta de Cores de Produtos Cadastradas ({filteredColors.length})
+                </span>
+              </div>
+              {filteredColors.length === 0 ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-tertiary)' }}>
+                  <Palette size={36} color="var(--brand-accent)" style={{ margin: '0 auto 12px', opacity: 0.5 }} />
+                  <p style={{ margin: 0, fontWeight: 500 }}>Nenhuma cor cadastrada encontrada.</p>
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border-subtle)', backgroundColor: 'var(--bg-sand-light)' }}>
+                        <th style={{ padding: '12px 18px', fontWeight: 600, color: 'var(--text-secondary)', width: '90px' }}>Amostra</th>
+                        <th style={{ padding: '12px 18px', fontWeight: 600, color: 'var(--text-secondary)' }}>Nome da Cor</th>
+                        <th style={{ padding: '12px 18px', fontWeight: 600, color: 'var(--text-secondary)' }}>Código Hexadecimal</th>
+                        <th style={{ padding: '12px 18px', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'right' }}>Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredColors.map((c) => (
+                        <tr key={c.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                          <td style={{ padding: '14px 18px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center' }}>
+                              <span
+                                style={{
+                                  width: '26px',
+                                  height: '26px',
+                                  borderRadius: '50%',
+                                  backgroundColor: c.hex_code || '#cccccc',
+                                  border: '2px solid rgba(0,0,0,0.15)',
+                                  boxShadow: '0 2px 4px rgba(0,0,0,0.06)',
+                                  display: 'inline-block',
+                                  flexShrink: 0,
+                                }}
+                              />
+                            </div>
+                          </td>
+                          <td style={{ padding: '14px 18px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {c.name}
+                          </td>
+                          <td style={{ padding: '14px 18px', color: 'var(--text-secondary)' }}>
+                            {c.hex_code ? (
+                              <code
+                                style={{
+                                  fontFamily: 'monospace',
+                                  fontSize: '0.84rem',
+                                  backgroundColor: 'var(--bg-sand)',
+                                  padding: '3px 8px',
+                                  borderRadius: '4px',
+                                  border: '1px solid var(--border-medium)',
+                                }}
+                              >
+                                {c.hex_code.toUpperCase()}
+                              </code>
+                            ) : (
+                              <span style={{ color: 'var(--text-tertiary)', fontStyle: 'italic' }}>Não definido</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                            <div style={{ display: 'inline-flex', gap: '8px' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditColor(c)}
+                                className="btn-icon"
+                                title="Editar Cor"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteColor(c)}
+                                className="btn-icon"
+                                title="Excluir Cor"
+                                style={{ color: 'var(--status-danger-text)' }}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
 
@@ -890,6 +1102,125 @@ export const SettingsPage: React.FC = () => {
             </button>
             <button type="submit" className="btn-primary" disabled={savingType}>
               {savingType ? 'Salvando...' : 'Salvar Tipo de Item'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+      {/* Modal Criar/Editar Cor de Produto */}
+      <Modal
+        isOpen={isColorModalOpen}
+        onClose={() => setIsColorModalOpen(false)}
+        title={editingColor ? 'Editar Cor de Produto' : 'Nova Cor de Produto'}
+        subtitle="Cadastre tons e paletas para personalizar o catálogo e as variações"
+        maxWidth="480px"
+      >
+        <form onSubmit={handleSaveColor}>
+          {colorFormError && (
+            <div
+              style={{
+                padding: '10px 14px',
+                backgroundColor: 'var(--status-danger-bg)',
+                color: 'var(--status-danger-text)',
+                borderRadius: 'var(--radius-sm)',
+                marginBottom: '16px',
+                fontSize: '0.85rem',
+              }}
+            >
+              {colorFormError}
+            </div>
+          )}
+
+          <div style={{ marginBottom: '16px' }}>
+            <label htmlFor="color-name">Nome da Cor *</label>
+            <input
+              id="color-name"
+              type="text"
+              required
+              placeholder="Ex.: Lavanda Real, Âmbar Dourado, Baunilha..."
+              value={colorName}
+              onChange={(e) => setColorName(e.target.value)}
+              autoFocus
+            />
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label htmlFor="color-hex">Código Hexadecimal / Amostra Visual</label>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <input
+                type="color"
+                id="color-picker"
+                value={colorHex.startsWith('#') && colorHex.length === 7 ? colorHex : '#d8b4fe'}
+                onChange={(e) => setColorHex(e.target.value)}
+                style={{
+                  width: '46px',
+                  height: '42px',
+                  padding: '2px',
+                  cursor: 'pointer',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border-medium)',
+                  backgroundColor: '#fff',
+                }}
+                title="Clique para escolher a cor visualmente"
+              />
+              <input
+                id="color-hex"
+                type="text"
+                placeholder="#RRGGBB (ex.: #D8B4FE)"
+                value={colorHex}
+                onChange={(e) => setColorHex(e.target.value)}
+                style={{ flex: 1, textTransform: 'uppercase' }}
+              />
+            </div>
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-tertiary)', display: 'block', marginTop: '6px' }}>
+              Você pode clicar no seletor de cor ou digitar o código hexadecimal (ex: #C86D51).
+            </span>
+          </div>
+
+          {/* Visualização de Prévia */}
+          <div
+            style={{
+              marginBottom: '24px',
+              padding: '12px 16px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'var(--bg-sand-light)',
+              border: '1px solid var(--border-subtle)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+            }}
+          >
+            <span
+              style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '50%',
+                backgroundColor: colorHex || '#cccccc',
+                border: '2px solid rgba(0,0,0,0.15)',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+                flexShrink: 0,
+              }}
+            />
+            <div>
+              <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)', display: 'block' }}>
+                {colorName.trim() || 'Nome da Cor'}
+              </span>
+              <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                Prévia: {colorHex || 'Sem código'}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+            <button
+              type="button"
+              onClick={() => setIsColorModalOpen(false)}
+              className="btn-secondary"
+              disabled={savingColor}
+            >
+              Cancelar
+            </button>
+            <button type="submit" className="btn-primary" disabled={savingColor}>
+              {savingColor ? 'Salvando...' : editingColor ? 'Salvar Alterações' : 'Criar Cor'}
             </button>
           </div>
         </form>

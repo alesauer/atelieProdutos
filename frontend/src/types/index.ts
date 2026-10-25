@@ -61,6 +61,14 @@ export interface UnitOfMeasure {
   created_at: string;
 }
 
+export interface ProductColor {
+  id: number;
+  name: string;
+  hex_code?: string;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface ProductImage {
   id: number;
   product_id: number;

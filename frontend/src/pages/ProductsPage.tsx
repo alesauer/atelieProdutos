@@ -23,7 +23,7 @@ import { api } from '../api/client';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import { getProductImageUrl, handleImageError } from '../utils/imageUrl';
-import type { Category, CostComponentItem, ItemType, ItemTypeDefinition, Product, ProductFormData, SalesLinkItem, UnitOfMeasure } from '../types';
+import type { Category, CostComponentItem, ItemType, ItemTypeDefinition, Product, ProductColor, ProductFormData, SalesLinkItem, UnitOfMeasure } from '../types';
 
 interface PendingImage {
   id: string;
@@ -37,6 +37,7 @@ export const ProductsPage: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [units, setUnits] = useState<UnitOfMeasure[]>([]);
   const [itemTypes, setItemTypes] = useState<ItemTypeDefinition[]>([]);
+  const [colors, setColors] = useState<ProductColor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -98,17 +99,19 @@ export const ProductsPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [prodsData, catsData, unitsData, itemTypesData] = await Promise.all([
+      const [prodsData, catsData, unitsData, itemTypesData, colorsData] = await Promise.all([
         api.listProducts({ active_only: false }),
         api.listCategories(),
         api.listUnits(),
         api.listItemTypes(),
+        api.listColors(),
       ]);
 
       setProducts(prodsData);
       setCategories(catsData);
       setUnits(unitsData);
       setItemTypes(itemTypesData);
+      setColors(colorsData);
 
       // Definir unidade padrão como Unidade (UN)
       const defaultUnit = unitsData.find(
@@ -264,6 +267,10 @@ export const ProductsPage: React.FC = () => {
 
   const getColorHex = (colorName?: string | null): string => {
     if (!colorName) return '#ccc';
+    const foundColor = colors.find((c) => c.name.toLowerCase() === colorName.toLowerCase().trim());
+    if (foundColor && foundColor.hex_code) {
+      return foundColor.hex_code;
+    }
     const c = colorName.toLowerCase().trim();
     if (c.includes('branco')) return '#ffffff';
     if (c.includes('natural') || c.includes('cru') || c.includes('off-white')) return '#f7f4ea';
@@ -1696,14 +1703,22 @@ export const ProductsPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, color: e.target.value || undefined })}
               >
                 <option value="">Sem cor especificada</option>
-                {COLOR_PRESETS.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-                {formData.color && !COLOR_PRESETS.includes(formData.color) && (
-                  <option value={formData.color}>{formData.color}</option>
-                )}
+                {colors.length > 0
+                  ? colors.map((c) => (
+                      <option key={c.id} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))
+                  : COLOR_PRESETS.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                {formData.color &&
+                  !colors.some((c) => c.name.toLowerCase() === formData.color?.toLowerCase()) &&
+                  !COLOR_PRESETS.includes(formData.color) && (
+                    <option value={formData.color}>{formData.color}</option>
+                  )}
               </select>
             </div>
           </div>
