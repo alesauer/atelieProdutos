@@ -247,6 +247,7 @@ class ProductService:
             unit_id=product_in.unit_id,
             unit_cost=product_in.unit_cost,
             cost_breakdown=product_in.cost_breakdown,
+            sales_links=product_in.sales_links,
             sale_price=product_in.sale_price,
             min_stock=product_in.min_stock,
             is_active=product_in.is_active,
@@ -297,6 +298,8 @@ class ProductService:
             product.unit_cost = product_in.unit_cost
         if product_in.cost_breakdown is not None:
             product.cost_breakdown = product_in.cost_breakdown
+        if product_in.sales_links is not None:
+            product.sales_links = product_in.sales_links
         if product_in.sale_price is not None:
             product.sale_price = product_in.sale_price
         if product_in.min_stock is not None:

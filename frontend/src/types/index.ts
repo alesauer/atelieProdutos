@@ -82,6 +82,12 @@ export interface CostComponentItem {
   total: number;
 }
 
+export interface SalesLinkItem {
+  id: string;
+  platform: string;
+  url: string;
+}
+
 export interface Product {
   id: number;
   sku: string;
@@ -92,6 +98,7 @@ export interface Product {
   unit_id: number;
   unit_cost: string | number;
   cost_breakdown?: string | null;
+  sales_links?: string | null;
   sale_price?: string | number | null;
   min_stock: string | number;
   is_active: boolean;
@@ -113,6 +120,7 @@ export interface ProductFormData {
   unit_id: number;
   unit_cost: number | string;
   cost_breakdown?: string | null;
+  sales_links?: string | null;
   sale_price?: number | string | null;
   min_stock: number | string;
   is_active: boolean;

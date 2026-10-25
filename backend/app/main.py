@@ -21,6 +21,11 @@ async def lifespan(app: FastAPI):
                 conn.commit()
             except Exception:
                 pass
+            try:
+                conn.execute(text("ALTER TABLE products ADD COLUMN sales_links TEXT NULL;"))
+                conn.commit()
+            except Exception:
+                pass
     except Exception as e:
         print(f"[!] Aviso durante criacao das tabelas no startup: {e}")
     yield
@@ -51,11 +56,16 @@ if settings.CORS_ORIGINS:
 # Criação do diretório de mídia se não existir
 os.makedirs(settings.MEDIA_DIR, exist_ok=True)
 
-# Servir mídias estáticas de forma controlada
+# Servir mídias estáticas de forma controlada (tanto em /api/v1/media quanto /media)
 app.mount(
     f"{settings.API_V1_PREFIX}/media",
     StaticFiles(directory=settings.MEDIA_DIR),
     name="media",
+)
+app.mount(
+    "/media",
+    StaticFiles(directory=settings.MEDIA_DIR),
+    name="media_root",
 )
 
 # Inclusão das rotas da API v1

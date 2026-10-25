@@ -15,11 +15,14 @@ import {
   List,
   ChevronLeft,
   ChevronRight,
+  ExternalLink,
+  Globe,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
-import type { Category, CostComponentItem, ItemType, ItemTypeDefinition, Product, ProductFormData, UnitOfMeasure } from '../types';
+import { getProductImageUrl, handleImageError } from '../utils/imageUrl';
+import type { Category, CostComponentItem, ItemType, ItemTypeDefinition, Product, ProductFormData, SalesLinkItem, UnitOfMeasure } from '../types';
 
 interface PendingImage {
   id: string;
@@ -53,10 +56,16 @@ export const ProductsPage: React.FC = () => {
     unit_id: 1,
     unit_cost: '0.0000',
     cost_breakdown: '',
+    sales_links: '',
     sale_price: '0.00',
     min_stock: '5.000',
     is_active: true,
   });
+
+  // Links de Vendas em Marketplaces
+  const [salesLinks, setSalesLinks] = useState<SalesLinkItem[]>([]);
+  const [newLinkPlatform, setNewLinkPlatform] = useState('');
+  const [newLinkUrl, setNewLinkUrl] = useState('');
 
   // Calculadora de Composição de Custo Manual
   const [isCostCalculatorOpen, setIsCostCalculatorOpen] = useState(false);
@@ -157,6 +166,9 @@ export const ProductsPage: React.FC = () => {
     setPendingImages([]);
     setFormError(null);
     setCostItems([]);
+    setSalesLinks([]);
+    setNewLinkPlatform('');
+    setNewLinkUrl('');
     setEditingProduct(null);
     setFormData({
       sku: '',
@@ -167,6 +179,7 @@ export const ProductsPage: React.FC = () => {
       unit_id: units.length > 0 ? units[0].id : 1,
       unit_cost: '0.0000',
       cost_breakdown: '',
+      sales_links: '',
       sale_price: '0.00',
       min_stock: '5.000',
       is_active: true,
@@ -185,6 +198,17 @@ export const ProductsPage: React.FC = () => {
       } catch {}
     }
     setCostItems(parsedCostItems);
+
+    let parsedLinks: SalesLinkItem[] = [];
+    if (prod.sales_links) {
+      try {
+        parsedLinks = JSON.parse(prod.sales_links);
+      } catch {}
+    }
+    setSalesLinks(parsedLinks);
+    setNewLinkPlatform('');
+    setNewLinkUrl('');
+
     setEditingProduct(prod);
     setFormData({
       sku: prod.sku,
@@ -195,11 +219,87 @@ export const ProductsPage: React.FC = () => {
       unit_id: prod.unit_id,
       unit_cost: prod.unit_cost,
       cost_breakdown: prod.cost_breakdown || '',
+      sales_links: prod.sales_links || '',
       sale_price: prod.sale_price || '',
       min_stock: prod.min_stock,
       is_active: prod.is_active,
     });
     setIsFormModalOpen(true);
+  };
+
+  // Helpers para Estilização de Marketplaces
+  const getMarketplaceStyle = (platform: string) => {
+    const p = platform.toLowerCase();
+    if (p.includes('mercado livre') || p.includes('mercadolivre') || p.includes('ml')) {
+      return { bg: '#fff159', color: '#2d3277', border: '#e6d840' };
+    }
+    if (p.includes('shopee')) {
+      return { bg: '#ee4d2d', color: '#ffffff', border: '#d73211' };
+    }
+    if (p.includes('amazon')) {
+      return { bg: '#232f3e', color: '#ff9900', border: '#131921' };
+    }
+    if (p.includes('elo7')) {
+      return { bg: '#f58220', color: '#ffffff', border: '#df6e10' };
+    }
+    if (p.includes('shein')) {
+      return { bg: '#111111', color: '#ffffff', border: '#000000' };
+    }
+    if (p.includes('magalu') || p.includes('magazine')) {
+      return { bg: '#0086ff', color: '#ffffff', border: '#006ed6' };
+    }
+    if (p.includes('instagram')) {
+      return { bg: '#e1306c', color: '#ffffff', border: '#c1275b' };
+    }
+    return { bg: '#f4ede6', color: '#4a3b32', border: '#e1d5ca' };
+  };
+
+  const parseSalesLinks = (raw?: string | null): SalesLinkItem[] => {
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+
+  // Gestão de Links de Vendas em Marketplaces
+  const handleAddSalesLink = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newLinkUrl.trim()) return;
+
+    let formattedUrl = newLinkUrl.trim();
+    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+      formattedUrl = `https://${formattedUrl}`;
+    }
+
+    const platformName = newLinkPlatform.trim() || 'Marketplace';
+
+    const newLink: SalesLinkItem = {
+      id: `${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      platform: platformName,
+      url: formattedUrl,
+    };
+
+    const updated = [...salesLinks, newLink];
+    setSalesLinks(updated);
+    setFormData((prev) => ({
+      ...prev,
+      sales_links: JSON.stringify(updated),
+    }));
+
+    setNewLinkPlatform('');
+    setNewLinkUrl('');
+  };
+
+  const handleRemoveSalesLink = (id: string) => {
+    const updated = salesLinks.filter((link) => link.id !== id);
+    setSalesLinks(updated);
+    setFormData((prev) => ({
+      ...prev,
+      sales_links: updated.length > 0 ? JSON.stringify(updated) : '',
+    }));
   };
 
   // Gestão de Itens de Custo Individual
@@ -341,13 +441,18 @@ export const ProductsPage: React.FC = () => {
         return;
       }
 
-      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      const isValidType =
+        ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'].includes(file.type) ||
+        ['jpg', 'jpeg', 'png', 'webp', 'jfif'].includes(ext || '');
+
+      if (!isValidType) {
         errors.push(`"${file.name}": Formato inválido (use JPG, PNG ou WebP).`);
         return;
       }
 
-      if (file.size > 3 * 1024 * 1024) {
-        errors.push(`"${file.name}": Excede 3 MB.`);
+      if (file.size > 10 * 1024 * 1024) {
+        errors.push(`"${file.name}": Excede o limite máximo de 10 MB.`);
         return;
       }
 
@@ -441,12 +546,17 @@ export const ProductsPage: React.FC = () => {
           if (primaryIndex > 0 && uploadedImages[primaryIndex]) {
             await api.setPrimaryImage(savedProduct.id, uploadedImages[primaryIndex].id);
           }
-        } catch (batchErr) {
+        } catch (batchErr: any) {
+          console.warn('Upload em lote falhou, tentando upload individual resiliente:', batchErr);
           // Fallback individual
           for (let i = 0; i < pendingImages.length; i++) {
-            const uploaded = await api.uploadProductImage(savedProduct.id, pendingImages[i].file);
-            if (pendingImages[i].isPrimary && i > 0) {
-              await api.setPrimaryImage(savedProduct.id, uploaded.id);
+            try {
+              const uploaded = await api.uploadProductImage(savedProduct.id, pendingImages[i].file);
+              if (pendingImages[i].isPrimary && i > 0) {
+                await api.setPrimaryImage(savedProduct.id, uploaded.id);
+              }
+            } catch (singleErr: any) {
+              console.warn(`Erro no envio da foto ${pendingImages[i].file.name}:`, singleErr);
             }
           }
         }
@@ -480,18 +590,23 @@ export const ProductsPage: React.FC = () => {
   };
 
   const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !imageModalProduct) return;
+    const files = e.target.files;
+    if (!files || files.length === 0 || !imageModalProduct) return;
 
     setImageError(null);
     setUploadingImage(true);
     try {
-      await api.uploadProductImage(imageModalProduct.id, file);
+      const fileList = Array.from(files);
+      if (fileList.length === 1) {
+        await api.uploadProductImage(imageModalProduct.id, fileList[0]);
+      } else {
+        await api.uploadProductImagesBatch(imageModalProduct.id, fileList);
+      }
       const updatedProduct = await api.getProduct(imageModalProduct.id);
       setImageModalProduct(updatedProduct);
       await loadData();
     } catch (err: any) {
-      setImageError(err.message || 'Erro ao enviar imagem.');
+      setImageError(err.message || 'Erro ao enviar imagem(ns).');
     } finally {
       setUploadingImage(false);
       e.target.value = '';
@@ -774,7 +889,13 @@ export const ProductsPage: React.FC = () => {
           }}
         >
           {filteredProducts.map((prod) => {
-            const hasImage = !!prod.primary_image_url;
+            const rawPrimary =
+              prod.primary_image_url ||
+              (prod.images && prod.images.length > 0
+                ? prod.images.find((i) => i.is_primary)?.url || prod.images[0].url || prod.images[0].file_path
+                : null);
+            const hasImage = !!rawPrimary;
+            const primaryImageUrl = getProductImageUrl(rawPrimary);
             return (
               <div
                 key={prod.id}
@@ -806,8 +927,10 @@ export const ProductsPage: React.FC = () => {
                 >
                   {hasImage ? (
                     <img
-                      src={prod.primary_image_url!}
+                      src={primaryImageUrl}
                       alt={prod.name}
+                      loading="lazy"
+                      onError={handleImageError}
                       style={{
                         width: '100%',
                         height: '100%',
@@ -925,8 +1048,10 @@ export const ProductsPage: React.FC = () => {
                         title={img.is_primary ? 'Foto de Capa (Principal)' : `Foto ${idx + 1}`}
                       >
                         <img
-                          src={img.url || `${import.meta.env.VITE_API_URL || '/api/v1'}/media/${img.file_path}`}
+                          src={getProductImageUrl(img.url || img.file_path)}
                           alt={img.original_filename}
+                          loading="lazy"
+                          onError={handleImageError}
                           style={{
                             width: '100%',
                             height: '100%',
@@ -1032,6 +1157,45 @@ export const ProductsPage: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Badges de Links de Vendas nos Marketplaces no Card */}
+                  {(() => {
+                    const links = parseSalesLinks(prod.sales_links);
+                    if (links.length === 0) return null;
+                    return (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '12px' }}>
+                        {links.map((link) => {
+                          const style = getMarketplaceStyle(link.platform);
+                          return (
+                            <a
+                              key={link.id}
+                              href={link.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                padding: '2px 7px',
+                                borderRadius: '3px',
+                                backgroundColor: style.bg,
+                                color: style.color,
+                                border: `1px solid ${style.border}`,
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                textDecoration: 'none',
+                              }}
+                              title={`Abrir anúncio: ${link.platform}`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <span>{link.platform}</span>
+                              <ExternalLink size={10} />
+                            </a>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+
                   <div
                     style={{
                       display: 'flex',
@@ -1121,7 +1285,13 @@ export const ProductsPage: React.FC = () => {
               </thead>
               <tbody>
                 {filteredProducts.map((prod) => {
-                  const hasImage = !!prod.primary_image_url;
+                  const rawPrimary =
+                    prod.primary_image_url ||
+                    (prod.images && prod.images.length > 0
+                      ? prod.images.find((i) => i.is_primary)?.url || prod.images[0].url || prod.images[0].file_path
+                      : null);
+                  const hasImage = !!rawPrimary;
+                  const tableImageUrl = getProductImageUrl(rawPrimary);
                   return (
                     <tr
                       key={prod.id}
@@ -1153,8 +1323,10 @@ export const ProductsPage: React.FC = () => {
                             title="Clique para ver fotos em tamanho real"
                           >
                             <img
-                              src={prod.primary_image_url!}
+                              src={tableImageUrl}
                               alt={prod.name}
+                              loading="lazy"
+                              onError={handleImageError}
                               style={{
                                 width: '100%',
                                 height: '100%',
@@ -1203,13 +1375,52 @@ export const ProductsPage: React.FC = () => {
                         )}
                       </td>
 
-                      {/* Nome e SKU */}
+                      {/* Nome, SKU e Links de Marketplaces */}
                       <td style={{ padding: '12px 20px' }}>
                         <div style={{ fontWeight: 600, color: 'var(--brand-primary)', fontSize: '0.95rem' }}>
                           {prod.name}
                         </div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>
-                          {prod.sku}
+                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', marginTop: '3px' }}>
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>
+                            {prod.sku}
+                          </span>
+                          {(() => {
+                            const links = parseSalesLinks(prod.sales_links);
+                            if (links.length === 0) return null;
+                            return (
+                              <div style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '4px' }}>
+                                {links.map((link) => {
+                                  const style = getMarketplaceStyle(link.platform);
+                                  return (
+                                    <a
+                                      key={link.id}
+                                      href={link.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '2px',
+                                        padding: '1px 5px',
+                                        borderRadius: '3px',
+                                        backgroundColor: style.bg,
+                                        color: style.color,
+                                        border: `1px solid ${style.border}`,
+                                        fontSize: '0.66rem',
+                                        fontWeight: 700,
+                                        textDecoration: 'none',
+                                      }}
+                                      title={`Abrir anúncio: ${link.platform}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <span>{link.platform}</span>
+                                      <ExternalLink size={9} />
+                                    </a>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </td>
 
@@ -1570,6 +1781,174 @@ export const ProductsPage: React.FC = () => {
             />
           </div>
 
+          {/* Seção de Links de Vendas em Marketplaces */}
+          <div
+            style={{
+              marginBottom: '22px',
+              padding: '16px',
+              backgroundColor: 'var(--bg-sand-light)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-subtle)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <label style={{ margin: 0, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--brand-primary)', fontSize: '0.9rem' }}>
+                <Globe size={16} color="var(--brand-accent)" />
+                Links de Vendas nos Marketplaces
+              </label>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                {salesLinks.length} {salesLinks.length === 1 ? 'canal vinculado' : 'canais vinculados'}
+              </span>
+            </div>
+
+            <p style={{ margin: '0 0 10px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+              Cadastre links diretos dos anúncios deste produto nos marketplaces para controle e acesso rápido.
+            </p>
+
+            {/* Sugestões rápidas de Marketplaces */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
+              {['Mercado Livre', 'Shopee', 'Amazon', 'Elo7', 'Shein', 'Magalu', 'Site Oficial', 'Instagram'].map((name) => {
+                const style = getMarketplaceStyle(name);
+                const isSelected = newLinkPlatform === name;
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => setNewLinkPlatform(name)}
+                    style={{
+                      padding: '3px 8px',
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                      borderRadius: 'var(--radius-xs)',
+                      border: isSelected ? '2px solid var(--brand-accent)' : `1px solid ${style.border}`,
+                      backgroundColor: isSelected ? '#fff' : style.bg,
+                      color: style.color,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    + {name}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Inputs para adicionar novo link */}
+            <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr auto', gap: '8px', alignItems: 'center', marginBottom: '12px' }}>
+              <input
+                type="text"
+                placeholder="Marketplace..."
+                value={newLinkPlatform}
+                onChange={(e) => setNewLinkPlatform(e.target.value)}
+                style={{ fontSize: '0.85rem', padding: '7px 10px' }}
+              />
+              <input
+                type="text"
+                placeholder="Link / URL (Ex.: https://shopee.com.br/meu-anuncio)"
+                value={newLinkUrl}
+                onChange={(e) => setNewLinkUrl(e.target.value)}
+                style={{ fontSize: '0.85rem', padding: '7px 10px' }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddSalesLink();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleAddSalesLink}
+                className="btn-primary"
+                style={{ height: '36px', padding: '0 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                title="Adicionar link de venda"
+              >
+                <Plus size={15} />
+                <span>Adicionar</span>
+              </button>
+            </div>
+
+            {/* Lista dos links de marketplaces cadastrados */}
+            {salesLinks.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {salesLinks.map((link) => {
+                  const style = getMarketplaceStyle(link.platform);
+                  return (
+                    <div
+                      key={link.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '6px 10px',
+                        backgroundColor: '#fff',
+                        borderRadius: 'var(--radius-xs)',
+                        border: '1px solid var(--border-subtle)',
+                        fontSize: '0.82rem',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                        <span
+                          style={{
+                            padding: '2px 8px',
+                            borderRadius: '3px',
+                            backgroundColor: style.bg,
+                            color: style.color,
+                            fontWeight: 700,
+                            fontSize: '0.72rem',
+                            whiteSpace: 'nowrap',
+                            border: `1px solid ${style.border}`,
+                          }}
+                        >
+                          {link.platform}
+                        </span>
+                        <a
+                          href={link.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            color: 'var(--brand-accent)',
+                            textDecoration: 'none',
+                            textOverflow: 'ellipsis',
+                            overflow: 'hidden',
+                            whiteSpace: 'nowrap',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                          title={`Abrir ${link.url}`}
+                        >
+                          <span style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>{link.url}</span>
+                          <ExternalLink size={12} style={{ flexShrink: 0 }} />
+                        </a>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSalesLink(link.id)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--status-danger-text)',
+                          cursor: 'pointer',
+                          padding: '2px 4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                        }}
+                        title="Remover este link"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
+                Nenhum marketplace vinculado ainda. Adicione acima para centralizar seus canais de vendas.
+              </div>
+            )}
+          </div>
+
           {formError && (
             <div
               style={{
@@ -1641,7 +2020,7 @@ export const ProductsPage: React.FC = () => {
                     : 'Clique ou arraste uma ou várias fotos do produto'}
                 </p>
                 <span style={{ fontSize: '0.74rem', color: 'var(--text-tertiary)' }}>
-                  Selecione 1 ou mais imagens (PNG, JPG ou WebP até 3 MB cada)
+                  Selecione 1 ou mais imagens (PNG, JPG ou WebP até 10 MB cada)
                 </span>
               </div>
             </div>
@@ -1670,8 +2049,10 @@ export const ProductsPage: React.FC = () => {
                     }}
                   >
                     <img
-                      src={img.url || `${import.meta.env.VITE_API_URL || '/api/v1'}/media/${img.file_path}`}
+                      src={getProductImageUrl(img.url || img.file_path)}
                       alt={img.original_filename}
+                      loading="lazy"
+                      onError={handleImageError}
                       style={{ width: '100%', height: '88px', objectFit: 'cover', display: 'block' }}
                     />
                     <span
@@ -1887,11 +2268,12 @@ export const ProductsPage: React.FC = () => {
                   }}
                 >
                   <img
-                    src={
+                    src={getProductImageUrl(
                       lightboxProduct.images[lightboxIndex]?.url ||
-                      `${import.meta.env.VITE_API_URL || '/api/v1'}/media/${lightboxProduct.images[lightboxIndex]?.file_path}`
-                    }
+                      lightboxProduct.images[lightboxIndex]?.file_path
+                    )}
                     alt={lightboxProduct.name}
+                    onError={handleImageError}
                     style={{
                       maxWidth: '100%',
                       maxHeight: '100%',
@@ -2015,8 +2397,10 @@ export const ProductsPage: React.FC = () => {
                         }}
                       >
                         <img
-                          src={img.url || `${import.meta.env.VITE_API_URL || '/api/v1'}/media/${img.file_path}`}
+                          src={getProductImageUrl(img.url || img.file_path)}
                           alt={img.original_filename}
+                          loading="lazy"
+                          onError={handleImageError}
                           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         />
                       </div>
@@ -2104,6 +2488,7 @@ export const ProductsPage: React.FC = () => {
         >
           <input
             type="file"
+            multiple
             accept="image/png, image/jpeg, image/webp"
             disabled={uploadingImage}
             onChange={handleUploadImage}
@@ -2120,16 +2505,16 @@ export const ProductsPage: React.FC = () => {
           {uploadingImage ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
               <Loader2 size={24} className="spin-animation" color="var(--brand-accent)" />
-              <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Validando e enviando imagem...</p>
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Validando e enviando imagem(ns)...</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
               <Upload size={28} color="var(--brand-accent)" />
               <p style={{ fontWeight: 600, color: 'var(--brand-primary)', fontSize: '0.95rem' }}>
-                Clique ou arraste uma foto para enviar
+                Clique ou arraste uma ou várias fotos para enviar
               </p>
               <span style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>
-                PNG, JPG ou WebP até 3 MB (máximo 5 fotos por produto)
+                PNG, JPG ou WebP até 10 MB cada (máximo 5 fotos por produto)
               </span>
             </div>
           )}
@@ -2165,8 +2550,10 @@ export const ProductsPage: React.FC = () => {
                   }}
                 >
                   <img
-                    src={img.url || `${import.meta.env.VITE_API_URL || '/api/v1'}/media/${img.file_path}`}
+                    src={getProductImageUrl(img.url || img.file_path)}
                     alt={img.original_filename}
+                    loading="lazy"
+                    onError={handleImageError}
                     style={{
                       width: '100%',
                       height: '110px',
