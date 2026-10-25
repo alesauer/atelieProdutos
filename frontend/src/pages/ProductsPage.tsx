@@ -2009,21 +2009,7 @@ export const ProductsPage: React.FC = () => {
                   );
                 })}
               </div>
-            ) : (
-              <div
-                style={{
-                  padding: '10px 14px',
-                  backgroundColor: '#ffffff',
-                  borderRadius: 'var(--radius-sm)',
-                  border: '1px dashed var(--border-medium)',
-                  fontSize: '0.78rem',
-                  color: 'var(--text-tertiary)',
-                  textAlign: 'center',
-                }}
-              >
-                Nenhum marketplace vinculado ainda. Selecione um canal acima e cole o link do seu anúncio para conectar.
-              </div>
-            )}
+            ) : null}
           </div>
 
           {formError && (
