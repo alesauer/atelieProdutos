@@ -73,7 +73,7 @@ export function getProductImageUrl(urlOrPath?: string | null): string {
  */
 export function handleImageError(e: React.SyntheticEvent<HTMLImageElement, Event>) {
   const target = e.currentTarget;
-  if (target.src !== FALLBACK_IMAGE_PLACEHOLDER) {
+  if (!target.src.startsWith('data:image/svg+xml')) {
     target.onerror = null; // Evita loop infinito se placeholder falhar
     target.src = FALLBACK_IMAGE_PLACEHOLDER;
   }

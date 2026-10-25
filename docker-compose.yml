@@ -38,7 +38,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:-chave_secreta_padrao_para_desenvolvimento_trocar_em_producao}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-480}
       MEDIA_DIR: /app/media
-      MAX_IMAGE_SIZE_MB: ${MAX_IMAGE_SIZE_MB:-3}
+      MAX_IMAGE_SIZE_MB: ${MAX_IMAGE_SIZE_MB:-15}
       MAX_IMAGES_PER_PRODUCT: ${MAX_IMAGES_PER_PRODUCT:-5}
       EMAIL_DRIVER: ${EMAIL_DRIVER:-log}
       EMAIL_FROM: ${EMAIL_FROM:-estoque@casaluma.com.br}

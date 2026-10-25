@@ -76,7 +76,15 @@ class ApiClient {
           errorMessage = typeof errorData.detail === 'string' ? errorData.detail : JSON.stringify(errorData.detail);
         }
       } catch {
-        // Fallback
+        if (response.status === 413) {
+          errorMessage = 'Arquivo muito grande (HTTP 413). O limite do servidor foi excedido.';
+        } else if (response.status === 401) {
+          errorMessage = 'Sessão expirada ou não autenticado (HTTP 401). Faça login novamente.';
+        } else if (response.status === 502 || response.status === 504) {
+          errorMessage = `Servidor backend indisponível (HTTP ${response.status}). Verifique se o container está ativo.`;
+        } else if (response.status === 404) {
+          errorMessage = 'Recurso ou rota não encontrada (HTTP 404).';
+        }
       }
       throw new Error(errorMessage);
     }
