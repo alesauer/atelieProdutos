@@ -18,12 +18,30 @@ import {
   ExternalLink,
   Store,
   Palette,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import { getProductImageUrl, handleImageError } from '../utils/imageUrl';
 import type { Category, CostComponentItem, ItemType, ItemTypeDefinition, Product, ProductColor, ProductFormData, SalesLinkItem, UnitOfMeasure } from '../types';
+
+const WhatsAppIcon: React.FC<{ size?: number; color?: string; style?: React.CSSProperties }> = ({
+  size = 16,
+  color = '#25D366',
+  style,
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    style={{ display: 'inline-block', verticalAlign: 'middle', color, flexShrink: 0, ...style }}
+  >
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+  </svg>
+);
 
 interface PendingImage {
   id: string;
@@ -94,6 +112,13 @@ export const ProductsPage: React.FC = () => {
   // Visualizador / Lightbox de Fotos da Grid
   const [lightboxProduct, setLightboxProduct] = useState<Product | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  // Modal de Encaminhamento via WhatsApp
+  const [whatsAppProduct, setWhatsAppProduct] = useState<Product | null>(null);
+  const [whatsAppPhone, setWhatsAppPhone] = useState('');
+  const [whatsAppSelectedLink, setWhatsAppSelectedLink] = useState<string>('all');
+  const [whatsAppMessage, setWhatsAppMessage] = useState('');
+  const [copiedMessage, setCopiedMessage] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -333,6 +358,90 @@ export const ProductsPage: React.FC = () => {
       ...prev,
       sales_links: updated.length > 0 ? JSON.stringify(updated) : '',
     }));
+  };
+
+  // Encaminhamento via WhatsApp
+  const generateWhatsAppMessage = (prod: Product, selectedLinkOption: string = 'all'): string => {
+    const links = parseSalesLinks(prod.sales_links);
+    const priceFormatted = prod.sale_price ? `R$ ${Number(prod.sale_price).toFixed(2)}` : null;
+
+    let msg = `Olá! Conheça o produto *${prod.name}* do nosso ateliê ✨\n`;
+    if (priceFormatted) {
+      msg += `💰 *Valor:* ${priceFormatted}\n`;
+    }
+    if (prod.color) {
+      msg += `🎨 *Cor:* ${prod.color}\n`;
+    }
+    if (prod.description && prod.description.trim()) {
+      const shortDesc =
+        prod.description.trim().length > 120
+          ? `${prod.description.trim().substring(0, 117)}...`
+          : prod.description.trim();
+      msg += `📝 ${shortDesc}\n`;
+    }
+
+    if (links.length > 0) {
+      if (selectedLinkOption === 'all') {
+        msg += `\n🛒 *Disponível em nossa(s) loja(s):*\n`;
+        links.forEach((l) => {
+          msg += `• ${l.platform}: ${l.url}\n`;
+        });
+      } else {
+        const chosen = links.find((l) => l.id === selectedLinkOption);
+        if (chosen) {
+          msg += `\n🛒 *Acesse e compre pelo link oficial (${chosen.platform}):*\n${chosen.url}\n`;
+        }
+      }
+    }
+
+    msg += `\nQualquer dúvida ou pedido personalizado, estamos à disposição! 🌿`;
+    return msg;
+  };
+
+  const handleOpenWhatsAppModal = (prod: Product, preferredLinkId?: string) => {
+    setWhatsAppProduct(prod);
+    const links = parseSalesLinks(prod.sales_links);
+    const initialOption = preferredLinkId || (links.length > 0 ? 'all' : 'none');
+    setWhatsAppSelectedLink(initialOption);
+    setWhatsAppPhone('');
+    setCopiedMessage(false);
+    setWhatsAppMessage(generateWhatsAppMessage(prod, initialOption));
+  };
+
+  const handleWhatsAppLinkChange = (option: string) => {
+    setWhatsAppSelectedLink(option);
+    if (whatsAppProduct) {
+      setWhatsAppMessage(generateWhatsAppMessage(whatsAppProduct, option));
+    }
+  };
+
+  const handleCopyWhatsAppMessage = async () => {
+    try {
+      await navigator.clipboard.writeText(whatsAppMessage);
+      setCopiedMessage(true);
+      setTimeout(() => setCopiedMessage(false), 2500);
+    } catch (err) {
+      console.error('Falha ao copiar:', err);
+    }
+  };
+
+  const handleSendWhatsApp = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!whatsAppProduct) return;
+
+    let cleanPhone = whatsAppPhone.replace(/\D/g, '');
+    if (cleanPhone) {
+      if ((cleanPhone.length === 10 || cleanPhone.length === 11) && !cleanPhone.startsWith('55')) {
+        cleanPhone = `55${cleanPhone}`;
+      }
+    }
+
+    const encodedText = encodeURIComponent(whatsAppMessage);
+    const url = cleanPhone
+      ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`
+      : `https://api.whatsapp.com/send?text=${encodedText}`;
+
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   // Gestão de Itens de Custo Individual
@@ -1210,7 +1319,7 @@ export const ProductsPage: React.FC = () => {
                     const links = parseSalesLinks(prod.sales_links);
                     if (links.length === 0) return null;
                     return (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '5px', marginBottom: '12px' }}>
                         {links.map((link) => {
                           const style = getMarketplaceStyle(link.platform);
                           return (
@@ -1240,6 +1349,31 @@ export const ProductsPage: React.FC = () => {
                             </a>
                           );
                         })}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenWhatsAppModal(prod);
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '2px 7px',
+                            borderRadius: '3px',
+                            backgroundColor: '#e8f9ee',
+                            color: '#128c7e',
+                            border: '1px solid #a3e9b9',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                          title="Encaminhar link(s) da loja via WhatsApp"
+                        >
+                          <WhatsAppIcon size={12} color="#25D366" />
+                          <span>WhatsApp</span>
+                        </button>
                       </div>
                     );
                   })()}
@@ -1268,6 +1402,19 @@ export const ProductsPage: React.FC = () => {
                     </div>
 
                     <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenWhatsAppModal(prod)}
+                        className="btn-icon"
+                        title="Encaminhar produto / link de loja via WhatsApp"
+                        style={{
+                          color: '#15803d',
+                          backgroundColor: '#e8f9ee',
+                          borderColor: '#a3e9b9',
+                        }}
+                      >
+                        <WhatsAppIcon size={15} color="#25D366" />
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleOpenImageModal(prod)}
@@ -1474,7 +1621,7 @@ export const ProductsPage: React.FC = () => {
                             const links = parseSalesLinks(prod.sales_links);
                             if (links.length === 0) return null;
                             return (
-                              <div style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '4px' }}>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
                                 {links.map((link) => {
                                   const style = getMarketplaceStyle(link.platform);
                                   return (
@@ -1504,6 +1651,30 @@ export const ProductsPage: React.FC = () => {
                                     </a>
                                   );
                                 })}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenWhatsAppModal(prod);
+                                  }}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    padding: '1px 6px',
+                                    borderRadius: '3px',
+                                    backgroundColor: '#e8f9ee',
+                                    color: '#128c7e',
+                                    border: '1px solid #a3e9b9',
+                                    fontSize: '0.66rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                  }}
+                                  title="Encaminhar link(s) via WhatsApp"
+                                >
+                                  <WhatsAppIcon size={10} color="#25D366" />
+                                  <span>WhatsApp</span>
+                                </button>
                               </div>
                             );
                           })()}
@@ -1549,6 +1720,19 @@ export const ProductsPage: React.FC = () => {
                       {/* Ações */}
                       <td style={{ padding: '12px 20px', textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', gap: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenWhatsAppModal(prod)}
+                            className="btn-icon"
+                            title="Encaminhar produto / link de loja via WhatsApp"
+                            style={{
+                              color: '#15803d',
+                              backgroundColor: '#e8f9ee',
+                              borderColor: '#a3e9b9',
+                            }}
+                          >
+                            <WhatsAppIcon size={16} color="#25D366" />
+                          </button>
                           <button
                             onClick={() => handleOpenImageModal(prod)}
                             className="btn-icon"
@@ -2975,6 +3159,362 @@ export const ProductsPage: React.FC = () => {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal Encaminhar via WhatsApp */}
+      <Modal
+        isOpen={!!whatsAppProduct}
+        onClose={() => setWhatsAppProduct(null)}
+        title="Encaminhar Produto via WhatsApp"
+        subtitle="Compartilhe links das lojas e detalhes do produto com seus clientes em um clique"
+        maxWidth="540px"
+      >
+        {whatsAppProduct && (() => {
+          const links = parseSalesLinks(whatsAppProduct.sales_links);
+          const primaryImg =
+            whatsAppProduct.images.find((img) => img.is_primary) || whatsAppProduct.images[0];
+
+          return (
+            <form onSubmit={handleSendWhatsApp}>
+              {/* Card Resumo do Produto */}
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '12px',
+                  alignItems: 'center',
+                  padding: '12px 14px',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'var(--bg-sand-light)',
+                  border: '1px solid var(--border-subtle)',
+                  marginBottom: '16px',
+                }}
+              >
+                <div
+                  style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: 'var(--radius-xs)',
+                    overflow: 'hidden',
+                    backgroundColor: '#fff',
+                    border: '1px solid var(--border-medium)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  {primaryImg ? (
+                    <img
+                      src={getProductImageUrl(primaryImg.file_path)}
+                      alt={whatsAppProduct.name}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={handleImageError}
+                    />
+                  ) : (
+                    <Package size={22} color="var(--brand-accent)" opacity={0.6} />
+                  )}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <h4
+                    style={{
+                      margin: 0,
+                      fontSize: '0.94rem',
+                      fontWeight: 700,
+                      color: 'var(--brand-primary)',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {whatsAppProduct.name}
+                  </h4>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      marginTop: '3px',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: '0.74rem',
+                        fontFamily: 'monospace',
+                        color: 'var(--text-tertiary)',
+                      }}
+                    >
+                      {whatsAppProduct.sku}
+                    </span>
+                    {whatsAppProduct.color && (
+                      <span
+                        style={{
+                          fontSize: '0.74rem',
+                          color: 'var(--text-secondary)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: '7px',
+                            height: '7px',
+                            borderRadius: '50%',
+                            backgroundColor: getColorHex(whatsAppProduct.color),
+                            border: '1px solid rgba(0,0,0,0.2)',
+                          }}
+                        />
+                        {whatsAppProduct.color}
+                      </span>
+                    )}
+                    {whatsAppProduct.sale_price && (
+                      <span
+                        style={{
+                          fontSize: '0.86rem',
+                          fontWeight: 700,
+                          color: 'var(--brand-accent)',
+                        }}
+                      >
+                        R$ {Number(whatsAppProduct.sale_price).toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Seleção de Links de Lojas */}
+              {links.length > 0 ? (
+                <div style={{ marginBottom: '16px' }}>
+                  <label
+                    style={{
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      color: 'var(--brand-primary)',
+                      display: 'block',
+                      marginBottom: '8px',
+                    }}
+                  >
+                    Qual link da loja deseja incluir?
+                  </label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleWhatsAppLinkChange('all')}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        border:
+                          whatsAppSelectedLink === 'all'
+                            ? '2px solid var(--brand-accent)'
+                            : '1px solid var(--border-medium)',
+                        backgroundColor: whatsAppSelectedLink === 'all' ? '#fbf3ea' : '#fff',
+                        color:
+                          whatsAppSelectedLink === 'all'
+                            ? 'var(--brand-primary)'
+                            : 'var(--text-secondary)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <Store size={14} color="var(--brand-accent)" />
+                      <span>Todos os canais ({links.length})</span>
+                    </button>
+                    {links.map((link) => {
+                      const isSelected = whatsAppSelectedLink === link.id;
+                      const mStyle = getMarketplaceStyle(link.platform);
+                      return (
+                        <button
+                          key={link.id}
+                          type="button"
+                          onClick={() => handleWhatsAppLinkChange(link.id)}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: 'var(--radius-sm)',
+                            fontSize: '0.78rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            border: isSelected
+                              ? `2px solid ${mStyle.border || '#25D366'}`
+                              : '1px solid var(--border-medium)',
+                            backgroundColor: isSelected ? mStyle.bg : '#fff',
+                            color: isSelected ? mStyle.color : 'var(--text-primary)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <span>{link.platform}</span>
+                          <ExternalLink size={11} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    backgroundColor: '#fffbeb',
+                    color: '#b45309',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid #fde68a',
+                    marginBottom: '16px',
+                    fontSize: '0.82rem',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '8px',
+                  }}
+                >
+                  <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <div>
+                    <strong>Sem links de lojas vinculados:</strong> Este produto ainda não tem URLs
+                    de marketplaces cadastradas. A mensagem abaixo contém os dados principais (nome,
+                    preço, cor). Se quiser adicionar links de anúncios, edite o produto.
+                  </div>
+                </div>
+              )}
+
+              {/* Telefone do Destinatário (Opcional) */}
+              <div style={{ marginBottom: '14px' }}>
+                <label
+                  htmlFor="wa-phone"
+                  style={{
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    color: 'var(--brand-primary)',
+                    display: 'block',
+                    marginBottom: '4px',
+                  }}
+                >
+                  Número do WhatsApp do Cliente (Opcional)
+                </label>
+                <input
+                  id="wa-phone"
+                  type="text"
+                  placeholder="Ex.: 11999998888 (deixe vazio para escolher o contato no WhatsApp)"
+                  value={whatsAppPhone}
+                  onChange={(e) => setWhatsAppPhone(e.target.value)}
+                  style={{ width: '100%' }}
+                />
+                <span
+                  style={{
+                    fontSize: '0.72rem',
+                    color: 'var(--text-tertiary)',
+                    display: 'block',
+                    marginTop: '3px',
+                  }}
+                >
+                  Se vazio, o WhatsApp abrirá sua lista de conversas para você escolher o contato ou
+                  grupo.
+                </span>
+              </div>
+
+              {/* Texto da Mensagem */}
+              <div style={{ marginBottom: '20px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '4px',
+                  }}
+                >
+                  <label
+                    htmlFor="wa-message"
+                    style={{
+                      margin: 0,
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      color: 'var(--brand-primary)',
+                    }}
+                  >
+                    Texto da Mensagem (Editável)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleCopyWhatsAppMessage}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: copiedMessage ? '#16a34a' : 'var(--text-secondary)',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '2px 6px',
+                    }}
+                  >
+                    {copiedMessage ? <Check size={13} /> : <Copy size={13} />}
+                    <span>{copiedMessage ? 'Copiado!' : 'Copiar texto'}</span>
+                  </button>
+                </div>
+                <textarea
+                  id="wa-message"
+                  rows={6}
+                  value={whatsAppMessage}
+                  onChange={(e) => setWhatsAppMessage(e.target.value)}
+                  style={{
+                    width: '100%',
+                    fontFamily: 'inherit',
+                    fontSize: '0.86rem',
+                    lineHeight: 1.45,
+                    resize: 'vertical',
+                  }}
+                />
+              </div>
+
+              {/* Rodapé de Ações */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  alignItems: 'center',
+                  gap: '10px',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setWhatsAppProduct(null)}
+                  className="btn-secondary"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    backgroundColor: '#25D366',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '9px 18px',
+                    fontWeight: 700,
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(37, 211, 102, 0.35)',
+                    transition: 'background-color 0.15s ease',
+                  }}
+                  onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#1ebe5d')}
+                  onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#25D366')}
+                >
+                  <WhatsAppIcon size={18} color="#fff" />
+                  <span>Abrir no WhatsApp</span>
+                </button>
+              </div>
+            </form>
+          );
+        })()}
       </Modal>
     </div>
   );
