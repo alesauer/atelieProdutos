@@ -16,7 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
-  Globe,
+  Store,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { Badge } from '../components/Badge';
@@ -167,7 +167,7 @@ export const ProductsPage: React.FC = () => {
     setFormError(null);
     setCostItems([]);
     setSalesLinks([]);
-    setNewLinkPlatform('');
+    setNewLinkPlatform('Mercado Livre');
     setNewLinkUrl('');
     setEditingProduct(null);
     setFormData({
@@ -206,7 +206,7 @@ export const ProductsPage: React.FC = () => {
       } catch {}
     }
     setSalesLinks(parsedLinks);
-    setNewLinkPlatform('');
+    setNewLinkPlatform('Mercado Livre');
     setNewLinkUrl('');
 
     setEditingProduct(prod);
@@ -274,7 +274,7 @@ export const ProductsPage: React.FC = () => {
       formattedUrl = `https://${formattedUrl}`;
     }
 
-    const platformName = newLinkPlatform.trim() || 'Marketplace';
+    const platformName = newLinkPlatform.trim() || 'Mercado Livre';
 
     const newLink: SalesLinkItem = {
       id: `${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -289,7 +289,6 @@ export const ProductsPage: React.FC = () => {
       sales_links: JSON.stringify(updated),
     }));
 
-    setNewLinkPlatform('');
     setNewLinkUrl('');
   };
 
@@ -530,11 +529,33 @@ export const ProductsPage: React.FC = () => {
     setFormError(null);
 
     try {
+      // Auto-commit de link de marketplace digitado caso o usuário não tenha clicado no botão "+ Adicionar Canal"
+      let currentSalesLinks = [...salesLinks];
+      if (newLinkUrl.trim()) {
+        let formattedUrl = newLinkUrl.trim();
+        if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+          formattedUrl = `https://${formattedUrl}`;
+        }
+        const platformName = newLinkPlatform.trim() || 'Mercado Livre';
+        currentSalesLinks.push({
+          id: `${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          platform: platformName,
+          url: formattedUrl,
+        });
+        setSalesLinks(currentSalesLinks);
+        setNewLinkUrl('');
+      }
+
+      const productPayload: ProductFormData = {
+        ...formData,
+        sales_links: currentSalesLinks.length > 0 ? JSON.stringify(currentSalesLinks) : '',
+      };
+
       let savedProduct: Product;
       if (editingProduct) {
-        savedProduct = await api.updateProduct(editingProduct.id, formData);
+        savedProduct = await api.updateProduct(editingProduct.id, productPayload);
       } else {
-        savedProduct = await api.createProduct(formData);
+        savedProduct = await api.createProduct(productPayload);
       }
 
       // Se há fotos selecionadas para upload
@@ -890,7 +911,7 @@ export const ProductsPage: React.FC = () => {
 
           <button onClick={handleOpenCreateModal} className="btn-primary">
             <Plus size={18} />
-            <span>Novo Item</span>
+            <span>Novo Produto</span>
           </button>
         </div>
       </div>
@@ -933,7 +954,7 @@ export const ProductsPage: React.FC = () => {
           </p>
           <button onClick={handleOpenCreateModal} className="btn-secondary">
             <Plus size={16} />
-            <span>Cadastrar Primeiro Item</span>
+            <span>Cadastrar Primeiro Produto</span>
           </button>
         </div>
       ) : viewMode === 'grid' ? (
@@ -1592,8 +1613,8 @@ export const ProductsPage: React.FC = () => {
           setPendingImages([]);
           setIsFormModalOpen(false);
         }}
-        title={editingProduct ? 'Editar Item' : 'Novo Item do Ateliê'}
-        subtitle="Informe os dados cadastrais, tipo, especificações e fotos"
+        title={editingProduct ? 'Editar Produto' : 'Cadastrar Novo Produto'}
+        subtitle="Informe os dados cadastrais, links de vendas nos marketplaces e fotos"
         maxWidth="680px"
       >
         <form onSubmit={handleSaveProduct}>
@@ -1859,91 +1880,146 @@ export const ProductsPage: React.FC = () => {
           <div
             style={{
               marginBottom: '22px',
-              padding: '16px',
-              backgroundColor: 'var(--bg-sand-light)',
+              padding: '16px 18px',
+              backgroundColor: '#faf7f3',
               borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-subtle)',
+              border: '1.5px solid var(--border-subtle)',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <label style={{ margin: 0, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--brand-primary)', fontSize: '0.9rem' }}>
-                <Globe size={16} color="var(--brand-accent)" />
-                Links de Vendas nos Marketplaces
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <label style={{ margin: 0, fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--brand-primary)', fontSize: '0.92rem' }}>
+                <Store size={18} color="var(--brand-accent)" />
+                Links de Vendas nos Marketplaces (Opcional)
               </label>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+              <span
+                style={{
+                  fontSize: '0.74rem',
+                  fontWeight: 600,
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  backgroundColor: salesLinks.length > 0 ? 'var(--brand-accent)' : 'var(--bg-sand-medium)',
+                  color: salesLinks.length > 0 ? '#fff' : 'var(--text-secondary)',
+                }}
+              >
                 {salesLinks.length} {salesLinks.length === 1 ? 'canal vinculado' : 'canais vinculados'}
               </span>
             </div>
 
-            <p style={{ margin: '0 0 10px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-              Cadastre links diretos dos anúncios deste produto nos marketplaces para controle e acesso rápido.
+            <p style={{ margin: '0 0 10px', fontSize: '0.79rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+              Cadastre os links diretos dos anúncios deste produto nos marketplaces para divulgação e acompanhamento das vendas.
             </p>
 
-            {/* Sugestões rápidas de Marketplaces */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
-              {['Mercado Livre', 'Shopee', 'Amazon', 'Elo7', 'Shein', 'Magalu', 'Site Oficial', 'Instagram'].map((name) => {
-                const style = getMarketplaceStyle(name);
-                const isSelected = newLinkPlatform === name;
-                return (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => setNewLinkPlatform(name)}
-                    style={{
-                      padding: '3px 8px',
-                      fontSize: '0.72rem',
-                      fontWeight: 600,
-                      borderRadius: 'var(--radius-xs)',
-                      border: isSelected ? '2px solid var(--brand-accent)' : `1px solid ${style.border}`,
-                      backgroundColor: isSelected ? '#fff' : style.bg,
-                      color: style.color,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    + {name}
-                  </button>
-                );
-              })}
+            {/* Sugestões rápidas de Marketplaces (1 clique para selecionar) */}
+            <div style={{ marginBottom: '10px' }}>
+              <span style={{ fontSize: '0.73rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
+                Selecione o canal ou digite outro:
+              </span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {['Mercado Livre', 'Shopee', 'Amazon', 'Elo7', 'Shein', 'Magalu', 'Site Oficial', 'Instagram'].map((name) => {
+                  const style = getMarketplaceStyle(name);
+                  const isSelected = newLinkPlatform.toLowerCase() === name.toLowerCase();
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => {
+                        setNewLinkPlatform(name);
+                        const inputUrl = document.getElementById('marketplace-url-input');
+                        if (inputUrl) inputUrl.focus();
+                      }}
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        borderRadius: '14px',
+                        border: isSelected ? '2px solid var(--brand-accent)' : `1px solid ${style.border}`,
+                        backgroundColor: isSelected ? '#ffffff' : style.bg,
+                        color: isSelected ? 'var(--brand-primary)' : style.color,
+                        boxShadow: isSelected ? '0 0 0 2px var(--brand-accent)' : 'none',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <span>{isSelected ? '✓ ' : '+ '}{name}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Inputs para adicionar novo link */}
-            <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr auto', gap: '8px', alignItems: 'center', marginBottom: '12px' }}>
-              <input
-                type="text"
-                placeholder="Marketplace..."
-                value={newLinkPlatform}
-                onChange={(e) => setNewLinkPlatform(e.target.value)}
-                style={{ fontSize: '0.85rem', padding: '7px 10px' }}
-              />
-              <input
-                type="text"
-                placeholder="Link / URL (Ex.: https://shopee.com.br/meu-anuncio)"
-                value={newLinkUrl}
-                onChange={(e) => setNewLinkUrl(e.target.value)}
-                style={{ fontSize: '0.85rem', padding: '7px 10px' }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddSalesLink();
-                  }
-                }}
-              />
+            <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr auto', gap: '8px', alignItems: 'center', marginBottom: '6px' }}>
+              <div>
+                <input
+                  type="text"
+                  id="marketplace-platform-input"
+                  list="marketplace-suggestions"
+                  placeholder="Marketplace..."
+                  value={newLinkPlatform}
+                  onChange={(e) => setNewLinkPlatform(e.target.value)}
+                  style={{ fontSize: '0.85rem', padding: '8px 10px', width: '100%' }}
+                />
+                <datalist id="marketplace-suggestions">
+                  <option value="Mercado Livre" />
+                  <option value="Shopee" />
+                  <option value="Amazon" />
+                  <option value="Elo7" />
+                  <option value="Shein" />
+                  <option value="Magalu" />
+                  <option value="Site Oficial" />
+                  <option value="Instagram" />
+                </datalist>
+              </div>
+
+              <div>
+                <input
+                  type="text"
+                  id="marketplace-url-input"
+                  placeholder="Cole aqui o link do anúncio (Ex.: https://produto.mercadolivre.com.br/...)"
+                  value={newLinkUrl}
+                  onChange={(e) => setNewLinkUrl(e.target.value)}
+                  style={{ fontSize: '0.85rem', padding: '8px 10px', width: '100%' }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddSalesLink();
+                    }
+                  }}
+                />
+              </div>
+
               <button
                 type="button"
-                onClick={handleAddSalesLink}
+                onClick={() => handleAddSalesLink()}
                 className="btn-primary"
-                style={{ height: '36px', padding: '0 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-                title="Adicionar link de venda"
+                style={{
+                  height: '38px',
+                  padding: '0 14px',
+                  fontSize: '0.82rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  whiteSpace: 'nowrap',
+                  fontWeight: 600,
+                }}
+                title="Adicionar link de venda do marketplace"
               >
-                <Plus size={15} />
+                <Plus size={16} />
                 <span>Adicionar</span>
               </button>
             </div>
 
+            <div style={{ fontSize: '0.73rem', color: 'var(--text-tertiary)', marginBottom: '12px' }}>
+              💡 Cole o link e clique em <b>Adicionar</b> (ou salve direto o produto que o link digitado será gravado automaticamente).
+            </div>
+
             {/* Lista dos links de marketplaces cadastrados */}
             {salesLinks.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {salesLinks.map((link) => {
                   const style = getMarketplaceStyle(link.platform);
                   return (
@@ -1953,24 +2029,26 @@ export const ProductsPage: React.FC = () => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        padding: '6px 10px',
-                        backgroundColor: '#fff',
-                        borderRadius: 'var(--radius-xs)',
+                        padding: '8px 12px',
+                        backgroundColor: '#ffffff',
+                        borderRadius: 'var(--radius-sm)',
                         border: '1px solid var(--border-subtle)',
-                        fontSize: '0.82rem',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                        fontSize: '0.83rem',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden', flex: 1, marginRight: '10px' }}>
                         <span
                           style={{
-                            padding: '2px 8px',
-                            borderRadius: '3px',
+                            padding: '3px 10px',
+                            borderRadius: '4px',
                             backgroundColor: style.bg,
                             color: style.color,
                             fontWeight: 700,
-                            fontSize: '0.72rem',
+                            fontSize: '0.74rem',
                             whiteSpace: 'nowrap',
                             border: `1px solid ${style.border}`,
+                            flexShrink: 0,
                           }}
                         >
                           {link.platform}
@@ -1987,12 +2065,13 @@ export const ProductsPage: React.FC = () => {
                             whiteSpace: 'nowrap',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '4px',
+                            gap: '5px',
+                            fontWeight: 500,
                           }}
-                          title={`Abrir ${link.url}`}
+                          title={`Abrir link em nova aba: ${link.url}`}
                         >
                           <span style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>{link.url}</span>
-                          <ExternalLink size={12} style={{ flexShrink: 0 }} />
+                          <ExternalLink size={13} style={{ flexShrink: 0 }} />
                         </a>
                       </div>
 
@@ -2004,21 +2083,35 @@ export const ProductsPage: React.FC = () => {
                           border: 'none',
                           color: 'var(--status-danger-text)',
                           cursor: 'pointer',
-                          padding: '2px 4px',
+                          padding: '4px 6px',
                           display: 'flex',
                           alignItems: 'center',
+                          borderRadius: '4px',
+                          transition: 'background 0.15s ease',
                         }}
-                        title="Remover este link"
+                        title="Remover este canal"
+                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--status-danger-bg)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={15} />
                       </button>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
-                Nenhum marketplace vinculado ainda. Adicione acima para centralizar seus canais de vendas.
+              <div
+                style={{
+                  padding: '10px 14px',
+                  backgroundColor: '#ffffff',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px dashed var(--border-medium)',
+                  fontSize: '0.78rem',
+                  color: 'var(--text-tertiary)',
+                  textAlign: 'center',
+                }}
+              >
+                Nenhum marketplace vinculado ainda. Selecione um canal acima e cole o link do seu anúncio para conectar.
               </div>
             )}
           </div>
@@ -2327,8 +2420,8 @@ export const ProductsPage: React.FC = () => {
                     {editingProduct
                       ? 'Salvar Alterações'
                       : pendingImages.length > 0
-                      ? `Criar Item (${pendingImages.length} fotos)`
-                      : 'Criar Item'}
+                      ? `Criar Produto (${pendingImages.length} fotos)`
+                      : 'Criar Produto'}
                   </span>
                 )}
               </button>
