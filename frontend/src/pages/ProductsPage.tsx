@@ -110,9 +110,13 @@ export const ProductsPage: React.FC = () => {
       setUnits(unitsData);
       setItemTypes(itemTypesData);
 
-      // Se não houver unidades no banco, sugerir as padrões
-      if (unitsData.length > 0 && !formData.unit_id) {
-        setFormData((prev) => ({ ...prev, unit_id: unitsData[0].id }));
+      // Definir unidade padrão como Unidade (UN)
+      const defaultUnit = unitsData.find(
+        (u) => u.code.toUpperCase() === 'UN' || u.name.toLowerCase().includes('unidade')
+      ) || (unitsData.length > 0 ? unitsData[0] : null);
+
+      if (defaultUnit) {
+        setFormData((prev) => ({ ...prev, unit_id: defaultUnit.id }));
       }
     } catch (err: any) {
       setError(err.message || 'Falha ao carregar itens do ateliê.');
@@ -150,6 +154,11 @@ export const ProductsPage: React.FC = () => {
     setNewLinkPlatform('Mercado Livre');
     setNewLinkUrl('');
     setEditingProduct(null);
+
+    const defaultUnit = units.find(
+      (u) => u.code.toUpperCase() === 'UN' || u.name.toLowerCase().includes('unidade')
+    ) || (units.length > 0 ? units[0] : null);
+
     setFormData({
       sku: '',
       name: '',
@@ -157,7 +166,7 @@ export const ProductsPage: React.FC = () => {
       color: '',
       item_type: 'PRODUTO_ACABADO',
       category_id: categories.length > 0 ? categories[0].id : null,
-      unit_id: units.length > 0 ? units[0].id : 1,
+      unit_id: defaultUnit ? defaultUnit.id : 1,
       unit_cost: '0.0000',
       cost_breakdown: '',
       sales_links: '',

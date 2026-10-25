@@ -154,7 +154,9 @@ class ProductService:
     @staticmethod
     def list_units(db: Session) -> List[UnitOfMeasure]:
         ProductService.seed_initial_units(db)
-        stmt = select(UnitOfMeasure).order_by(UnitOfMeasure.code)
+        from sqlalchemy import case
+        is_un = case((UnitOfMeasure.code == "UN", 0), else_=1)
+        stmt = select(UnitOfMeasure).order_by(is_un, UnitOfMeasure.name, UnitOfMeasure.code)
         return list(db.execute(stmt).scalars().all())
 
     @staticmethod
