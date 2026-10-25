@@ -345,6 +345,7 @@ class ProductService:
         db.add(image)
         db.commit()
         db.refresh(image)
+        db.refresh(product)
         return image
 
     @staticmethod

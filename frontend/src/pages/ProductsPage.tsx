@@ -540,25 +540,35 @@ export const ProductsPage: React.FC = () => {
       // Se há fotos selecionadas para upload
       if (pendingImages.length > 0) {
         const filesToUpload = pendingImages.map((p) => p.file);
+        let anyUploaded = false;
+        let lastUploadError: string | null = null;
         try {
           const uploadedImages = await api.uploadProductImagesBatch(savedProduct.id, filesToUpload);
+          anyUploaded = true;
           const primaryIndex = pendingImages.findIndex((p) => p.isPrimary);
           if (primaryIndex > 0 && uploadedImages[primaryIndex]) {
             await api.setPrimaryImage(savedProduct.id, uploadedImages[primaryIndex].id);
           }
         } catch (batchErr: any) {
           console.warn('Upload em lote falhou, tentando upload individual resiliente:', batchErr);
+          lastUploadError = batchErr.message || 'Falha no upload em lote';
           // Fallback individual
           for (let i = 0; i < pendingImages.length; i++) {
             try {
               const uploaded = await api.uploadProductImage(savedProduct.id, pendingImages[i].file);
+              anyUploaded = true;
               if (pendingImages[i].isPrimary && i > 0) {
                 await api.setPrimaryImage(savedProduct.id, uploaded.id);
               }
             } catch (singleErr: any) {
-              console.warn(`Erro no envio da foto ${pendingImages[i].file.name}:`, singleErr);
+              console.error(`Erro no envio da foto ${pendingImages[i].file.name}:`, singleErr);
+              lastUploadError = singleErr.message || lastUploadError;
             }
           }
+        }
+
+        if (!anyUploaded && pendingImages.length > 0) {
+          alert(`Aviso: O produto foi salvo, mas as fotos não puderam ser enviadas. Motivo: ${lastUploadError || 'Erro de comunicação com o servidor'}`);
         }
       }
 
@@ -600,12 +610,19 @@ export const ProductsPage: React.FC = () => {
       if (fileList.length === 1) {
         await api.uploadProductImage(imageModalProduct.id, fileList[0]);
       } else {
-        await api.uploadProductImagesBatch(imageModalProduct.id, fileList);
+        try {
+          await api.uploadProductImagesBatch(imageModalProduct.id, fileList);
+        } catch {
+          for (const f of fileList) {
+            await api.uploadProductImage(imageModalProduct.id, f);
+          }
+        }
       }
       const updatedProduct = await api.getProduct(imageModalProduct.id);
       setImageModalProduct(updatedProduct);
       await loadData();
     } catch (err: any) {
+      console.error('Erro no upload de foto(s):', err);
       setImageError(err.message || 'Erro ao enviar imagem(ns).');
     } finally {
       setUploadingImage(false);

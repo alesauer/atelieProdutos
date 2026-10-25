@@ -90,7 +90,7 @@ class StorageService:
 
                 # 8. Persistir otimizada no storage
                 if format_name in ("JPEG", "JPG"):
-                    if img.mode in ("RGBA", "P"):
+                    if img.mode != "RGB":
                         img = img.convert("RGB")
                     img.save(destination_path, format="JPEG", quality=88, optimize=True)
                 elif format_name == "PNG":
