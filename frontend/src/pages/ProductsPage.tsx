@@ -1940,96 +1940,167 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <label htmlFor="prod-cat" style={{ margin: 0 }}>Categoria</label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNewCategoryName('');
-                    setNewCategoryDescription('');
-                    setNewCategoryError(null);
-                    setIsNewCategoryModalOpen(true);
-                  }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--brand-accent)',
-                    fontSize: '0.8rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: '2px 6px',
-                    borderRadius: 'var(--radius-sm)',
-                  }}
-                  title="Cadastrar nova categoria"
-                >
-                  <Plus size={14} /> Nova Categoria
-                </button>
-              </div>
-              <select
-                id="prod-cat"
-                value={formData.category_id || ''}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    category_id: e.target.value ? Number(e.target.value) : null,
-                  })
-                }
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <label htmlFor="prod-cat" style={{ margin: 0 }}>Categoria</label>
+              <button
+                type="button"
+                onClick={() => {
+                  setNewCategoryName('');
+                  setNewCategoryDescription('');
+                  setNewCategoryError(null);
+                  setIsNewCategoryModalOpen(true);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--brand-accent)',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '2px 6px',
+                  borderRadius: 'var(--radius-sm)',
+                }}
+                title="Cadastrar nova categoria"
               >
-                <option value="">Sem categoria</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+                <Plus size={14} /> Nova Categoria
+              </button>
             </div>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <label htmlFor="prod-unit" style={{ margin: 0 }}>Unidade de Medida *</label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNewUnitCode('');
-                    setNewUnitName('');
-                    setNewUnitAllowsDecimals(true);
-                    setNewUnitError(null);
-                    setIsNewUnitModalOpen(true);
-                  }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--brand-accent)',
-                    fontSize: '0.8rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: '2px 6px',
-                    borderRadius: 'var(--radius-sm)',
-                  }}
-                  title="Cadastrar nova unidade de medida"
-                >
-                  <Plus size={14} /> Nova Unidade
-                </button>
-              </div>
-              <select
-                id="prod-unit"
-                value={formData.unit_id}
-                onChange={(e) => setFormData({ ...formData, unit_id: Number(e.target.value) })}
+            <select
+              id="prod-cat"
+              value={formData.category_id || ''}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  category_id: e.target.value ? Number(e.target.value) : null,
+                })
+              }
+            >
+              <option value="">Sem categoria</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ marginBottom: '18px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <label style={{ margin: 0, fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                Unidade de Medida *
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setNewUnitCode('');
+                  setNewUnitName('');
+                  setNewUnitAllowsDecimals(true);
+                  setNewUnitError(null);
+                  setIsNewUnitModalOpen(true);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--brand-accent)',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '2px 6px',
+                  borderRadius: 'var(--radius-sm)',
+                }}
+                title="Cadastrar nova unidade de medida"
               >
-                {units.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} ({u.code})
-                  </option>
-                ))}
-              </select>
+                <Plus size={14} /> Nova Unidade
+              </button>
             </div>
+
+            {/* Radio Buttons para seleção da Unidade de Medida */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+                gap: '8px',
+              }}
+              role="radiogroup"
+              aria-label="Selecione a unidade de medida do produto"
+            >
+              {units.map((u) => {
+                const isSelected = formData.unit_id === u.id;
+                return (
+                  <label
+                    key={u.id}
+                    htmlFor={`unit-radio-${u.id}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 12px',
+                      borderRadius: 'var(--radius-sm)',
+                      border: isSelected ? '2px solid var(--brand-accent)' : '1px solid var(--border-medium)',
+                      backgroundColor: isSelected ? 'var(--brand-accent-light, #fbf2ec)' : '#ffffff',
+                      boxShadow: isSelected ? '0 1px 4px rgba(184, 115, 51, 0.12)' : 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      userSelect: 'none',
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      id={`unit-radio-${u.id}`}
+                      name="product_unit_id"
+                      value={u.id}
+                      checked={isSelected}
+                      onChange={() => setFormData({ ...formData, unit_id: u.id })}
+                      style={{
+                        accentColor: 'var(--brand-accent)',
+                        cursor: 'pointer',
+                        width: '15px',
+                        height: '15px',
+                        margin: 0,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                      <span
+                        style={{
+                          fontSize: '0.82rem',
+                          fontWeight: isSelected ? 700 : 600,
+                          color: isSelected ? 'var(--brand-primary)' : 'var(--text-primary)',
+                          lineHeight: 1.2,
+                        }}
+                      >
+                        {u.code}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '0.72rem',
+                          color: isSelected ? 'var(--brand-accent)' : 'var(--text-tertiary)',
+                          lineHeight: 1.2,
+                          whiteSpace: 'nowrap',
+                          textOverflow: 'ellipsis',
+                          overflow: 'hidden',
+                        }}
+                        title={u.name}
+                      >
+                        {u.name}
+                      </span>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+            {units.length === 0 && (
+              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
+                Nenhuma unidade cadastrada. Clique em "+ Nova Unidade" para adicionar.
+              </p>
+            )}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
