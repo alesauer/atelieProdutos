@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import List, Optional
 import uuid
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
@@ -303,6 +303,44 @@ class ProductionService:
     @staticmethod
     def get_order_by_id(db: Session, order_id: int) -> Optional[ProductionOrder]:
         return db.get(ProductionOrder, order_id)
+
+    @staticmethod
+    def delete_recipe(db: Session, recipe_id: int) -> None:
+        recipe = ProductionService.get_recipe_by_id(db, recipe_id)
+        if not recipe:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Ficha técnica não encontrada.",
+            )
+        active_orders = db.execute(
+            select(func.count(ProductionOrder.id)).where(
+                ProductionOrder.recipe_id == recipe_id,
+                ProductionOrder.status != ProductionOrderStatus.CANCELADA,
+            )
+        ).scalar() or 0
+        if active_orders > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Não é possível excluir esta ficha técnica pois existem {active_orders} ordem(ns) de produção vinculada(s) a ela.",
+            )
+        db.delete(recipe)
+        db.commit()
+
+    @staticmethod
+    def delete_order(db: Session, order_id: int) -> None:
+        order = ProductionService.get_order_by_id(db, order_id)
+        if not order:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Ordem de produção não encontrada.",
+            )
+        if order.status == ProductionOrderStatus.CONFIRMADA:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Esta ordem de produção está confirmada com estoque movimentado. Cancele a ordem primeiro para estornar o estoque antes de excluí-la.",
+            )
+        db.delete(order)
+        db.commit()
 
 
 production_service = ProductionService()

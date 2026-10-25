@@ -81,3 +81,36 @@ def test_regular_user_cannot_create_user(client: TestClient, user_token: str):
         },
     )
     assert response.status_code == 403
+
+
+def test_admin_delete_user(client: TestClient, admin_token: str, admin_user):
+    # 1. Tentar excluir a si mesmo -> 400
+    self_del = client.delete(
+        f"/api/v1/users/{admin_user.id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert self_del.status_code == 400
+    assert "própria conta" in self_del.json()["detail"]
+
+    # 2. Criar outro usuário
+    create_resp = client.post(
+        "/api/v1/users",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "email": "temporario@casaluma.com.br",
+            "password": "senha_temp_123",
+            "full_name": "Temporario",
+            "is_active": True,
+            "is_admin": False,
+        },
+    )
+    assert create_resp.status_code == 201
+    user_id = create_resp.json()["id"]
+
+    # 3. Excluir o outro usuário -> 204
+    del_resp = client.delete(
+        f"/api/v1/users/{user_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert del_resp.status_code == 204
+

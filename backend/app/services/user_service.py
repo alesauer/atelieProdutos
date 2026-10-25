@@ -1,4 +1,5 @@
 from typing import List, Optional
+from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -64,6 +65,22 @@ class UserService:
     def list_users(db: Session, skip: int = 0, limit: int = 100) -> List[User]:
         stmt = select(User).offset(skip).limit(limit)
         return list(db.execute(stmt).scalars().all())
+
+    @staticmethod
+    def delete_user(db: Session, user_id: int, current_user_id: int) -> None:
+        if user_id == current_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Você não pode excluir a sua própria conta de usuário.",
+            )
+        user = UserService.get_by_id(db, user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Usuário não encontrado.",
+            )
+        db.delete(user)
+        db.commit()
 
 
 user_service = UserService()

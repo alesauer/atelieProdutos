@@ -165,6 +165,32 @@ export const SalesPage: React.FC = () => {
     }
   };
 
+  const handleDeleteSale = async (saleId: number, saleNumber: string) => {
+    if (!confirm(`Deseja realmente excluir permanentemente a venda "${saleNumber}"?`)) return;
+    try {
+      await api.deleteSale(saleId);
+      if (selectedSale?.id === saleId) {
+        setSelectedSale(null);
+      }
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || 'Erro ao excluir venda.');
+    }
+  };
+
+  const handleDeleteCustomer = async (customerId: number, customerName: string) => {
+    if (!confirm(`Deseja realmente excluir o cliente "${customerName}"?`)) return;
+    try {
+      await api.deleteCustomer(customerId);
+      if (selectedCustomerId === customerId) {
+        setSelectedCustomerId(null);
+      }
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || 'Erro ao excluir cliente.');
+    }
+  };
+
   const handleCreateQuickCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -391,6 +417,14 @@ export const SalesPage: React.FC = () => {
                             <XCircle size={14} />
                           </button>
                         )}
+                        <button
+                          onClick={() => handleDeleteSale(s.id, s.sale_number)}
+                          className="btn-secondary"
+                          style={{ padding: '6px 10px', fontSize: '0.78rem', color: 'var(--status-danger-text)' }}
+                          title="Excluir venda permanentemente"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -609,6 +643,50 @@ export const SalesPage: React.FC = () => {
             </button>
           </div>
         </form>
+
+        {/* Lista de Clientes com Opção de Exclusão */}
+        {customers.length > 0 && (
+          <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--border-subtle)' }}>
+            <h5 style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '8px' }}>
+              Clientes Cadastrados ({customers.length})
+            </h5>
+            <div style={{ maxHeight: '160px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {customers.map((c) => (
+                <div
+                  key={c.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '6px 10px',
+                    backgroundColor: 'var(--bg-sand-light)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.82rem',
+                  }}
+                >
+                  <div>
+                    <span style={{ fontWeight: 600, color: 'var(--brand-primary)' }}>{c.name}</span>
+                    {c.phone && <span style={{ color: 'var(--text-tertiary)', marginLeft: '6px', fontSize: '0.75rem' }}>({c.phone})</span>}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteCustomer(c.id, c.name)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--status-danger-text)',
+                      cursor: 'pointer',
+                      padding: '2px 4px',
+                    }}
+                    title="Excluir este cliente"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Modal Detalhes da Venda */}
@@ -654,7 +732,21 @@ export const SalesPage: React.FC = () => {
             </p>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <button
+              onClick={() => handleDeleteSale(selectedSale.id, selectedSale.sale_number)}
+              className="btn-secondary"
+              style={{
+                color: 'var(--status-danger-text)',
+                borderColor: 'var(--status-danger-border, #f5c2c7)',
+                backgroundColor: 'var(--status-danger-bg, #f8d7da)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <Trash2 size={15} /> Excluir Venda
+            </button>
             <button onClick={() => setSelectedSale(null)} className="btn-secondary">
               Fechar
             </button>

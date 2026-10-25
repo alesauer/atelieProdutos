@@ -447,6 +447,48 @@ export const ProductsPage: React.FC = () => {
     }
   };
 
+  const handleDeleteCategory = async (cat: Category) => {
+    if (!confirm(`Deseja realmente excluir a categoria "${cat.name}"?`)) return;
+    try {
+      await api.deleteCategory(cat.id);
+      setCategories((prev) => prev.filter((c) => c.id !== cat.id));
+      if (formData.category_id === cat.id) {
+        setFormData((prev) => ({ ...prev, category_id: null }));
+      }
+    } catch (err: any) {
+      alert(err.message || 'Erro ao excluir categoria.');
+    }
+  };
+
+  const handleDeleteUnit = async (u: UnitOfMeasure) => {
+    if (!confirm(`Deseja realmente excluir a unidade "${u.name}" (${u.code})?`)) return;
+    try {
+      await api.deleteUnit(u.id);
+      setUnits((prev) => prev.filter((item) => item.id !== u.id));
+      if (formData.unit_id === u.id) {
+        const remaining = units.filter((item) => item.id !== u.id);
+        if (remaining.length > 0) {
+          setFormData((prev) => ({ ...prev, unit_id: remaining[0].id }));
+        }
+      }
+    } catch (err: any) {
+      alert(err.message || 'Erro ao excluir unidade de medida.');
+    }
+  };
+
+  const handleDeleteItemType = async (typeDef: ItemTypeDefinition) => {
+    if (!confirm(`Deseja realmente excluir o tipo de item "${typeDef.name}" (${typeDef.code})?`)) return;
+    try {
+      await api.deleteItemType(typeDef.id);
+      setItemTypes((prev) => prev.filter((t) => t.id !== typeDef.id));
+      if (formData.item_type === typeDef.code) {
+        setFormData((prev) => ({ ...prev, item_type: 'PRODUTO_ACABADO' }));
+      }
+    } catch (err: any) {
+      alert(err.message || 'Erro ao excluir tipo de item.');
+    }
+  };
+
   // Gestão de Fotos para Upload no Formulário
   const handleSelectPendingImages = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -3077,6 +3119,52 @@ export const ProductsPage: React.FC = () => {
             />
           </div>
 
+          {/* Tipos Cadastrados */}
+          <div style={{ marginTop: '20px', marginBottom: '20px', borderTop: '1px solid var(--border-subtle)', paddingTop: '16px' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '10px' }}>
+              Tipos Existentes ({itemTypes.length})
+            </span>
+            <div style={{ maxHeight: '160px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {itemTypes.map((t) => (
+                <div
+                  key={t.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 12px',
+                    backgroundColor: 'var(--bg-sand-light)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.85rem',
+                  }}
+                >
+                  <div>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{t.name}</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginLeft: '8px' }}>
+                      ({t.code})
+                    </span>
+                    {t.is_system && (
+                      <span style={{ fontSize: '0.7rem', color: 'var(--brand-accent)', marginLeft: '6px' }}>
+                        [Sistema]
+                      </span>
+                    )}
+                  </div>
+                  {!t.is_system && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteItemType(t)}
+                      className="btn-secondary"
+                      style={{ padding: '4px 8px', color: 'var(--status-danger-text)' }}
+                      title="Excluir tipo de item customizado"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
             <button
               type="button"
@@ -3139,6 +3227,47 @@ export const ProductsPage: React.FC = () => {
               value={newCategoryDescription}
               onChange={(e) => setNewCategoryDescription(e.target.value)}
             />
+          </div>
+
+          {/* Categorias Cadastradas */}
+          <div style={{ marginTop: '20px', marginBottom: '20px', borderTop: '1px solid var(--border-subtle)', paddingTop: '16px' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '10px' }}>
+              Categorias Existentes ({categories.length})
+            </span>
+            <div style={{ maxHeight: '160px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {categories.map((cat) => (
+                <div
+                  key={cat.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 12px',
+                    backgroundColor: 'var(--bg-sand-light)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.85rem',
+                  }}
+                >
+                  <div>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{cat.name}</span>
+                    {cat.description && (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginLeft: '8px' }}>
+                        {cat.description}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteCategory(cat)}
+                    className="btn-secondary"
+                    style={{ padding: '4px 8px', color: 'var(--status-danger-text)' }}
+                    title="Excluir categoria"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
@@ -3217,6 +3346,45 @@ export const ProductsPage: React.FC = () => {
               />
               <span>Permite quantidades fracionadas / decimais (ex.: 1.500 kg, 0.250 l)</span>
             </label>
+          </div>
+
+          {/* Unidades Cadastradas */}
+          <div style={{ marginTop: '20px', marginBottom: '20px', borderTop: '1px solid var(--border-subtle)', paddingTop: '16px' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '10px' }}>
+              Unidades Existentes ({units.length})
+            </span>
+            <div style={{ maxHeight: '160px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {units.map((u) => (
+                <div
+                  key={u.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 12px',
+                    backgroundColor: 'var(--bg-sand-light)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.85rem',
+                  }}
+                >
+                  <div>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{u.code}</span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginLeft: '8px' }}>
+                      {u.name}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteUnit(u)}
+                    className="btn-secondary"
+                    style={{ padding: '4px 8px', color: 'var(--status-danger-text)' }}
+                    title="Excluir unidade"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>

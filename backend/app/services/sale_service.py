@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import List, Optional
 import uuid
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
@@ -197,6 +197,41 @@ class SaleService:
     @staticmethod
     def get_sale_by_id(db: Session, sale_id: int) -> Optional[Sale]:
         return db.get(Sale, sale_id)
+
+    @staticmethod
+    def delete_customer(db: Session, customer_id: int) -> None:
+        customer = SaleService.get_customer_by_id(db, customer_id)
+        if not customer:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Cliente não encontrado.",
+            )
+        sales_count = db.execute(
+            select(func.count(Sale.id)).where(Sale.customer_id == customer_id)
+        ).scalar() or 0
+        if sales_count > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Não é possível excluir o cliente '{customer.name}' pois existem {sales_count} venda(s) associada(s) a ele.",
+            )
+        db.delete(customer)
+        db.commit()
+
+    @staticmethod
+    def delete_sale(db: Session, sale_id: int) -> None:
+        sale = SaleService.get_sale_by_id(db, sale_id)
+        if not sale:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Venda não encontrada.",
+            )
+        if sale.status == SaleStatus.CONFIRMADA:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Esta venda está confirmada com baixa no estoque. Cancele a venda primeiro para estornar os produtos ao estoque antes de excluí-la.",
+            )
+        db.delete(sale)
+        db.commit()
 
 
 sale_service = SaleService()

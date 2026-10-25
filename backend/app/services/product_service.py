@@ -175,6 +175,25 @@ class ProductService:
         db.refresh(unit)
         return unit
 
+    @staticmethod
+    def delete_unit(db: Session, unit_id: int) -> None:
+        unit = ProductService.get_unit_by_id(db, unit_id)
+        if not unit:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Unidade de medida não encontrada.",
+            )
+        products_count = db.execute(
+            select(func.count(Product.id)).where(Product.unit_id == unit_id)
+        ).scalar() or 0
+        if products_count > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Não é possível excluir a unidade '{unit.name}' ({unit.code}) pois existem {products_count} produto(s) associado(s).",
+            )
+        db.delete(unit)
+        db.commit()
+
     # --- Produtos ---
     @staticmethod
     def get_product_by_id(db: Session, product_id: int) -> Optional[Product]:

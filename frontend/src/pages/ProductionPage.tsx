@@ -134,6 +134,29 @@ export const ProductionPage: React.FC = () => {
     }
   };
 
+  const handleDeleteOrder = async (orderId: number, orderNumber: string) => {
+    if (!confirm(`Deseja realmente excluir permanentemente a ordem de produção "${orderNumber}"?`)) return;
+    try {
+      await api.deleteProductionOrder(orderId);
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder(null);
+      }
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || 'Erro ao excluir ordem de produção.');
+    }
+  };
+
+  const handleDeleteRecipe = async (recipeId: number, recipeName: string) => {
+    if (!confirm(`Deseja realmente excluir permanentemente a ficha técnica "${recipeName}"?`)) return;
+    try {
+      await api.deleteRecipe(recipeId);
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || 'Erro ao excluir ficha técnica.');
+    }
+  };
+
   // Gerenciamento dos itens da nova receita
   const handleAddRecipeItem = () => {
     if (rawMaterials.length === 0) return;
@@ -389,6 +412,18 @@ export const ProductionPage: React.FC = () => {
                               <XCircle size={14} />
                             </button>
                           )}
+                          <button
+                            onClick={() => handleDeleteOrder(o.id, o.order_number)}
+                            className="btn-secondary"
+                            style={{
+                              padding: '6px 10px',
+                              fontSize: '0.78rem',
+                              color: 'var(--status-danger-text)',
+                            }}
+                            title="Excluir ordem permanentemente"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -422,9 +457,27 @@ export const ProductionPage: React.FC = () => {
                   <h3 style={{ fontSize: '1.25rem', color: 'var(--brand-primary)', fontWeight: 600 }}>
                     {r.name}
                   </h3>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--brand-accent)' }}>
-                    Rende: {Number(r.yield_quantity).toFixed(0)} un
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--brand-accent)' }}>
+                      Rende: {Number(r.yield_quantity).toFixed(0)} un
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteRecipe(r.id, r.name)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--status-danger-text)',
+                        cursor: 'pointer',
+                        padding: '2px 4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                      }}
+                      title="Excluir ficha técnica"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </div>
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)', marginBottom: '14px' }}>
                   Produto: {r.product_name}
@@ -570,7 +623,21 @@ export const ProductionPage: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <button
+              onClick={() => handleDeleteOrder(selectedOrder.id, selectedOrder.order_number)}
+              className="btn-secondary"
+              style={{
+                color: 'var(--status-danger-text)',
+                borderColor: 'var(--status-danger-border, #f5c2c7)',
+                backgroundColor: 'var(--status-danger-bg, #f8d7da)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <Trash2 size={15} /> Excluir Ordem
+            </button>
             <button onClick={() => setSelectedOrder(null)} className="btn-secondary">
               Fechar
             </button>

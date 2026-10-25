@@ -66,6 +66,17 @@ def create_customer(
     return sale_service.create_customer(db, customer_in)
 
 
+@router.delete("/customers/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_customer(
+    customer_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Exclui um cliente cadastrado caso não possua histórico de vendas."""
+    sale_service.delete_customer(db, customer_id)
+    return None
+
+
 # --- Vendas ---
 
 @router.get("", response_model=List[SaleResponse])
@@ -128,3 +139,14 @@ def cancel_sale(
     """Cancela a venda e estorna os produtos de volta ao estoque se já havia sido confirmada."""
     sale = sale_service.cancel_sale(db, sale_id, user_id=current_user.id)
     return _enrich_sale_response(sale)
+
+
+@router.delete("/{sale_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_sale(
+    sale_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Exclui uma venda (rascunho ou cancelada)."""
+    sale_service.delete_sale(db, sale_id)
+    return None

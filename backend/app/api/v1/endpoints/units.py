@@ -27,3 +27,15 @@ def create_unit(
 ):
     """Adiciona nova unidade de medida ao sistema."""
     return product_service.create_unit(db, unit_in)
+
+
+@router.delete("/{unit_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_unit(
+    unit_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Remove uma unidade de medida cadastrada caso não possua produtos associados."""
+    product_service.delete_unit(db, unit_id)
+    return None
+

@@ -279,4 +279,27 @@ def test_create_and_update_product_color(client: TestClient, admin_token: str, s
     assert upd_resp.json()["color"] == "Lavanda Suave"
 
 
+def test_delete_unit_of_measure(client: TestClient, admin_token: str, sample_unit: UnitOfMeasure, sample_product: Product):
+    # 1. Tentar excluir unidade em uso pelo sample_product -> 400
+    del_fail = client.delete(
+        f"/api/v1/units/{sample_unit.id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert del_fail.status_code == 400
+    assert "Não é possível excluir a unidade" in del_fail.json()["detail"]
 
+    # 2. Criar uma nova unidade sem produtos vinculados
+    create_resp = client.post(
+        "/api/v1/units",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"code": "MLX", "name": "Mililitro Extra", "allows_decimals": True},
+    )
+    assert create_resp.status_code == 201
+    unit_id = create_resp.json()["id"]
+
+    # 3. Excluir a unidade não utilizada -> 204
+    del_ok = client.delete(
+        f"/api/v1/units/{unit_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert del_ok.status_code == 204

@@ -147,3 +147,80 @@ def test_production_flow_draft_and_atomic_confirmation(
     assert r_map[finished.id] == Decimal("0.000")
     assert r_map[cera.id] == Decimal("5.000")
     assert r_map[pavio.id] == Decimal("50.000")
+
+    # 9. Agora que a ordem está CANCELADA, podemos excluí-la
+    del_order_resp = client.delete(
+        f"/api/v1/production/orders/{order_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert del_order_resp.status_code == 204
+
+    # 10. E agora podemos excluir a receita sem erros
+    del_recipe_resp = client.delete(
+        f"/api/v1/production/recipes/{recipe_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert del_recipe_resp.status_code == 204
+
+
+def test_delete_confirmed_order_forbidden(
+    client: TestClient, admin_token: str, production_setup: dict
+):
+    finished = production_setup["finished"]
+    cera = production_setup["cera"]
+    pavio = production_setup["pavio"]
+
+    # Dar saldo via stock/entries
+    client.post(
+        "/api/v1/stock/entries",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"product_id": cera.id, "quantity": "5.000", "justification": "Entrada teste"},
+    )
+    client.post(
+        "/api/v1/stock/entries",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"product_id": pavio.id, "quantity": "10.000", "justification": "Entrada teste"},
+    )
+
+    # Criar receita
+    rec = client.post(
+        "/api/v1/production/recipes",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "product_id": finished.id,
+            "name": "Receita Teste Delete",
+            "yield_quantity": "1.000",
+            "items": [
+                {"component_product_id": cera.id, "standard_quantity": "0.100"},
+                {"component_product_id": pavio.id, "standard_quantity": "1.000"},
+            ],
+        },
+    ).json()
+
+    # Criar e confirmar ordem
+    ord_resp = client.post(
+        "/api/v1/production/orders",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"product_id": finished.id, "recipe_id": rec["id"], "planned_quantity": "2.000"},
+    ).json()
+
+    conf_resp = client.post(
+        f"/api/v1/production/orders/{ord_resp['id']}/confirm",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert conf_resp.status_code == 200
+
+    # Tentativa de excluir ordem confirmada diretamente -> 400
+    del_fail = client.delete(
+        f"/api/v1/production/orders/{ord_resp['id']}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert del_fail.status_code == 400
+
+    # Tentativa de excluir receita com ordem ativa -> 400
+    del_rec_fail = client.delete(
+        f"/api/v1/production/recipes/{rec['id']}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert del_rec_fail.status_code == 400
+

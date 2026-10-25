@@ -144,6 +144,12 @@ class ApiClient {
     });
   }
 
+  async deleteUnit(unitId: number): Promise<void> {
+    return this.request<void>(`/units/${unitId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // --- Tipos de Itens ---
   async listItemTypes(): Promise<ItemTypeDefinition[]> {
     return this.request<ItemTypeDefinition[]>('/item-types');
@@ -153,6 +159,12 @@ class ApiClient {
     return this.request<ItemTypeDefinition>('/item-types', {
       method: 'POST',
       body: JSON.stringify({ name, code, description }),
+    });
+  }
+
+  async deleteItemType(itemTypeId: number): Promise<void> {
+    return this.request<void>(`/item-types/${itemTypeId}`, {
+      method: 'DELETE',
     });
   }
 
@@ -326,6 +338,18 @@ class ApiClient {
     });
   }
 
+  async deleteRecipe(recipeId: number): Promise<void> {
+    return this.request<void>(`/production/recipes/${recipeId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async deleteProductionOrder(orderId: number): Promise<void> {
+    return this.request<void>(`/production/orders/${orderId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // --- Vendas & Clientes ---
   async listCustomers(search?: string): Promise<Customer[]> {
     const qs = search ? `?search=${encodeURIComponent(search)}` : '';
@@ -369,6 +393,18 @@ class ApiClient {
   async cancelSale(saleId: number): Promise<Sale> {
     return this.request<Sale>(`/sales/${saleId}/cancel`, {
       method: 'POST',
+    });
+  }
+
+  async deleteSale(saleId: number): Promise<void> {
+    return this.request<void>(`/sales/${saleId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async deleteCustomer(customerId: number): Promise<void> {
+    return this.request<void>(`/sales/customers/${customerId}`, {
+      method: 'DELETE',
     });
   }
 

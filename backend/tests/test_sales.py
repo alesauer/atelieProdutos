@@ -79,3 +79,57 @@ def test_sales_flow_draft_atomic_confirmation_and_reversal(
     bal_restored = client.get("/api/v1/stock/balance", headers={"Authorization": f"Bearer {admin_token}"})
     item_restored = next(b for b in bal_restored.json() if b["product_id"] == sample_product.id)
     assert Decimal(str(item_restored["current_stock"])) == Decimal("10.000")
+
+    # 9. Tentar excluir cliente que tem vínculo com a venda -> 400
+    del_cust_fail = client.delete(
+        f"/api/v1/sales/customers/{customer_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert del_cust_fail.status_code == 400
+
+    # 10. Excluir a venda cancelada -> 204
+    del_sale_resp = client.delete(
+        f"/api/v1/sales/{sale_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert del_sale_resp.status_code == 204
+
+    # 11. Agora o cliente não possui mais vendas vinculadas -> 204
+    del_cust_ok = client.delete(
+        f"/api/v1/sales/customers/{customer_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert del_cust_ok.status_code == 204
+
+
+def test_delete_confirmed_sale_forbidden(
+    client: TestClient, admin_token: str, sample_product: Product
+):
+    # Dar estoque
+    client.post(
+        "/api/v1/stock/entries",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"product_id": sample_product.id, "quantity": "5.000", "justification": "Entrada"},
+    )
+
+    # Criar e confirmar venda
+    sale = client.post(
+        "/api/v1/sales",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "items": [{"product_id": sample_product.id, "quantity": "1.000", "unit_price": "20.00"}]
+        },
+    ).json()
+
+    client.post(
+        f"/api/v1/sales/{sale['id']}/confirm",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+
+    # Exclusão direta de venda confirmada -> 400
+    del_fail = client.delete(
+        f"/api/v1/sales/{sale['id']}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert del_fail.status_code == 400
+

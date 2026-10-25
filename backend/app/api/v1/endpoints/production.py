@@ -124,6 +124,17 @@ def get_recipe_by_product(
     return _enrich_recipe_response(recipe)
 
 
+@router.delete("/recipes/{recipe_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_recipe(
+    recipe_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Exclui uma ficha técnica de produto."""
+    production_service.delete_recipe(db, recipe_id)
+    return None
+
+
 # --- Ordens de Produção ---
 
 @router.get("/orders", response_model=List[ProductionOrderResponse])
@@ -204,3 +215,14 @@ def cancel_order(
     """Cancela a ordem de produção e estorna o estoque se já havia sido confirmada."""
     order = production_service.cancel_order(db, order_id, user_id=current_user.id)
     return _enrich_order_response(order)
+
+
+@router.delete("/orders/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_order(
+    order_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Exclui uma ordem de produção (rascunho ou cancelada)."""
+    production_service.delete_order(db, order_id)
+    return None

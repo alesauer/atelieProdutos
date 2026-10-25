@@ -75,3 +75,15 @@ def update_user(
                 detail=f"O e-mail '{user_in.email}' já está em uso por outro usuário.",
             )
     return user_service.update_user(db, user, user_in)
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin),
+):
+    """Exclui um usuário (Requer Administrador, não permite autoexclusão)."""
+    user_service.delete_user(db, user_id=user_id, current_user_id=current_admin.id)
+    return None
+
