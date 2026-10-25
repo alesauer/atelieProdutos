@@ -190,3 +190,60 @@ def test_create_and_update_product_sales_links(
     assert updated_data["sales_links"] == updated_links
 
 
+def test_delete_product_success(client: TestClient, admin_token: str, sample_category: Category, sample_unit: UnitOfMeasure):
+    # Criar produto para exclusão
+    response = client.post(
+        "/api/v1/products",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "sku": "ITEM-TEMP-EXCLUIR",
+            "name": "Item Temporario Para Excluir",
+            "item_type": "PRODUTO_ACABADO",
+            "category_id": sample_category.id,
+            "unit_id": sample_unit.id,
+            "unit_cost": "10.0000",
+            "min_stock": "1.000",
+        },
+    )
+    assert response.status_code == 201
+    product_id = response.json()["id"]
+
+    # Excluir produto
+    del_resp = client.delete(
+        f"/api/v1/products/{product_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert del_resp.status_code == 204
+
+    # Verificar que não existe mais
+    get_resp = client.get(
+        f"/api/v1/products/{product_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert get_resp.status_code == 404
+
+
+def test_delete_product_with_stock_movement_fails(client: TestClient, admin_token: str, sample_product: Product):
+    # Registrar movimentação de estoque
+    entry_resp = client.post(
+        "/api/v1/stock/entries",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "product_id": sample_product.id,
+            "quantity": "5.000",
+            "unit_cost": "10.0000",
+            "justification": "Entrada de teste",
+        },
+    )
+    assert entry_resp.status_code == 201
+
+    # Tentar excluir produto com histórico de estoque
+    del_resp = client.delete(
+        f"/api/v1/products/{sample_product.id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert del_resp.status_code == 400
+    assert "Não é possível excluir" in del_resp.json()["detail"]
+    assert "movimentação(ões) de estoque associadas" in del_resp.json()["detail"]
+
+

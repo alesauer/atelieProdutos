@@ -592,6 +592,46 @@ export const ProductsPage: React.FC = () => {
     }
   };
 
+  const handleDeleteProduct = async (prod: Product) => {
+    const confirmDelete = confirm(
+      `Deseja realmente excluir permanentemente o item "${prod.name}" (SKU: ${prod.sku})?\n\nEsta ação removerá o produto e suas fotos do catálogo.`
+    );
+    if (!confirmDelete) return;
+
+    try {
+      await api.deleteProduct(prod.id);
+      if (editingProduct?.id === prod.id) {
+        setIsFormModalOpen(false);
+      }
+      await loadData();
+    } catch (err: any) {
+      const errorMsg = err.message || 'Erro ao excluir produto.';
+      if (
+        errorMsg.includes('movimentação') ||
+        errorMsg.includes('venda') ||
+        errorMsg.includes('receita') ||
+        errorMsg.includes('ordens')
+      ) {
+        const confirmInactivate = confirm(
+          `${errorMsg}\n\nDeseja INATIVAR o item em vez de excluir? (Ele deixará de aparecer nas operações ativas do catálogo)`
+        );
+        if (confirmInactivate) {
+          try {
+            await api.toggleProductStatus(prod.id, false);
+            if (editingProduct?.id === prod.id) {
+              setIsFormModalOpen(false);
+            }
+            await loadData();
+          } catch (inactErr: any) {
+            alert(inactErr.message || 'Erro ao inativar item.');
+          }
+        }
+      } else {
+        alert(errorMsg);
+      }
+    }
+  };
+
   // Gerenciamento de Fotos
   const handleOpenImageModal = (prod: Product) => {
     setImageModalProduct(prod);
@@ -1275,6 +1315,15 @@ export const ProductsPage: React.FC = () => {
                       >
                         <Edit2 size={15} />
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteProduct(prod)}
+                        className="btn-icon"
+                        title="Excluir Item"
+                        style={{ color: 'var(--status-danger-text)' }}
+                      >
+                        <Trash2 size={15} />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1515,6 +1564,14 @@ export const ProductsPage: React.FC = () => {
                             title="Editar Dados"
                           >
                             <Edit2 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProduct(prod)}
+                            className="btn-icon"
+                            title="Excluir Item"
+                            style={{ color: 'var(--status-danger-text)' }}
+                          >
+                            <Trash2 size={16} />
                           </button>
                         </div>
                       </td>
@@ -2219,40 +2276,63 @@ export const ProductsPage: React.FC = () => {
             )}
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-            <button
-              type="button"
-              onClick={() => {
-                pendingImages.forEach((p) => URL.revokeObjectURL(p.previewUrl));
-                setPendingImages([]);
-                setIsFormModalOpen(false);
-              }}
-              className="btn-secondary"
-              disabled={savingProduct}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="btn-primary"
-              disabled={savingProduct}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-            >
-              {savingProduct ? (
-                <>
-                  <Loader2 size={16} className="spin-animation" />
-                  <span>{pendingImages.length > 0 ? 'Salvando Item e Fotos...' : 'Salvando...'}</span>
-                </>
-              ) : (
-                <span>
-                  {editingProduct
-                    ? 'Salvar Alterações'
-                    : pendingImages.length > 0
-                    ? `Criar Item (${pendingImages.length} fotos)`
-                    : 'Criar Item'}
-                </span>
-              )}
-            </button>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+            {editingProduct ? (
+              <button
+                type="button"
+                onClick={() => handleDeleteProduct(editingProduct)}
+                className="btn-secondary"
+                disabled={savingProduct}
+                style={{
+                  color: 'var(--status-danger-text)',
+                  borderColor: 'var(--status-danger-border, #f5c2c7)',
+                  backgroundColor: 'var(--status-danger-bg, #f8d7da)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+                title="Excluir este item permanentemente"
+              >
+                <Trash2 size={15} />
+                <span>Excluir Item</span>
+              </button>
+            ) : <div />}
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  pendingImages.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+                  setPendingImages([]);
+                  setIsFormModalOpen(false);
+                }}
+                className="btn-secondary"
+                disabled={savingProduct}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="btn-primary"
+                disabled={savingProduct}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                {savingProduct ? (
+                  <>
+                    <Loader2 size={16} className="spin-animation" />
+                    <span>{pendingImages.length > 0 ? 'Salvando Item e Fotos...' : 'Salvando...'}</span>
+                  </>
+                ) : (
+                  <span>
+                    {editingProduct
+                      ? 'Salvar Alterações'
+                      : pendingImages.length > 0
+                      ? `Criar Item (${pendingImages.length} fotos)`
+                      : 'Criar Item'}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
         </form>
       </Modal>

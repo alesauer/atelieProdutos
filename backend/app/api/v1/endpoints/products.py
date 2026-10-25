@@ -129,6 +129,23 @@ def toggle_product_status(
     return _enrich_product_response(product)
 
 
+@router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_product(
+    product_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Exclui um item cadastrado se não houver vínculos operacionais."""
+    product = product_service.get_product_by_id(db, product_id)
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item não encontrado.",
+        )
+    product_service.delete_product(db, product)
+    return None
+
+
 # --- Gestão de Imagens dos Produtos ---
 
 @router.post("/{product_id}/images", response_model=ProductImageResponse, status_code=status.HTTP_201_CREATED)

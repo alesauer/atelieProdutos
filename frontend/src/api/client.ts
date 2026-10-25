@@ -197,6 +197,12 @@ class ApiClient {
     });
   }
 
+  async deleteProduct(id: number): Promise<void> {
+    return this.request<void>(`/products/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   // --- Gestão de Imagens ---
   async uploadProductImage(productId: number, file: File): Promise<ProductImage> {
     const formData = new FormData();

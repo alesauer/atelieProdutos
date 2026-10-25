@@ -311,6 +311,79 @@ class ProductService:
         db.refresh(product)
         return product
 
+    @staticmethod
+    def delete_product(db: Session, product: Product) -> None:
+        """
+        Exclui um item cadastrado do catálogo se não possuir vínculos operacionais
+        (movimentações de estoque, vendas, receitas ou ordens de produção).
+        Remove também os arquivos físicos de fotos associados.
+        """
+        from app.models.stock import StockMovement
+        from app.models.sale import SaleItem
+        from app.models.production import (
+            ProductionRecipe,
+            ProductionRecipeItem,
+            ProductionOrder,
+            ProductionOrderItem,
+        )
+
+        # 1. Validar integridade referencial com movimentações de estoque
+        has_movements = db.execute(
+            select(func.count(StockMovement.id)).where(StockMovement.product_id == product.id)
+        ).scalar() or 0
+        if has_movements > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Não é possível excluir '{product.name}' pois existem {has_movements} movimentação(ões) de estoque associadas. Você pode inativá-lo.",
+            )
+
+        # 2. Validar integridade referencial com vendas
+        has_sales = db.execute(
+            select(func.count(SaleItem.id)).where(SaleItem.product_id == product.id)
+        ).scalar() or 0
+        if has_sales > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Não é possível excluir '{product.name}' pois existem {has_sales} venda(s) vinculadas. Recomendamos inativar o produto.",
+            )
+
+        # 3. Validar se é produto de receita ou matéria-prima de receita
+        has_recipes = db.execute(
+            select(func.count(ProductionRecipe.id)).where(ProductionRecipe.product_id == product.id)
+        ).scalar() or 0
+        has_recipe_items = db.execute(
+            select(func.count(ProductionRecipeItem.id)).where(ProductionRecipeItem.component_product_id == product.id)
+        ).scalar() or 0
+        if has_recipes > 0 or has_recipe_items > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Não é possível excluir '{product.name}' pois ele faz parte de receitas de produção. Remova-o da receita antes de excluir.",
+            )
+
+        # 4. Validar ordens de produção
+        has_orders = db.execute(
+            select(func.count(ProductionOrder.id)).where(ProductionOrder.product_id == product.id)
+        ).scalar() or 0
+        has_order_items = db.execute(
+            select(func.count(ProductionOrderItem.id)).where(ProductionOrderItem.component_product_id == product.id)
+        ).scalar() or 0
+        if has_orders > 0 or has_order_items > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Não é possível excluir '{product.name}' pois ele está vinculado a ordens de produção.",
+            )
+
+        # 5. Excluir arquivos físicos de fotos do produto do disco
+        for img in product.images:
+            try:
+                storage_service.delete_file(img.file_path)
+            except Exception:
+                pass
+
+        # 6. Remover produto (imagens e registros filhos deletados em cascata)
+        db.delete(product)
+        db.commit()
+
     # --- Imagens dos Produtos ---
     @staticmethod
     def add_product_image(
