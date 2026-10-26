@@ -66,6 +66,7 @@ class ProductionOrder(Base, TimestampMixin):
     recipe_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("production_recipes.id", ondelete="SET NULL"), nullable=True
     )
+    color: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
     planned_quantity: Mapped[Decimal] = mapped_column(
         Numeric(10, 3), nullable=False
     )

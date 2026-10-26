@@ -427,6 +427,7 @@ class ApiClient {
   async createDraftOrder(data: {
     product_id: number;
     recipe_id?: number | null;
+    color?: string | null;
     planned_quantity: number | string;
     notes?: string;
   }): Promise<ProductionOrder> {

@@ -63,6 +63,7 @@ class ProductionOrderItemResponse(BaseModel):
 class ProductionOrderCreate(BaseModel):
     product_id: int
     recipe_id: Optional[int] = None
+    color: Optional[str] = None
     planned_quantity: Decimal = Field(..., gt=0)
     notes: Optional[str] = None
     items: Optional[List[ProductionOrderItemCreate]] = None
@@ -70,6 +71,7 @@ class ProductionOrderCreate(BaseModel):
 
 class ProductionOrderUpdate(BaseModel):
     produced_quantity: Optional[Decimal] = Field(None, gt=0)
+    color: Optional[str] = None
     notes: Optional[str] = None
     items: Optional[List[ProductionOrderItemCreate]] = None
 
@@ -80,6 +82,7 @@ class ProductionOrderResponse(BaseModel):
     product_id: int
     product_name: Optional[str] = None
     recipe_id: Optional[int] = None
+    color: Optional[str] = None
     planned_quantity: Decimal
     produced_quantity: Optional[Decimal] = None
     status: ProductionOrderStatus

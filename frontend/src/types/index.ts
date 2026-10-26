@@ -229,6 +229,7 @@ export interface ProductionOrder {
   product_id: number;
   product_name?: string | null;
   recipe_id?: number | null;
+  color?: string | null;
   planned_quantity: string | number;
   produced_quantity?: string | number | null;
   status: OrderStatus;

@@ -9,10 +9,11 @@ import {
   AlertCircle,
   Loader2,
   Trash2,
+  Palette,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { Modal } from '../components/Modal';
-import type { ProductionOrder, Recipe, Product } from '../types';
+import type { ProductionOrder, Recipe, Product, ProductColor } from '../types';
 
 const formatQuantity = (val: string | number | undefined | null): string => {
   if (val === undefined || val === null) return '0';
@@ -34,9 +35,18 @@ export const ProductionPage: React.FC = () => {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderProductId, setOrderProductId] = useState<number>(0);
   const [orderRecipeId, setOrderRecipeId] = useState<number | null>(null);
+  const [orderColor, setOrderColor] = useState<string>('');
   const [orderPlannedQty, setOrderPlannedQty] = useState<string>('1');
   const [orderNotes, setOrderNotes] = useState<string>('');
   const [submittingOrder, setSubmittingOrder] = useState(false);
+
+  // Cores cadastradas e Modal Rápido de Criação de Cor
+  const [colors, setColors] = useState<ProductColor[]>([]);
+  const [isQuickColorModalOpen, setIsQuickColorModalOpen] = useState(false);
+  const [quickColorName, setQuickColorName] = useState('');
+  const [quickColorHex, setQuickColorHex] = useState('#d1d5db');
+  const [savingQuickColor, setSavingQuickColor] = useState(false);
+  const [quickColorError, setQuickColorError] = useState<string | null>(null);
 
   // Modal Nova Receita
   const [isRecipeModalOpen, setIsRecipeModalOpen] = useState(false);
@@ -54,19 +64,24 @@ export const ProductionPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [oData, rData, pData] = await Promise.all([
+      const [oData, rData, pData, cData] = await Promise.all([
         api.listProductionOrders(),
         api.listRecipes(),
         api.listProducts({ active_only: true }),
+        api.listColors(),
       ]);
       setOrders(oData);
       setRecipes(rData);
       setProducts(pData);
+      setColors(cData);
 
       const finishedProds = pData.filter((p) => p.item_type === 'PRODUTO_ACABADO');
       if (finishedProds.length > 0 && !orderProductId) {
         setOrderProductId(finishedProds[0].id);
         setRecipeProductId(finishedProds[0].id);
+        if (finishedProds[0].color) {
+          setOrderColor(finishedProds[0].color);
+        }
       }
     } catch (err: any) {
       setError(err.message || 'Falha ao carregar ordens de produção.');
@@ -82,11 +97,37 @@ export const ProductionPage: React.FC = () => {
   const finishedProducts = products.filter((p) => p.item_type === 'PRODUTO_ACABADO');
   const rawMaterials = products.filter((p) => p.item_type !== 'PRODUTO_ACABADO');
 
-  // Ao selecionar o produto na nova ordem, tenta auto-selecionar a receita vinculada
+  // Ao selecionar o produto na nova ordem, tenta auto-selecionar a receita e cor vinculadas
   const handleProductChangeInOrder = (prodId: number) => {
     setOrderProductId(prodId);
     const foundRecipe = recipes.find((r) => r.product_id === prodId);
     setOrderRecipeId(foundRecipe ? foundRecipe.id : null);
+    const foundProd = products.find((p) => p.id === prodId);
+    if (foundProd && foundProd.color) {
+      setOrderColor(foundProd.color);
+    }
+  };
+
+  const handleSaveQuickColor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickColorName.trim()) {
+      setQuickColorError('Informe o nome da cor.');
+      return;
+    }
+    setSavingQuickColor(true);
+    setQuickColorError(null);
+    try {
+      const created = await api.createColor(quickColorName.trim(), quickColorHex);
+      setColors((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+      setOrderColor(created.name);
+      setIsQuickColorModalOpen(false);
+      setQuickColorName('');
+      setQuickColorHex('#d1d5db');
+    } catch (err: any) {
+      setQuickColorError(err.message || 'Erro ao cadastrar cor.');
+    } finally {
+      setSavingQuickColor(false);
+    }
   };
 
   const handleCreateOrder = async (e: React.FormEvent) => {
@@ -96,11 +137,13 @@ export const ProductionPage: React.FC = () => {
       await api.createDraftOrder({
         product_id: orderProductId,
         recipe_id: orderRecipeId,
+        color: orderColor || null,
         planned_quantity: orderPlannedQty,
         notes: orderNotes,
       });
       setIsOrderModalOpen(false);
       setOrderNotes('');
+      setOrderColor('');
       await loadData();
     } catch (err: any) {
       alert(err.message || 'Erro ao criar ordem de produção.');
@@ -353,7 +396,27 @@ export const ProductionPage: React.FC = () => {
                         {o.order_number}
                       </td>
                       <td style={{ padding: '14px 20px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {o.product_name}
+                        <div>{o.product_name}</div>
+                        {o.color && (
+                          <div style={{ marginTop: '4px' }}>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '1px 8px',
+                                borderRadius: '10px',
+                                fontSize: '0.72rem',
+                                fontWeight: 600,
+                                backgroundColor: '#f3e8ff',
+                                color: '#6b21a8',
+                                border: '1px solid #e9d5ff',
+                              }}
+                            >
+                              🎨 {o.color}
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: '14px 20px', fontSize: '0.9rem' }}>
                         {formatQuantity(o.planned_quantity)}
@@ -571,6 +634,92 @@ export const ProductionPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Combobox de Cor do Produto com Botão "+" para Adicionar Nova Cor */}
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+              <label htmlFor="order-color" style={{ margin: 0, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <Palette size={15} color="var(--brand-accent)" />
+                <span>Cor do Produto / Produção</span>
+              </label>
+              {orderColor && (
+                <button
+                  type="button"
+                  onClick={() => setOrderColor('')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-tertiary)',
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  Limpar cor
+                </button>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ flex: 1 }}>
+                <select
+                  id="order-color"
+                  value={orderColor}
+                  onChange={(e) => setOrderColor(e.target.value)}
+                  style={{ width: '100%' }}
+                >
+                  <option value="">Selecione uma cor (ou neutro/padrão)</option>
+                  {colors.map((c) => (
+                    <option key={c.id} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickColorName('');
+                  setQuickColorHex('#d1d5db');
+                  setQuickColorError(null);
+                  setIsQuickColorModalOpen(true);
+                }}
+                className="btn-secondary"
+                style={{
+                  padding: '8px 14px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  whiteSpace: 'nowrap',
+                  fontWeight: 600,
+                  fontSize: '0.82rem',
+                }}
+                title="Cadastrar nova cor para produção"
+              >
+                <Plus size={16} />
+                <span>Nova Cor</span>
+              </button>
+            </div>
+            {orderColor && (
+              <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                {(() => {
+                  const activeCol = colors.find((c) => c.name.toLowerCase() === orderColor.toLowerCase());
+                  return activeCol?.hex_code ? (
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: '12px',
+                        height: '12px',
+                        borderRadius: '50%',
+                        backgroundColor: activeCol.hex_code,
+                        border: '1px solid rgba(0,0,0,0.15)',
+                      }}
+                    />
+                  ) : null;
+                })()}
+                <span>Cor selecionada para esta OP: <strong>{orderColor}</strong></span>
+              </div>
+            )}
+          </div>
+
           <div style={{ marginBottom: '24px' }}>
             <label htmlFor="order-notes">Notas / Lote do Ateliê</label>
             <textarea
@@ -602,6 +751,35 @@ export const ProductionPage: React.FC = () => {
           subtitle={`Produto: ${selectedOrder.product_name} | Status: ${selectedOrder.status}`}
           maxWidth="600px"
         >
+          {selectedOrder.color && (
+            <div style={{ marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Cor da Produção:</span>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '3px 10px',
+                  borderRadius: '12px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  backgroundColor: '#f3e8ff',
+                  color: '#6b21a8',
+                  border: '1px solid #e9d5ff',
+                }}
+              >
+                🎨 {selectedOrder.color}
+              </span>
+            </div>
+          )}
+
+          {selectedOrder.notes && (
+            <div style={{ marginBottom: '16px', padding: '10px 14px', backgroundColor: 'var(--bg-sand-light)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Notas / Lote:</span>
+              <p style={{ margin: '4px 0 0', fontSize: '0.88rem', color: 'var(--text-primary)' }}>{selectedOrder.notes}</p>
+            </div>
+          )}
+
           <div style={{ marginBottom: '20px' }}>
             <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--brand-primary)', marginBottom: '8px' }}>
               Insumos e Matérias-Primas do Lote:
@@ -794,6 +972,78 @@ export const ProductionPage: React.FC = () => {
             </button>
             <button type="submit" disabled={submittingRecipe} className="btn-primary">
               {submittingRecipe ? 'Salvando...' : 'Salvar Ficha Técnica'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+      {/* Modal Rápido de Cadastro de Nova Cor */}
+      <Modal
+        isOpen={isQuickColorModalOpen}
+        onClose={() => setIsQuickColorModalOpen(false)}
+        title="Cadastrar Nova Cor"
+        subtitle="Adicione uma nova tonalidade ao catálogo de cores do ateliê"
+        maxWidth="440px"
+      >
+        <form onSubmit={handleSaveQuickColor}>
+          {quickColorError && (
+            <div
+              style={{
+                padding: '10px 14px',
+                backgroundColor: 'var(--status-danger-bg)',
+                color: 'var(--status-danger-text)',
+                borderRadius: 'var(--radius-sm)',
+                marginBottom: '16px',
+                fontSize: '0.85rem',
+              }}
+            >
+              {quickColorError}
+            </div>
+          )}
+
+          <div style={{ marginBottom: '14px' }}>
+            <label htmlFor="quick-color-name">Nome da Cor *</label>
+            <input
+              id="quick-color-name"
+              type="text"
+              required
+              placeholder="Ex.: Marmorizado Branco e Cinza, Bege, Lavanda..."
+              value={quickColorName}
+              onChange={(e) => setQuickColorName(e.target.value)}
+              autoFocus
+            />
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label htmlFor="quick-color-hex">Cor Visual / Amostra Hex</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <input
+                id="quick-color-hex"
+                type="color"
+                value={quickColorHex}
+                onChange={(e) => setQuickColorHex(e.target.value)}
+                style={{ width: '48px', height: '38px', padding: '2px', cursor: 'pointer' }}
+              />
+              <input
+                type="text"
+                placeholder="#d1d5db"
+                value={quickColorHex}
+                onChange={(e) => setQuickColorHex(e.target.value)}
+                style={{ flex: 1, fontFamily: 'monospace' }}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+            <button
+              type="button"
+              onClick={() => setIsQuickColorModalOpen(false)}
+              className="btn-secondary"
+              disabled={savingQuickColor}
+            >
+              Cancelar
+            </button>
+            <button type="submit" className="btn-primary" disabled={savingQuickColor}>
+              {savingQuickColor ? 'Salvando...' : 'Salvar e Selecionar'}
             </button>
           </div>
         </form>

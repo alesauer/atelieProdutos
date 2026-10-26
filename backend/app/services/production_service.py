@@ -106,6 +106,7 @@ class ProductionService:
             order_number=order_number,
             product_id=order_in.product_id,
             recipe_id=order_in.recipe_id,
+            color=order_in.color,
             planned_quantity=order_in.planned_quantity,
             produced_quantity=order_in.planned_quantity,
             status=ProductionOrderStatus.RASCUNHO,
@@ -158,6 +159,8 @@ class ProductionService:
 
         if update_in.produced_quantity is not None:
             order.produced_quantity = update_in.produced_quantity
+        if update_in.color is not None:
+            order.color = update_in.color
         if update_in.notes is not None:
             order.notes = update_in.notes
 

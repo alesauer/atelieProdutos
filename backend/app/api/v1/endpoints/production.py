@@ -50,6 +50,7 @@ def _enrich_order_response(order: ProductionOrder) -> ProductionOrderResponse:
         product_id=order.product_id,
         product_name=order.product.name if order.product else None,
         recipe_id=order.recipe_id,
+        color=order.color,
         planned_quantity=order.planned_quantity,
         produced_quantity=order.produced_quantity,
         status=order.status,
