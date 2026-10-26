@@ -51,6 +51,56 @@ interface PendingImage {
   isPrimary: boolean;
 }
 
+// Helpers para campos numéricos com preenchimento da direita para a esquerda e sem zeros desnecessários
+const formatCurrencyInputRTL = (rawValue: string, allowEmpty = false): string => {
+  const digits = rawValue.replace(/\D/g, '');
+  if (!digits) return allowEmpty ? '' : '0,00';
+  const cents = parseInt(digits, 10);
+  if (cents === 0) return allowEmpty ? '' : '0,00';
+  return (cents / 100).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
+
+const formatStockInputRTL = (rawValue: string): string => {
+  const digits = rawValue.replace(/\D/g, '');
+  if (!digits) return '';
+  const num = parseInt(digits, 10);
+  return String(num);
+};
+
+const cleanStockValue = (val: string | number | null | undefined): string => {
+  if (val === null || val === undefined || val === '') return '';
+  const num = parseFloat(String(val));
+  return isNaN(num) ? '' : String(num);
+};
+
+const parseCurrencyValue = (val: string | number | null | undefined): number => {
+  if (val === null || val === undefined || val === '') return 0;
+  if (typeof val === 'number') return val;
+  const clean = String(val).replace(/\./g, '').replace(',', '.').trim();
+  const num = parseFloat(clean);
+  return isNaN(num) ? 0 : num;
+};
+
+const parseOptionalCurrencyValue = (val: string | number | null | undefined): number | null => {
+  if (val === null || val === undefined || val === '') return null;
+  if (typeof val === 'number') return val;
+  const clean = String(val).replace(/\./g, '').replace(',', '.').trim();
+  if (!clean || clean === '0' || clean === '0.00') return null;
+  const num = parseFloat(clean);
+  return isNaN(num) ? null : num;
+};
+
+const parseStockValue = (val: string | number | null | undefined): number => {
+  if (val === null || val === undefined || val === '') return 0;
+  if (typeof val === 'number') return val;
+  const clean = String(val).replace(/\./g, '').replace(',', '.').trim();
+  const num = parseFloat(clean);
+  return isNaN(num) ? 0 : num;
+};
+
 export const ProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -78,11 +128,11 @@ export const ProductsPage: React.FC = () => {
     item_type: 'PRODUTO_ACABADO',
     category_id: null,
     unit_id: 1,
-    unit_cost: '0.00',
+    unit_cost: '0,00',
     cost_breakdown: '',
     sales_links: '',
-    sale_price: '0.00',
-    min_stock: '5.000',
+    sale_price: '',
+    min_stock: '0',
     is_active: true,
   });
 
@@ -215,11 +265,11 @@ export const ProductsPage: React.FC = () => {
       item_type: 'PRODUTO_ACABADO',
       category_id: categories.length > 0 ? categories[0].id : null,
       unit_id: defaultUnit ? defaultUnit.id : 1,
-      unit_cost: '0.00',
+      unit_cost: '0,00',
       cost_breakdown: '',
       sales_links: '',
-      sale_price: '0.00',
-      min_stock: '5.000',
+      sale_price: '',
+      min_stock: '0',
       is_active: true,
     });
     setIsFormModalOpen(true);
@@ -257,11 +307,11 @@ export const ProductsPage: React.FC = () => {
       item_type: prod.item_type,
       category_id: prod.category_id || null,
       unit_id: prod.unit_id,
-      unit_cost: prod.unit_cost ? Number(prod.unit_cost).toFixed(2) : '0.00',
+      unit_cost: prod.unit_cost != null ? Number(prod.unit_cost).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00',
       cost_breakdown: prod.cost_breakdown || '',
       sales_links: prod.sales_links || '',
-      sale_price: prod.sale_price ? Number(prod.sale_price).toFixed(2) : '',
-      min_stock: prod.min_stock,
+      sale_price: prod.sale_price != null && prod.sale_price !== '' ? Number(prod.sale_price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '',
+      min_stock: cleanStockValue(prod.min_stock),
       is_active: prod.is_active,
     });
     setIsFormModalOpen(true);
@@ -512,7 +562,7 @@ export const ProductsPage: React.FC = () => {
     if (e) e.preventDefault();
     if (!newCostItemName.trim()) return;
     const qty = parseFloat(newCostItemQuantity.replace(',', '.')) || 1;
-    const unitPrice = parseFloat(newCostItemUnitCost.replace(',', '.')) || 0;
+    const unitPrice = parseCurrencyValue(newCostItemUnitCost);
     const total = qty * unitPrice;
 
     const newItem: CostComponentItem = {
@@ -533,7 +583,7 @@ export const ProductsPage: React.FC = () => {
     const totalSum = updated.reduce((acc, item) => acc + item.total, 0);
     setFormData((prev) => ({
       ...prev,
-      unit_cost: totalSum.toFixed(2),
+      unit_cost: totalSum.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       cost_breakdown: JSON.stringify(updated),
     }));
   };
@@ -544,7 +594,7 @@ export const ProductsPage: React.FC = () => {
     const totalSum = updated.reduce((acc, item) => acc + item.total, 0);
     setFormData((prev) => ({
       ...prev,
-      unit_cost: totalSum.toFixed(2),
+      unit_cost: totalSum.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       cost_breakdown: JSON.stringify(updated),
     }));
   };
@@ -553,7 +603,7 @@ export const ProductsPage: React.FC = () => {
     const totalSum = costItems.reduce((acc, item) => acc + item.total, 0);
     setFormData((prev) => ({
       ...prev,
-      unit_cost: totalSum.toFixed(2),
+      unit_cost: totalSum.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       cost_breakdown: JSON.stringify(costItems),
     }));
     setIsCostCalculatorOpen(false);
@@ -684,6 +734,9 @@ export const ProductsPage: React.FC = () => {
 
       const productPayload: ProductFormData = {
         ...formData,
+        unit_cost: parseCurrencyValue(formData.unit_cost),
+        sale_price: parseOptionalCurrencyValue(formData.sale_price),
+        min_stock: parseStockValue(formData.min_stock),
         color: formData.color?.trim() || undefined,
         material: formData.material?.trim() || undefined,
         sales_links: currentSalesLinks.length > 0 ? JSON.stringify(currentSalesLinks) : '',
@@ -2205,11 +2258,16 @@ export const ProductsPage: React.FC = () => {
               </div>
               <input
                 id="prod-cost"
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="numeric"
                 value={formData.unit_cost}
-                onChange={(e) => setFormData({ ...formData, unit_cost: e.target.value })}
+                onChange={(e) => {
+                  const formatted = formatCurrencyInputRTL(e.target.value);
+                  setFormData({ ...formData, unit_cost: formatted });
+                }}
+                onFocus={(e) => e.target.select()}
+                placeholder="0,00"
+                style={{ textAlign: 'right' }}
               />
               {costItems.length > 0 && (
                 <div style={{ marginTop: '4px' }}>
@@ -2235,23 +2293,32 @@ export const ProductsPage: React.FC = () => {
               <label htmlFor="prod-price">Preço Venda (R$)</label>
               <input
                 id="prod-price"
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="numeric"
                 value={formData.sale_price || ''}
-                onChange={(e) => setFormData({ ...formData, sale_price: e.target.value })}
-                placeholder="Opcional"
+                onChange={(e) => {
+                  const formatted = formatCurrencyInputRTL(e.target.value, true);
+                  setFormData({ ...formData, sale_price: formatted });
+                }}
+                onFocus={(e) => e.target.select()}
+                placeholder="0,00"
+                style={{ textAlign: 'right' }}
               />
             </div>
             <div>
               <label htmlFor="prod-min">Estoque Mínimo</label>
               <input
                 id="prod-min"
-                type="number"
-                step="0.001"
-                min="0"
+                type="text"
+                inputMode="numeric"
                 value={formData.min_stock}
-                onChange={(e) => setFormData({ ...formData, min_stock: e.target.value })}
+                onChange={(e) => {
+                  const formatted = formatStockInputRTL(e.target.value);
+                  setFormData({ ...formData, min_stock: formatted });
+                }}
+                onFocus={(e) => e.target.select()}
+                placeholder="0"
+                style={{ textAlign: 'right' }}
               />
             </div>
           </div>
@@ -3183,7 +3250,9 @@ export const ProductsPage: React.FC = () => {
                     setNewCostItemName(val);
                     const found = products.find((p) => p.name.toLowerCase() === val.toLowerCase());
                     if (found && found.unit_cost && !newCostItemUnitCost) {
-                      setNewCostItemUnitCost(Number(found.unit_cost).toFixed(2));
+                      setNewCostItemUnitCost(
+                        Number(found.unit_cost).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                      );
                     }
                   }}
                   autoFocus
@@ -3219,9 +3288,12 @@ export const ProductsPage: React.FC = () => {
                 <input
                   id="cost-item-cost"
                   type="text"
-                  placeholder="0.00"
+                  inputMode="numeric"
+                  placeholder="0,00"
                   value={newCostItemUnitCost}
-                  onChange={(e) => setNewCostItemUnitCost(e.target.value)}
+                  onChange={(e) => setNewCostItemUnitCost(formatCurrencyInputRTL(e.target.value, true))}
+                  onFocus={(e) => e.target.select()}
+                  style={{ textAlign: 'right' }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -3255,7 +3327,7 @@ export const ProductsPage: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setCostItems([]);
-                    setFormData((prev) => ({ ...prev, unit_cost: '0.00', cost_breakdown: '' }));
+                    setFormData((prev) => ({ ...prev, unit_cost: '0,00', cost_breakdown: '' }));
                   }}
                   style={{
                     background: 'none',
