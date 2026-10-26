@@ -183,11 +183,12 @@ class StockService:
         balances: List[StockBalanceResponse] = []
         for p in products:
             curr_stock = StockService.get_product_balance(db, p.id)
-            min_stock = Decimal(str(p.min_stock))
+            # Regra de estoque mínimo padronizada em 5 peças para Alerta de Produção
+            min_stock = Decimal(str(p.min_stock)) if p.min_stock and p.min_stock > 0 else Decimal("5.000")
             unit_cost = Decimal(str(p.unit_cost))
 
             is_zero = curr_stock <= Decimal("0.000")
-            is_low = curr_stock <= min_stock and not is_zero
+            is_low = curr_stock <= Decimal("5.000") and not is_zero
             est_value = curr_stock * unit_cost if curr_stock > 0 else Decimal("0.00")
 
             balances.append(

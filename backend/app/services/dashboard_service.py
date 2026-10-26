@@ -42,10 +42,10 @@ class DashboardService:
             if balance > Decimal("0.000"):
                 total_valuation += (balance * unit_cost)
 
-            # Checagem de criticidade
-            min_stk = prod.min_stock or Decimal("0.000")
+            # Checagem de criticidade (Regra padronizada: <= 5 peças requer alerta de produção)
+            min_stk = Decimal("5.000") if not prod.min_stock or prod.min_stock <= 0 else prod.min_stock
             is_zero = balance <= Decimal("0.000")
-            is_low = not is_zero and (balance <= min_stk)
+            is_low = not is_zero and (balance <= Decimal("5.000"))
 
             if is_zero:
                 items_zero_stock += 1

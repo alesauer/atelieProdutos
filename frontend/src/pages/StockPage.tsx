@@ -17,6 +17,16 @@ import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import type { StockBalanceItem, StockMovementItem, Product } from '../types';
 
+const formatQuantity = (val: number | string | undefined | null): string => {
+  if (val === null || val === undefined || val === '') return '0';
+  const num = Number(val);
+  if (isNaN(num)) return '0';
+  if (Number.isInteger(num)) {
+    return String(num);
+  }
+  return parseFloat(num.toFixed(3)).toLocaleString('pt-BR');
+};
+
 export const StockPage: React.FC = () => {
   const [balances, setBalances] = useState<StockBalanceItem[]>([]);
   const [movements, setMovements] = useState<StockMovementItem[]>([]);
@@ -82,8 +92,10 @@ export const StockPage: React.FC = () => {
     (acc, b) => acc + Number(b.estimated_total_value || 0),
     0
   );
-  const lowStockCount = balances.filter((b) => b.is_low_stock).length;
-  const zeroStockCount = balances.filter((b) => b.is_zero_stock).length;
+  const lowStockCount = balances.filter(
+    (b) => Number(b.current_stock) > 0 && Number(b.current_stock) <= 5
+  ).length;
+  const zeroStockCount = balances.filter((b) => b.is_zero_stock || Number(b.current_stock) <= 0).length;
 
   const handleCreateAdjustment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,13 +183,13 @@ export const StockPage: React.FC = () => {
 
         <div className="card" style={{ padding: '20px' }}>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-            EM ESTOQUE MÍNIMO
+            ALERTA DE PRODUÇÃO
           </span>
           <h3 style={{ fontSize: '1.75rem', marginTop: '4px', color: 'var(--status-warning-text)' }}>
             {lowStockCount}
           </h3>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
-            Requer reposição ou ordem de produção
+            Itens com 5 peças ou menos (produção requerida)
           </span>
         </div>
 
@@ -336,24 +348,24 @@ export const StockPage: React.FC = () => {
                         style={{
                           fontWeight: 700,
                           fontSize: '1rem',
-                          color: b.is_zero_stock
+                          color: b.is_zero_stock || Number(b.current_stock) <= 0
                             ? 'var(--status-danger-text)'
-                            : b.is_low_stock
+                            : Number(b.current_stock) <= 5
                             ? 'var(--status-warning-text)'
                             : 'var(--brand-primary)',
                         }}
                       >
-                        {Number(b.current_stock).toFixed(3)}
+                        {formatQuantity(b.current_stock)}
                       </span>{' '}
                       <span style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>{b.unit_code}</span>
                     </td>
                     <td style={{ padding: '14px 20px', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-                      {Number(b.min_stock).toFixed(3)} {b.unit_code}
+                      {formatQuantity(b.min_stock || 5)} {b.unit_code}
                     </td>
                     <td style={{ padding: '14px 20px' }}>
-                      {b.is_zero_stock ? (
+                      {b.is_zero_stock || Number(b.current_stock) <= 0 ? (
                         <Badge status="zero_stock" />
-                      ) : b.is_low_stock ? (
+                      ) : Number(b.current_stock) <= 5 ? (
                         <Badge status="low_stock" />
                       ) : (
                         <span
@@ -450,7 +462,7 @@ export const StockPage: React.FC = () => {
                           }}
                         >
                           {isPositive ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
-                          {isPositive ? `+${qty.toFixed(3)}` : qty.toFixed(3)}
+                          {isPositive ? `+${formatQuantity(qty)}` : formatQuantity(qty)}
                         </span>
                       </td>
                       <td style={{ padding: '12px 20px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>

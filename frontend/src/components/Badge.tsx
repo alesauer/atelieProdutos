@@ -68,7 +68,7 @@ export const Badge: React.FC<BadgeProps> = ({ type, status, variant, label, chil
     const statusConfig = {
       active: { label: 'Ativo', bg: 'var(--status-active-bg)', text: 'var(--status-active-text)', border: 'var(--status-active-border)' },
       inactive: { label: 'Inativo', bg: 'var(--status-neutral-bg)', text: 'var(--status-neutral-text)', border: 'var(--status-neutral-border)' },
-      low_stock: { label: 'Estoque Baixo', bg: 'var(--status-warning-bg)', text: 'var(--status-warning-text)', border: 'var(--status-warning-border)' },
+      low_stock: { label: 'Alerta de Produção', bg: 'var(--status-warning-bg)', text: 'var(--status-warning-text)', border: 'var(--status-warning-border)' },
       zero_stock: { label: 'Sem Estoque', bg: 'var(--status-danger-bg)', text: 'var(--status-danger-text)', border: 'var(--status-danger-border)' },
     };
 
