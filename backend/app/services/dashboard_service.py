@@ -89,7 +89,11 @@ class DashboardService:
                 "movement_type": m.movement_type.value,
                 "quantity": float(m.quantity),
                 "unit": m.product.unit.code if (m.product and m.product.unit) else "un",
-                "created_at": m.created_at.isoformat(),
+                "created_at": (
+                    m.created_at.replace(tzinfo=timezone.utc)
+                    if m.created_at.tzinfo is None
+                    else m.created_at
+                ).isoformat(),
                 "justification": m.justification,
             })
 

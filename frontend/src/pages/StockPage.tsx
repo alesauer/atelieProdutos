@@ -15,6 +15,7 @@ import {
 import { api } from '../api/client';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
+import { formatDateTime } from '../utils/date';
 import type { StockBalanceItem, StockMovementItem, Product } from '../types';
 
 const formatQuantity = (val: number | string | undefined | null): string => {
@@ -425,7 +426,7 @@ export const StockPage: React.FC = () => {
                   return (
                     <tr key={m.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                       <td style={{ padding: '12px 20px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                        {new Date(m.created_at).toLocaleString('pt-BR')}
+                        {formatDateTime(m.created_at)}
                       </td>
                       <td style={{ padding: '12px 20px' }}>
                         <div style={{ fontWeight: 600, color: 'var(--brand-primary)', fontSize: '0.9rem' }}>

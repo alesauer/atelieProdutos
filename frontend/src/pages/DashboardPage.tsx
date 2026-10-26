@@ -17,6 +17,7 @@ import {
 import { api } from '../api/client';
 import type { DashboardMetrics } from '../types';
 import { Badge } from '../components/Badge';
+import { formatDateTime } from '../utils/date';
 
 const formatQuantity = (val: string | number | undefined | null): string => {
   if (val === undefined || val === null) return '0';
@@ -76,17 +77,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   };
 
   const formatDate = (isoString: string) => {
-    try {
-      const d = new Date(isoString);
-      return d.toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return isoString;
-    }
+    return formatDateTime(isoString);
   };
 
   const getMovementTypeBadgeVariant = (type: string): 'default' | 'success' | 'warning' | 'error' | 'info' => {

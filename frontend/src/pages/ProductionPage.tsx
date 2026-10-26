@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api/client';
 import { Modal } from '../components/Modal';
+import { formatDateOnly } from '../utils/date';
 import type { ProductionOrder, Recipe, Product, ProductColor } from '../types';
 
 const formatQuantity = (val: string | number | undefined | null): string => {
@@ -452,7 +453,7 @@ export const ProductionPage: React.FC = () => {
                         </span>
                       </td>
                       <td style={{ padding: '14px 20px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                        {new Date(o.created_at).toLocaleDateString('pt-BR')}
+                        {formatDateOnly(o.created_at)}
                       </td>
                       <td style={{ padding: '14px 20px', textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', gap: '8px' }}>

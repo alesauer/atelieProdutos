@@ -20,6 +20,7 @@ import type {
   NotificationLogItem,
 } from '../types';
 import { Badge } from '../components/Badge';
+import { formatDateTime } from '../utils/date';
 
 export const ReportsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'stock' | 'movements' | 'sales' | 'production' | 'notifications'>('stock');
@@ -569,7 +570,7 @@ export const ReportsPage: React.FC = () => {
                 ) : (
                   movementsData.map((m) => (
                     <tr key={m.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                      <td style={{ padding: '12px', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>{m.created_at}</td>
+                      <td style={{ padding: '12px', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>{formatDateTime(m.created_at)}</td>
                       <td style={{ padding: '12px', fontWeight: 600, color: 'var(--brand-primary)' }}>{m.sku}</td>
                       <td style={{ padding: '12px', fontWeight: 500 }}>{m.product_name}</td>
                       <td style={{ padding: '12px' }}>
@@ -823,7 +824,7 @@ export const ReportsPage: React.FC = () => {
                   notificationLogs.map((log) => (
                     <tr key={log.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                       <td style={{ padding: '12px', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>
-                        {new Date(log.sent_at).toLocaleString('pt-BR')}
+                        {formatDateTime(log.sent_at)}
                       </td>
                       <td style={{ padding: '12px', fontWeight: 600, color: 'var(--brand-primary)' }}>{log.event_type}</td>
                       <td style={{ padding: '12px' }}>{log.recipient}</td>
