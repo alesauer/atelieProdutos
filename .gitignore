@@ -52,6 +52,10 @@ backend/uploads/
 
 # Banco de dados e Docker volumes locais
 mysql_data/
+backups/
+*.sql
+*.sql.gz
+*.tar.gz
 *.sqlite3
 *.db
 
