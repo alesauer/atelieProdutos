@@ -56,12 +56,14 @@ class SaleItemResponse(BaseModel):
 
 class SaleCreate(BaseModel):
     customer_id: Optional[int] = None
+    payment_method: Optional[str] = None
     notes: Optional[str] = None
     items: List[SaleItemCreate] = Field(..., min_length=1)
 
 
 class SaleUpdate(BaseModel):
     customer_id: Optional[int] = None
+    payment_method: Optional[str] = None
     notes: Optional[str] = None
     items: Optional[List[SaleItemCreate]] = None
 
@@ -71,6 +73,7 @@ class SaleResponse(BaseModel):
     sale_number: str
     customer_id: Optional[int] = None
     customer_name: Optional[str] = None
+    payment_method: Optional[str] = None
     status: SaleStatus
     total_amount: Decimal
     notes: Optional[str] = None

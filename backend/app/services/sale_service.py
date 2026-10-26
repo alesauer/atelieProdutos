@@ -84,6 +84,7 @@ class SaleService:
             customer_id=sale_in.customer_id,
             status=SaleStatus.RASCUNHO,
             total_amount=total_amount,
+            payment_method=sale_in.payment_method,
             notes=sale_in.notes,
             created_by_user_id=user_id,
         )

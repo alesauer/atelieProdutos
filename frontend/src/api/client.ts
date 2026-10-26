@@ -486,6 +486,7 @@ class ApiClient {
 
   async createDraftSale(data: {
     customer_id?: number | null;
+    payment_method?: string | null;
     notes?: string;
     items: { product_id: number; quantity: number | string; unit_price: number | string }[];
   }): Promise<Sale> {

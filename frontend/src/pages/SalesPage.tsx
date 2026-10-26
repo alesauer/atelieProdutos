@@ -8,11 +8,19 @@ import {
   AlertCircle,
   Loader2,
   Trash2,
+  CreditCard,
 } from 'lucide-react';
 
 import { api } from '../api/client';
 import { Modal } from '../components/Modal';
 import type { Sale, Customer, Product } from '../types';
+
+const formatQuantity = (val: string | number | undefined | null): string => {
+  if (val === undefined || val === null) return '0';
+  const num = typeof val === 'number' ? val : parseFloat(val);
+  if (isNaN(num)) return '0';
+  return parseFloat(num.toFixed(3)).toLocaleString('pt-BR');
+};
 
 export const SalesPage: React.FC = () => {
   const [sales, setSales] = useState<Sale[]>([]);
@@ -24,6 +32,8 @@ export const SalesPage: React.FC = () => {
   // Modal Nova Venda
   const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<string>('Pix');
+  const [customPaymentMethod, setCustomPaymentMethod] = useState<string>('');
   const [saleNotes, setSaleNotes] = useState<string>('');
   const [saleItems, setSaleItems] = useState<{ product_id: number; quantity: string; unit_price: string }[]>([]);
   const [submittingSale, setSubmittingSale] = useState(false);
@@ -74,11 +84,13 @@ export const SalesPage: React.FC = () => {
       return;
     }
     setSelectedCustomerId(null);
+    setPaymentMethod('Pix');
+    setCustomPaymentMethod('');
     setSaleNotes('');
     setSaleItems([
       {
         product_id: saleProducts[0].id,
-        quantity: '1.000',
+        quantity: '1',
         unit_price: String(saleProducts[0].sale_price || '0.00'),
       },
     ]);
@@ -91,7 +103,7 @@ export const SalesPage: React.FC = () => {
       ...saleItems,
       {
         product_id: saleProducts[0].id,
-        quantity: '1.000',
+        quantity: '1',
         unit_price: String(saleProducts[0].sale_price || '0.00'),
       },
     ]);
@@ -123,8 +135,12 @@ export const SalesPage: React.FC = () => {
     }
     setSubmittingSale(true);
     try {
+      const finalPaymentMethod =
+        paymentMethod === 'Outro' ? customPaymentMethod.trim() || 'Outro' : paymentMethod;
+
       await api.createDraftSale({
         customer_id: selectedCustomerId,
+        payment_method: finalPaymentMethod,
         notes: saleNotes,
         items: saleItems,
       });
@@ -338,6 +354,7 @@ export const SalesPage: React.FC = () => {
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>NÚMERO</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>CLIENTE</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>VALOR TOTAL</th>
+                  <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>PAGAMENTO</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>ITENS</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>STATUS</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>DATA</th>
@@ -355,6 +372,28 @@ export const SalesPage: React.FC = () => {
                     </td>
                     <td style={{ padding: '14px 20px', fontWeight: 700, color: 'var(--brand-accent)', fontSize: '0.98rem' }}>
                       R$ {Number(s.total_amount).toFixed(2)}
+                    </td>
+                    <td style={{ padding: '14px 20px', fontSize: '0.88rem' }}>
+                      {s.payment_method ? (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '3px 8px',
+                            borderRadius: '10px',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            backgroundColor: 'var(--bg-sand-light)',
+                            color: 'var(--brand-primary)',
+                            border: '1px solid var(--border-subtle)',
+                          }}
+                        >
+                          💳 {s.payment_method}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-tertiary)', fontStyle: 'italic', fontSize: '0.8rem' }}>—</span>
+                      )}
                     </td>
                     <td style={{ padding: '14px 20px', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
                       {s.items.length} {s.items.length === 1 ? 'item' : 'itens'}
@@ -572,6 +611,41 @@ export const SalesPage: React.FC = () => {
             </span>
           </div>
 
+          {/* Combobox de Forma de Pagamento */}
+          <div style={{ marginBottom: '18px' }}>
+            <label htmlFor="sale-payment-method" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+              <CreditCard size={15} color="var(--brand-accent)" />
+              <span>Forma de Pagamento</span>
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: paymentMethod === 'Outro' ? '1fr 1fr' : '1fr', gap: '10px' }}>
+              <select
+                id="sale-payment-method"
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+              >
+                <option value="Pix">📱 Pix (Chave / QR Code)</option>
+                <option value="Cartão de Crédito">💳 Cartão de Crédito</option>
+                <option value="Cartão de Débito">💳 Cartão de Débito</option>
+                <option value="Dinheiro">💵 Dinheiro (Espécie)</option>
+                <option value="Shopee">🛍️ Shopee (Marketplace)</option>
+                <option value="Mercado Livre">📦 Mercado Livre</option>
+                <option value="Transferência Bancária">🏦 Transferência Bancária (TED/DOC)</option>
+                <option value="Boleto Bancário">📄 Boleto Bancário</option>
+                <option value="Outro">✏️ Outro (Digitar personalizado)</option>
+              </select>
+
+              {paymentMethod === 'Outro' && (
+                <input
+                  type="text"
+                  placeholder="Especifique a forma (ex.: Permuta, Vale, Link...)"
+                  value={customPaymentMethod}
+                  onChange={(e) => setCustomPaymentMethod(e.target.value)}
+                  autoFocus
+                />
+              )}
+            </div>
+          </div>
+
           <div style={{ marginBottom: '24px' }}>
             <label htmlFor="sale-notes">Observações / Canal da Venda</label>
             <textarea
@@ -698,6 +772,28 @@ export const SalesPage: React.FC = () => {
           subtitle={`Cliente: ${selectedSale.customer_name || 'Consumidor Final'} | Total: R$ ${Number(selectedSale.total_amount).toFixed(2)}`}
           maxWidth="600px"
         >
+          {selectedSale.payment_method && (
+            <div style={{ marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Forma de Pagamento:</span>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '3px 10px',
+                  borderRadius: '12px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  backgroundColor: 'var(--bg-sand-light)',
+                  color: 'var(--brand-primary)',
+                  border: '1px solid var(--border-subtle)',
+                }}
+              >
+                💳 {selectedSale.payment_method}
+              </span>
+            </div>
+          )}
+
           <div style={{ marginBottom: '20px' }}>
             <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--brand-primary)', marginBottom: '8px' }}>
               Produtos Vendidos:
@@ -716,7 +812,7 @@ export const SalesPage: React.FC = () => {
                   {selectedSale.items.map((it) => (
                     <tr key={it.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                       <td style={{ padding: '8px 12px', fontWeight: 500 }}>{it.product_name}</td>
-                      <td style={{ padding: '8px 12px' }}>{Number(it.quantity).toFixed(0)}</td>
+                      <td style={{ padding: '8px 12px' }}>{formatQuantity(it.quantity)}</td>
                       <td style={{ padding: '8px 12px' }}>R$ {Number(it.unit_price).toFixed(2)}</td>
                       <td style={{ padding: '8px 12px', fontWeight: 600 }}>R$ {Number(it.total_price).toFixed(2)}</td>
                     </tr>

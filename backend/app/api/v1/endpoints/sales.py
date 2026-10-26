@@ -23,6 +23,7 @@ def _enrich_sale_response(sale: Sale) -> SaleResponse:
         sale_number=sale.sale_number,
         customer_id=sale.customer_id,
         customer_name=sale.customer.name if sale.customer else None,
+        payment_method=sale.payment_method,
         status=sale.status,
         total_amount=sale.total_amount,
         notes=sale.notes,

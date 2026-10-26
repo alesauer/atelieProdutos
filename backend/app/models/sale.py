@@ -49,6 +49,7 @@ class Sale(Base, TimestampMixin):
     total_amount: Mapped[Decimal] = mapped_column(
         Numeric(10, 2), default=Decimal("0.00"), nullable=False
     )
+    payment_method: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_by_user_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
