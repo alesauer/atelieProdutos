@@ -25,6 +25,18 @@ from app.schemas.color import (
     ColorUpdate,
     ColorResponse,
 )
+from app.schemas.material import (
+    MaterialBase,
+    MaterialCreate,
+    MaterialUpdate,
+    MaterialResponse,
+)
+from app.schemas.supply import (
+    SupplyBase,
+    SupplyCreate,
+    SupplyUpdate,
+    SupplyResponse,
+)
 from app.schemas.product import (
     ProductBase,
     ProductCreate,
@@ -55,6 +67,14 @@ __all__ = [
     "ColorCreate",
     "ColorUpdate",
     "ColorResponse",
+    "MaterialBase",
+    "MaterialCreate",
+    "MaterialUpdate",
+    "MaterialResponse",
+    "SupplyBase",
+    "SupplyCreate",
+    "SupplyUpdate",
+    "SupplyResponse",
     "ProductBase",
     "ProductCreate",
     "ProductUpdate",

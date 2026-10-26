@@ -77,6 +77,20 @@ export interface ProductMaterial {
   created_at: string;
 }
 
+export interface ProductSupply {
+  id: number;
+  name: string;
+  category?: string | null;
+  unit: string;
+  base_quantity: number | string;
+  base_cost: number | string;
+  unit_cost: number | string;
+  notes?: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ProductImage {
   id: number;
   product_id: number;
@@ -94,6 +108,7 @@ export interface CostComponentItem {
   id: string;
   name: string;
   quantity: number;
+  unit?: string;
   unit_cost: number;
   total: number;
 }

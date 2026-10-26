@@ -9,6 +9,7 @@ import type {
   Product,
   ProductColor,
   ProductMaterial,
+  ProductSupply,
   ProductFormData,
   ProductImage,
   ProductionOrder,
@@ -212,6 +213,49 @@ class ApiClient {
 
   async deleteMaterial(materialId: number): Promise<void> {
     return this.request<void>(`/materials/${materialId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // --- Insumos / Matérias-Primas de Produção ---
+  async listSupplies(): Promise<ProductSupply[]> {
+    return this.request<ProductSupply[]>('/supplies');
+  }
+
+  async createSupply(data: {
+    name: string;
+    category?: string;
+    unit?: string;
+    base_quantity?: number;
+    base_cost?: number;
+    unit_cost?: number;
+    notes?: string;
+    is_active?: boolean;
+  }): Promise<ProductSupply> {
+    return this.request<ProductSupply>('/supplies', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateSupply(supplyId: number, data: {
+    name?: string;
+    category?: string;
+    unit?: string;
+    base_quantity?: number;
+    base_cost?: number;
+    unit_cost?: number;
+    notes?: string;
+    is_active?: boolean;
+  }): Promise<ProductSupply> {
+    return this.request<ProductSupply>(`/supplies/${supplyId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteSupply(supplyId: number): Promise<void> {
+    return this.request<void>(`/supplies/${supplyId}`, {
       method: 'DELETE',
     });
   }

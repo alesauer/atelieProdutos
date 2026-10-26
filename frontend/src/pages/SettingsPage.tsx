@@ -4,6 +4,7 @@ import {
   Scale,
   Layers,
   Palette,
+  Package,
   Plus,
   Search,
   Edit2,
@@ -14,10 +15,10 @@ import {
 } from 'lucide-react';
 import { api } from '../api/client';
 import { Modal } from '../components/Modal';
-import type { Category, UnitOfMeasure, ItemTypeDefinition, ProductColor, ProductMaterial } from '../types';
+import type { Category, UnitOfMeasure, ItemTypeDefinition, ProductColor, ProductMaterial, ProductSupply } from '../types';
 
 export const SettingsPage: React.FC = () => {
-  const [activeSubTab, setActiveSubTab] = useState<'categorias' | 'unidades' | 'tipos' | 'cores' | 'materiais'>('categorias');
+  const [activeSubTab, setActiveSubTab] = useState<'categorias' | 'unidades' | 'tipos' | 'cores' | 'materiais' | 'insumos'>('categorias');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,6 +28,7 @@ export const SettingsPage: React.FC = () => {
   const [itemTypes, setItemTypes] = useState<ItemTypeDefinition[]>([]);
   const [colors, setColors] = useState<ProductColor[]>([]);
   const [materials, setMaterials] = useState<ProductMaterial[]>([]);
+  const [supplies, setSupplies] = useState<ProductSupply[]>([]);
   const [search, setSearch] = useState('');
 
   // Modais de Categoria
@@ -70,22 +72,36 @@ export const SettingsPage: React.FC = () => {
   const [savingMaterial, setSavingMaterial] = useState(false);
   const [materialFormError, setMaterialFormError] = useState<string | null>(null);
 
+  // Modais de Insumos de Produção
+  const [isSupplyModalOpen, setIsSupplyModalOpen] = useState(false);
+  const [editingSupply, setEditingSupply] = useState<ProductSupply | null>(null);
+  const [supplyName, setSupplyName] = useState('');
+  const [supplyCategory, setSupplyCategory] = useState('Matéria-Prima');
+  const [supplyUnit, setSupplyUnit] = useState('unid');
+  const [supplyBaseQty, setSupplyBaseQty] = useState('1');
+  const [supplyBaseCost, setSupplyBaseCost] = useState('');
+  const [supplyNotes, setSupplyNotes] = useState('');
+  const [savingSupply, setSavingSupply] = useState(false);
+  const [supplyFormError, setSupplyFormError] = useState<string | null>(null);
+
   const loadData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [cats, unities, types, productColors, productMaterials] = await Promise.all([
+      const [cats, unities, types, productColors, productMaterials, productSupplies] = await Promise.all([
         api.listCategories(),
         api.listUnits(),
         api.listItemTypes(),
         api.listColors(),
         api.listMaterials(),
+        api.listSupplies(),
       ]);
       setCategories(cats);
       setUnits(unities);
       setItemTypes(types);
       setColors(productColors);
       setMaterials(productMaterials);
+      setSupplies(productSupplies);
     } catch (err: any) {
       setError(err.message || 'Erro ao carregar configurações do ateliê.');
     } finally {
@@ -358,6 +374,83 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
+  // --- Handlers de Insumos de Produção ---
+  const handleOpenNewSupply = () => {
+    setEditingSupply(null);
+    setSupplyName('');
+    setSupplyCategory('Matéria-Prima');
+    setSupplyUnit('unid');
+    setSupplyBaseQty('1');
+    setSupplyBaseCost('');
+    setSupplyNotes('');
+    setSupplyFormError(null);
+    setIsSupplyModalOpen(true);
+  };
+
+  const handleOpenEditSupply = (s: ProductSupply) => {
+    setEditingSupply(s);
+    setSupplyName(s.name);
+    setSupplyCategory(s.category || 'Matéria-Prima');
+    setSupplyUnit(s.unit || 'unid');
+    setSupplyBaseQty(String(Number(s.base_quantity) || 1));
+    setSupplyBaseCost(s.base_cost ? Number(s.base_cost).toFixed(2).replace('.', ',') : '');
+    setSupplyNotes(s.notes || '');
+    setSupplyFormError(null);
+    setIsSupplyModalOpen(true);
+  };
+
+  const handleSaveSupply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supplyName.trim()) return;
+    setSavingSupply(true);
+    setSupplyFormError(null);
+
+    try {
+      const baseQtyNum = parseFloat(supplyBaseQty.replace(',', '.')) || 1;
+      const baseCostNum = parseFloat(supplyBaseCost.replace(/\./g, '').replace(',', '.')) || 0;
+      const unitCostNum = baseQtyNum > 0 ? baseCostNum / baseQtyNum : 0;
+
+      if (editingSupply) {
+        const updated = await api.updateSupply(editingSupply.id, {
+          name: supplyName.trim(),
+          category: supplyCategory.trim() || undefined,
+          unit: supplyUnit.trim() || 'unid',
+          base_quantity: baseQtyNum,
+          base_cost: baseCostNum,
+          unit_cost: unitCostNum,
+          notes: supplyNotes.trim() || undefined,
+        });
+        setSupplies((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      } else {
+        const created = await api.createSupply({
+          name: supplyName.trim(),
+          category: supplyCategory.trim() || undefined,
+          unit: supplyUnit.trim() || 'unid',
+          base_quantity: baseQtyNum,
+          base_cost: baseCostNum,
+          unit_cost: unitCostNum,
+          notes: supplyNotes.trim() || undefined,
+        });
+        setSupplies((prev) => [...prev, created]);
+      }
+      setIsSupplyModalOpen(false);
+    } catch (err: any) {
+      setSupplyFormError(err.message || 'Erro ao salvar insumo.');
+    } finally {
+      setSavingSupply(false);
+    }
+  };
+
+  const handleDeleteSupply = async (s: ProductSupply) => {
+    if (!confirm(`Deseja realmente excluir o insumo "${s.name}"?`)) return;
+    try {
+      await api.deleteSupply(s.id);
+      setSupplies((prev) => prev.filter((item) => item.id !== s.id));
+    } catch (err: any) {
+      alert(err.message || 'Erro ao excluir insumo.');
+    }
+  };
+
   // Filtros de busca locais
   const filteredCategories = categories.filter(
     (c) =>
@@ -387,6 +480,14 @@ export const SettingsPage: React.FC = () => {
     (m) =>
       m.name.toLowerCase().includes(search.toLowerCase()) ||
       (m.description && m.description.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const filteredSupplies = supplies.filter(
+    (s) =>
+      s.name.toLowerCase().includes(search.toLowerCase()) ||
+      (s.category && s.category.toLowerCase().includes(search.toLowerCase())) ||
+      (s.notes && s.notes.toLowerCase().includes(search.toLowerCase())) ||
+      s.unit.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -586,6 +687,43 @@ export const SettingsPage: React.FC = () => {
             {materials.length}
           </span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveSubTab('insumos');
+            setSearch('');
+          }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '9px 18px',
+            borderRadius: 'var(--radius-sm)',
+            border: activeSubTab === 'insumos' ? '1px solid var(--border-medium)' : '1px solid transparent',
+            backgroundColor: activeSubTab === 'insumos' ? 'var(--bg-sand)' : 'transparent',
+            color: activeSubTab === 'insumos' ? 'var(--brand-primary)' : 'var(--text-secondary)',
+            fontWeight: activeSubTab === 'insumos' ? 700 : 500,
+            fontSize: '0.92rem',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <Package size={18} color={activeSubTab === 'insumos' ? 'var(--brand-accent)' : 'currentColor'} />
+          <span>Insumos & Matérias-Primas</span>
+          <span
+            style={{
+              padding: '2px 7px',
+              borderRadius: '10px',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              backgroundColor: activeSubTab === 'insumos' ? 'var(--brand-accent)' : 'var(--border-subtle)',
+              color: activeSubTab === 'insumos' ? '#fff' : 'var(--text-tertiary)',
+            }}
+          >
+            {supplies.length}
+          </span>
+        </button>
       </div>
 
       {/* Barra de Ações: Busca e Botão de Adição */}
@@ -623,6 +761,8 @@ export const SettingsPage: React.FC = () => {
                 ? 'Buscar por nome ou código hexadecimal da cor...'
                 : activeSubTab === 'materiais'
                 ? 'Buscar por nome ou descrição do material...'
+                : activeSubTab === 'insumos'
+                ? 'Buscar por nome, categoria ou unidade do insumo...'
                 : 'Buscar por nome ou código do tipo...'
             }
             value={search}
@@ -663,6 +803,13 @@ export const SettingsPage: React.FC = () => {
           <button onClick={handleOpenNewMaterial} className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
             <Plus size={18} />
             <span>Novo Material</span>
+          </button>
+        )}
+
+        {activeSubTab === 'insumos' && (
+          <button onClick={handleOpenNewSupply} className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <Plus size={18} />
+            <span>Novo Insumo</span>
           </button>
         )}
       </div>
@@ -1078,6 +1225,114 @@ export const SettingsPage: React.FC = () => {
               )}
             </div>
           )}
+
+          {/* TABELA: INSUMOS DE PRODUÇÃO */}
+          {activeSubTab === 'insumos' && (
+            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              {filteredSupplies.length === 0 ? (
+                <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-tertiary)' }}>
+                  <Package size={48} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
+                  <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 500 }}>
+                    {search ? 'Nenhum insumo encontrado para sua busca.' : 'Nenhum insumo de produção cadastrado.'}
+                  </p>
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: 'var(--bg-sand-light)', borderBottom: '1px solid var(--border-medium)' }}>
+                        <th style={{ padding: '14px 18px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>INSUMO / DESCRIÇÃO</th>
+                        <th style={{ padding: '14px 18px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>CATEGORIA</th>
+                        <th style={{ padding: '14px 18px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>UNIDADE</th>
+                        <th style={{ padding: '14px 18px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', textAlign: 'right' }}>BASE DE CUSTO</th>
+                        <th style={{ padding: '14px 18px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', textAlign: 'right' }}>CUSTO CALCULADO</th>
+                        <th style={{ padding: '14px 18px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>OBSERVAÇÕES</th>
+                        <th style={{ padding: '14px 18px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', textAlign: 'right' }}>AÇÕES</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredSupplies.map((s) => {
+                        const bQty = Number(s.base_quantity) || 1;
+                        const bCost = Number(s.base_cost) || 0;
+                        const uCost = Number(s.unit_cost) || 0;
+                        return (
+                          <tr
+                            key={s.id}
+                            style={{ borderBottom: '1px solid var(--border-subtle)', transition: 'background var(--transition-fast)' }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-surface-hover)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                          >
+                            <td style={{ padding: '14px 18px' }}>
+                              <span style={{ fontWeight: 600, color: 'var(--text-primary)', display: 'block' }}>{s.name}</span>
+                            </td>
+                            <td style={{ padding: '14px 18px' }}>
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  padding: '2px 8px',
+                                  borderRadius: '12px',
+                                  fontSize: '0.74rem',
+                                  fontWeight: 600,
+                                  backgroundColor: 'var(--bg-sand-light)',
+                                  color: 'var(--brand-primary)',
+                                  border: '1px solid var(--border-subtle)',
+                                }}
+                              >
+                                {s.category || 'Geral'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px 18px', fontSize: '0.86rem', fontWeight: 600, color: 'var(--brand-accent)' }}>
+                              {s.unit}
+                            </td>
+                            <td style={{ padding: '14px 18px', textAlign: 'right', fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
+                              {s.unit === '%' ? (
+                                <span>{bQty}% s/ venda</span>
+                              ) : s.unit === 'fixo' ? (
+                                <span>R$ {bCost.toFixed(2)} fixo</span>
+                              ) : (
+                                <span>R$ {bCost.toFixed(2)} / {bQty} {s.unit}</span>
+                              )}
+                            </td>
+                            <td style={{ padding: '14px 18px', textAlign: 'right', fontSize: '0.88rem', fontWeight: 700, color: 'var(--brand-primary)' }}>
+                              {s.unit === '%' ? (
+                                <span>{bQty}%</span>
+                              ) : (
+                                <span>R$ {uCost.toFixed(4)} / {s.unit}</span>
+                              )}
+                            </td>
+                            <td style={{ padding: '14px 18px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                              {s.notes || <span style={{ color: 'var(--text-tertiary)', fontStyle: 'italic' }}>—</span>}
+                            </td>
+                            <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                              <div style={{ display: 'inline-flex', gap: '8px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditSupply(s)}
+                                  className="btn-icon"
+                                  title="Editar Insumo"
+                                >
+                                  <Edit2 size={16} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSupply(s)}
+                                  className="btn-icon"
+                                  title="Excluir Insumo"
+                                  style={{ color: 'var(--status-danger-text)' }}
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
 
@@ -1478,6 +1733,138 @@ export const SettingsPage: React.FC = () => {
             </button>
             <button type="submit" className="btn-primary" disabled={savingMaterial}>
               {savingMaterial ? 'Salvando...' : editingMaterial ? 'Salvar Alterações' : 'Criar Material'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal Criar/Editar Insumo de Produção */}
+      <Modal
+        isOpen={isSupplyModalOpen}
+        onClose={() => setIsSupplyModalOpen(false)}
+        title={editingSupply ? 'Editar Insumo de Produção' : 'Novo Insumo de Produção'}
+        subtitle="Cadastre matérias-primas, embalagens ou taxas com base de custo para cálculo automático"
+        maxWidth="540px"
+      >
+        <form onSubmit={handleSaveSupply}>
+          {supplyFormError && (
+            <div
+              style={{
+                padding: '10px 14px',
+                backgroundColor: 'var(--status-danger-bg)',
+                color: 'var(--status-danger-text)',
+                borderRadius: 'var(--radius-sm)',
+                marginBottom: '16px',
+                fontSize: '0.85rem',
+              }}
+            >
+              {supplyFormError}
+            </div>
+          )}
+
+          <div style={{ marginBottom: '16px' }}>
+            <label htmlFor="sup-name">Nome do Insumo / Matéria-Prima *</label>
+            <input
+              id="sup-name"
+              type="text"
+              required
+              placeholder="Ex.: Cimento, Batente Silicone, Caixa Papelão P..."
+              value={supplyName}
+              onChange={(e) => setSupplyName(e.target.value)}
+              autoFocus
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+            <div>
+              <label htmlFor="sup-cat">Categoria</label>
+              <select
+                id="sup-cat"
+                value={supplyCategory}
+                onChange={(e) => setSupplyCategory(e.target.value)}
+              >
+                <option value="Matéria-Prima">Matéria-Prima</option>
+                <option value="Embalagem">Embalagem</option>
+                <option value="Material Auxiliar">Material Auxiliar</option>
+                <option value="Taxas e Marketplaces">Taxas e Marketplaces</option>
+                <option value="Outros">Outros</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="sup-unit">Unidade de Medida *</label>
+              <select
+                id="sup-unit"
+                value={supplyUnit}
+                onChange={(e) => setSupplyUnit(e.target.value)}
+              >
+                <option value="unid">unid (Unidade / Cada)</option>
+                <option value="gr">gr (Gramas)</option>
+                <option value="kg">kg (Quilogramas)</option>
+                <option value="ml">ml (Mililitros)</option>
+                <option value="l">l (Litros)</option>
+                <option value="%">% (Porcentagem s/ Preço Venda)</option>
+                <option value="fixo">fixo (Taxa Fixa R$)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+            <div>
+              <label htmlFor="sup-base-qty">
+                {supplyUnit === '%' ? 'Porcentagem (%)' : supplyUnit === 'fixo' ? 'Quantidade' : `Qtd Base (${supplyUnit})`}
+              </label>
+              <input
+                id="sup-base-qty"
+                type="text"
+                placeholder={supplyUnit === 'gr' ? '100' : '1'}
+                value={supplyBaseQty}
+                onChange={(e) => setSupplyBaseQty(e.target.value)}
+              />
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', marginTop: '2px', display: 'block' }}>
+                {supplyUnit === 'gr' ? 'Ex.: 100 para indicar 100 gr' : 'Quantidade para o custo abaixo'}
+              </span>
+            </div>
+
+            <div>
+              <label htmlFor="sup-base-cost">
+                {supplyUnit === '%' ? 'Valor %' : 'Custo Total Base (R$) *'}
+              </label>
+              <input
+                id="sup-base-cost"
+                type="text"
+                placeholder="0,00"
+                value={supplyBaseCost}
+                onChange={(e) => setSupplyBaseCost(e.target.value)}
+              />
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', marginTop: '2px', display: 'block' }}>
+                {supplyUnit === 'gr' ? 'Ex.: 3,44 para 100 gr' : 'Valor gasto nesta quantidade'}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '24px' }}>
+            <label htmlFor="sup-notes">Observações / Fornecedor (Opcional)</label>
+            <input
+              id="sup-notes"
+              type="text"
+              placeholder="Ex.: R$ 3,44 a cada 100g, fornecedor Casa das Essências..."
+              value={supplyNotes}
+              onChange={(e) => setSupplyNotes(e.target.value)}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+            <button
+              type="button"
+              onClick={() => setIsSupplyModalOpen(false)}
+              className="btn-secondary"
+              disabled={savingSupply}
+            >
+              Cancelar
+            </button>
+            <button type="submit" className="btn-primary" disabled={savingSupply}>
+              {savingSupply ? 'Salvando...' : editingSupply ? 'Salvar Alterações' : 'Criar Insumo'}
             </button>
           </div>
         </form>

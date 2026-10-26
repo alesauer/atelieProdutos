@@ -26,7 +26,7 @@ import { api } from '../api/client';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import { getProductImageUrl, handleImageError } from '../utils/imageUrl';
-import type { Category, CostComponentItem, ItemType, ItemTypeDefinition, Product, ProductColor, ProductMaterial, ProductFormData, SalesLinkItem, UnitOfMeasure } from '../types';
+import type { Category, CostComponentItem, ItemType, ItemTypeDefinition, Product, ProductColor, ProductMaterial, ProductSupply, ProductFormData, SalesLinkItem, UnitOfMeasure } from '../types';
 
 const WhatsAppIcon: React.FC<{ size?: number; color?: string; style?: React.CSSProperties }> = ({
   size = 16,
@@ -154,12 +154,28 @@ export const ProductsPage: React.FC = () => {
   const [newLinkPlatform, setNewLinkPlatform] = useState('Shopee');
   const [newLinkUrl, setNewLinkUrl] = useState('');
 
-  // Calculadora de Composição de Custo Manual
+  // Insumos de Produção e Calculadora de Composição de Custo Estimado
+  const [supplies, setSupplies] = useState<ProductSupply[]>([]);
   const [isCostCalculatorOpen, setIsCostCalculatorOpen] = useState(false);
   const [costItems, setCostItems] = useState<CostComponentItem[]>([]);
+  const [selectedSupplyId, setSelectedSupplyId] = useState<string>('');
   const [newCostItemName, setNewCostItemName] = useState('');
+  const [newCostItemUnit, setNewCostItemUnit] = useState<string>('unid');
   const [newCostItemQuantity, setNewCostItemQuantity] = useState('1');
   const [newCostItemUnitCost, setNewCostItemUnitCost] = useState('');
+  const [newCostItemBaseQuantity, setNewCostItemBaseQuantity] = useState<number>(1);
+  const [newCostItemBaseCost, setNewCostItemBaseCost] = useState<number>(0);
+
+  // Modal rápido de Criação de Insumo dentro do modal de Custo
+  const [isQuickSupplyModalOpen, setIsQuickSupplyModalOpen] = useState(false);
+  const [quickSupplyName, setQuickSupplyName] = useState('');
+  const [quickSupplyCategory, setQuickSupplyCategory] = useState('Matéria-Prima');
+  const [quickSupplyUnit, setQuickSupplyUnit] = useState('unid');
+  const [quickSupplyBaseQty, setQuickSupplyBaseQty] = useState('1');
+  const [quickSupplyBaseCost, setQuickSupplyBaseCost] = useState('');
+  const [quickSupplyNotes, setQuickSupplyNotes] = useState('');
+  const [savingQuickSupply, setSavingQuickSupply] = useState(false);
+  const [quickSupplyError, setQuickSupplyError] = useState<string | null>(null);
 
   // Modal de Fotos
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
@@ -190,13 +206,14 @@ export const ProductsPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [prodsData, catsData, unitsData, itemTypesData, colorsData, materialsData] = await Promise.all([
+      const [prodsData, catsData, unitsData, itemTypesData, colorsData, materialsData, suppliesData] = await Promise.all([
         api.listProducts({ active_only: false }),
         api.listCategories(),
         api.listUnits(),
         api.listItemTypes(),
         api.listColors(),
         api.listMaterials(),
+        api.listSupplies(),
       ]);
 
       setProducts(prodsData);
@@ -205,6 +222,7 @@ export const ProductsPage: React.FC = () => {
       setItemTypes(itemTypesData);
       setColors(colorsData);
       setMaterials(materialsData);
+      setSupplies(suppliesData);
 
       // Definir unidade padrão como Unidade (UN)
       const defaultUnit = unitsData.find(
@@ -557,29 +575,138 @@ export const ProductsPage: React.FC = () => {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  // Gestão de Itens de Custo Individual
+  // Helper para calcular o subtotal de um item da composição de custo
+  const calculateItemSubtotal = (
+    qtyStr: string,
+    unit: string,
+    unitCostNum: number,
+    baseCostNum: number,
+    baseQtyNum: number
+  ): number => {
+    const qty = parseFloat(qtyStr.replace(',', '.')) || 0;
+    if (qty <= 0) return 0;
+
+    if (unit === '%') {
+      const salePriceNum = parseOptionalCurrencyValue(formData.sale_price) || 0;
+      return (salePriceNum * qty) / 100;
+    }
+
+    if (unit === 'fixo') {
+      return baseCostNum || unitCostNum;
+    }
+
+    if (unitCostNum > 0) {
+      return qty * unitCostNum;
+    }
+
+    const bQty = baseQtyNum > 0 ? baseQtyNum : 1;
+    return (qty / bQty) * baseCostNum;
+  };
+
+  const handleSelectSupply = (supplyId: string) => {
+    setSelectedSupplyId(supplyId);
+    if (supplyId === 'new') {
+      setQuickSupplyName('');
+      setQuickSupplyCategory('Matéria-Prima');
+      setQuickSupplyUnit('unid');
+      setQuickSupplyBaseQty('1');
+      setQuickSupplyBaseCost('');
+      setQuickSupplyNotes('');
+      setQuickSupplyError(null);
+      setIsQuickSupplyModalOpen(true);
+      return;
+    }
+    if (!supplyId || supplyId === 'custom') {
+      setNewCostItemName('');
+      setNewCostItemUnit('unid');
+      setNewCostItemQuantity('1');
+      setNewCostItemUnitCost('');
+      setNewCostItemBaseCost(0);
+      setNewCostItemBaseQuantity(1);
+      return;
+    }
+    const sup = supplies.find((s) => s.id === Number(supplyId));
+    if (sup) {
+      setNewCostItemName(sup.name);
+      setNewCostItemUnit(sup.unit || 'unid');
+      const bQty = Number(sup.base_quantity) || 1;
+      const bCost = Number(sup.base_cost) || 0;
+      const uCost = Number(sup.unit_cost) || (bQty > 0 ? bCost / bQty : 0);
+      setNewCostItemBaseQuantity(bQty);
+      setNewCostItemBaseCost(bCost);
+      setNewCostItemQuantity(sup.unit === 'gr' ? String(bQty) : (sup.unit === '%' ? String(bQty) : '1'));
+      setNewCostItemUnitCost(uCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }));
+    }
+  };
+
+  const handleSaveQuickSupply = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!quickSupplyName.trim()) return;
+    setSavingQuickSupply(true);
+    setQuickSupplyError(null);
+    try {
+      const baseQtyNum = parseFloat(quickSupplyBaseQty.replace(',', '.')) || 1;
+      const baseCostNum = parseFloat(quickSupplyBaseCost.replace(/\./g, '').replace(',', '.')) || 0;
+      const unitCostNum = baseQtyNum > 0 ? baseCostNum / baseQtyNum : 0;
+      const created = await api.createSupply({
+        name: quickSupplyName.trim(),
+        category: quickSupplyCategory.trim() || undefined,
+        unit: quickSupplyUnit.trim() || 'unid',
+        base_quantity: baseQtyNum,
+        base_cost: baseCostNum,
+        unit_cost: unitCostNum,
+        notes: quickSupplyNotes.trim() || undefined,
+      });
+      setSupplies((prev) => [...prev, created]);
+      setSelectedSupplyId(String(created.id));
+      setNewCostItemName(created.name);
+      setNewCostItemUnit(created.unit || 'unid');
+      setNewCostItemBaseQuantity(baseQtyNum);
+      setNewCostItemBaseCost(baseCostNum);
+      setNewCostItemQuantity(created.unit === 'gr' ? String(baseQtyNum) : '1');
+      setNewCostItemUnitCost(unitCostNum.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }));
+      setIsQuickSupplyModalOpen(false);
+    } catch (err: any) {
+      setQuickSupplyError(err.message || 'Erro ao cadastrar insumo.');
+    } finally {
+      setSavingQuickSupply(false);
+    }
+  };
+
+  // Gestão de Itens de Custo Estimado Individual
   const handleAddCostItem = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!newCostItemName.trim()) return;
     const qty = parseFloat(newCostItemQuantity.replace(',', '.')) || 1;
     const unitPrice = parseCurrencyValue(newCostItemUnitCost);
-    const total = qty * unitPrice;
+    const subtotal = calculateItemSubtotal(
+      newCostItemQuantity,
+      newCostItemUnit,
+      unitPrice,
+      newCostItemBaseCost,
+      newCostItemBaseQuantity
+    );
 
     const newItem: CostComponentItem = {
-      id: Date.now().toString(),
+      id: `${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       name: newCostItemName.trim(),
       quantity: qty,
+      unit: newCostItemUnit,
       unit_cost: unitPrice,
-      total: total,
+      total: Number(subtotal.toFixed(2)),
     };
 
     const updated = [...costItems, newItem];
     setCostItems(updated);
+    setSelectedSupplyId('');
     setNewCostItemName('');
     setNewCostItemQuantity('1');
+    setNewCostItemUnit('unid');
     setNewCostItemUnitCost('');
+    setNewCostItemBaseCost(0);
+    setNewCostItemBaseQuantity(1);
 
-    // Atualiza automaticamente o custo manual com a soma de todos os itens
+    // Atualiza automaticamente o custo estimado com a soma de todos os itens
     const totalSum = updated.reduce((acc, item) => acc + item.total, 0);
     setFormData((prev) => ({
       ...prev,
@@ -1434,7 +1561,7 @@ export const ProductsPage: React.FC = () => {
                   >
                     <div>
                       <span style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', display: 'block', fontWeight: 600 }}>
-                        Custo Manual
+                        Custo Estimado
                       </span>
                       <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                         R$ {Number(prod.unit_cost).toFixed(2)}
@@ -1616,7 +1743,7 @@ export const ProductsPage: React.FC = () => {
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>ITEM / SKU</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>TIPO</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>CATEGORIA</th>
-                  <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>CUSTO UNIT.</th>
+                  <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>CUSTO ESTIMADO</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>PREÇO VENDA</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>ESTOQUE MÍN.</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>STATUS</th>
@@ -2234,7 +2361,7 @@ export const ProductsPage: React.FC = () => {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <label htmlFor="prod-cost" style={{ margin: 0 }}>Custo Manual (R$)</label>
+                <label htmlFor="prod-cost" style={{ margin: 0 }}>Custo Estimado (R$)</label>
                 <button
                   type="button"
                   onClick={() => setIsCostCalculatorOpen(true)}
@@ -2251,7 +2378,7 @@ export const ProductsPage: React.FC = () => {
                     padding: '2px 4px',
                     borderRadius: 'var(--radius-sm)',
                   }}
-                  title="Calcular e somar custos de insumos individuais"
+                  title="Calcular e somar custos de matérias-primas e insumos individuais"
                 >
                   <Calculator size={14} /> Somar Itens
                 </button>
@@ -3212,13 +3339,13 @@ export const ProductsPage: React.FC = () => {
         </div>
       </Modal>
 
-      {/* Modal de Composição e Soma de Custos Individuais */}
+      {/* Modal de Composição e Soma de Custos Estimados */}
       <Modal
         isOpen={isCostCalculatorOpen}
         onClose={() => setIsCostCalculatorOpen(false)}
-        title="Composição de Custo Manual"
-        subtitle={`Calcule o custo total somando cada insumo e etapa de '${formData.name || 'Novo Item'}'`}
-        maxWidth="620px"
+        title="Composição de Custo Estimado"
+        subtitle={`Calcule o custo estimado selecionando matérias-primas, insumos de produção e taxas de '${formData.name || 'Novo Item'}'`}
+        maxWidth="680px"
       >
         <div>
           {/* Formulário de Adição de Item de Custo */}
@@ -3231,46 +3358,101 @@ export const ProductsPage: React.FC = () => {
               marginBottom: '20px',
             }}
           >
-            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--brand-primary)', display: 'block', marginBottom: '10px' }}>
-              + Adicionar Componente ou Insumo
-            </span>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: '10px', alignItems: 'flex-end' }}>
-              <div>
-                <label htmlFor="cost-item-name" style={{ fontSize: '0.75rem', marginBottom: '4px' }}>
-                  Insumo / Descrição *
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <span style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--brand-primary)' }}>
+                + Selecionar Matéria-Prima ou Insumo
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickSupplyName('');
+                  setQuickSupplyCategory('Matéria-Prima');
+                  setQuickSupplyUnit('unid');
+                  setQuickSupplyBaseQty('1');
+                  setQuickSupplyBaseCost('');
+                  setQuickSupplyNotes('');
+                  setQuickSupplyError(null);
+                  setIsQuickSupplyModalOpen(true);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--brand-accent)',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '2px 4px',
+                }}
+                title="Cadastrar novo insumo para ficar disponível na lista"
+              >
+                <Plus size={14} /> Cadastrar Novo Insumo
+              </button>
+            </div>
+
+            {/* Linha 1: Combo Box de Insumos Pré-Cadastrados */}
+            <div style={{ marginBottom: '12px' }}>
+              <label htmlFor="cost-item-supply-select" style={{ fontSize: '0.75rem', marginBottom: '4px', fontWeight: 600 }}>
+                Insumo / Matéria-Prima Pré-Cadastrada *
+              </label>
+              <select
+                id="cost-item-supply-select"
+                value={selectedSupplyId}
+                onChange={(e) => handleSelectSupply(e.target.value)}
+                style={{ width: '100%', fontSize: '0.86rem', padding: '8px 10px' }}
+              >
+                <option value="">-- Selecione um insumo cadastrado ou digite avulso --</option>
+                {['Matéria-Prima', 'Embalagem', 'Material Auxiliar', 'Taxas e Marketplaces', 'Outros'].map((cat) => {
+                  const groupSupplies = supplies.filter((s) => (s.category || 'Outros') === cat);
+                  if (groupSupplies.length === 0) return null;
+                  return (
+                    <optgroup key={cat} label={`📦 ${cat}`}>
+                      {groupSupplies.map((s) => {
+                        const bQty = Number(s.base_quantity) || 1;
+                        const bCost = Number(s.base_cost) || 0;
+                        const info = s.unit === '%'
+                          ? `${s.name} (${bQty}% sobre valor de venda)`
+                          : s.unit === 'fixo'
+                          ? `${s.name} (R$ ${bCost.toFixed(2)} fixo)`
+                          : `${s.name} (R$ ${bCost.toFixed(2)} a cada ${bQty} ${s.unit})`;
+                        return (
+                          <option key={s.id} value={s.id}>
+                            {info}
+                          </option>
+                        );
+                      })}
+                    </optgroup>
+                  );
+                })}
+                <option value="custom">✏️ Insumo Avulso / Digitar manualmente...</option>
+                <option value="new">➕ Cadastrar novo insumo permanente...</option>
+              </select>
+            </div>
+
+            {/* Linha 2 (se avulso): Nome do Insumo personalizado */}
+            {(selectedSupplyId === 'custom' || (!selectedSupplyId && newCostItemName)) && (
+              <div style={{ marginBottom: '12px' }}>
+                <label htmlFor="cost-item-custom-name" style={{ fontSize: '0.75rem', marginBottom: '4px' }}>
+                  Descrição do Insumo Avulso *
                 </label>
                 <input
-                  id="cost-item-name"
+                  id="cost-item-custom-name"
                   type="text"
-                  list="suggested-insumos"
-                  placeholder="Ex.: Cera de Soja, Pavio, Pote..."
+                  placeholder="Ex.: Embalagem especial personalizada, Fita de cetim..."
                   value={newCostItemName}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setNewCostItemName(val);
-                    const found = products.find((p) => p.name.toLowerCase() === val.toLowerCase());
-                    if (found && found.unit_cost && !newCostItemUnitCost) {
-                      setNewCostItemUnitCost(
-                        Number(found.unit_cost).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                      );
-                    }
-                  }}
+                  onChange={(e) => setNewCostItemName(e.target.value)}
                   autoFocus
                 />
-                <datalist id="suggested-insumos">
-                  {products
-                    .filter((p) => p.item_type !== 'PRODUTO_ACABADO')
-                    .map((p) => (
-                      <option key={p.id} value={p.name}>
-                        {p.name} (R$ {Number(p.unit_cost).toFixed(2)})
-                      </option>
-                    ))}
-                </datalist>
               </div>
+            )}
 
+            {/* Linha 3: Quantidade gasta, Unidade, Custo Unitário e Botão Adicionar */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.3fr 1.3fr auto', gap: '10px', alignItems: 'flex-end' }}>
               <div>
                 <label htmlFor="cost-item-qty" style={{ fontSize: '0.75rem', marginBottom: '4px' }}>
-                  Qtd
+                  {newCostItemUnit === '%' ? 'Porcentagem (%)' : newCostItemUnit === 'fixo' ? 'Qtd Fixa' : `Qtd Gasta (${newCostItemUnit})`}
                 </label>
                 <input
                   id="cost-item-qty"
@@ -3278,12 +3460,33 @@ export const ProductsPage: React.FC = () => {
                   placeholder="1"
                   value={newCostItemQuantity}
                   onChange={(e) => setNewCostItemQuantity(e.target.value)}
+                  style={{ textAlign: 'right' }}
                 />
               </div>
 
               <div>
+                <label htmlFor="cost-item-unit" style={{ fontSize: '0.75rem', marginBottom: '4px' }}>
+                  Unidade
+                </label>
+                <select
+                  id="cost-item-unit"
+                  value={newCostItemUnit}
+                  onChange={(e) => setNewCostItemUnit(e.target.value)}
+                  style={{ fontSize: '0.85rem', padding: '8px 6px', width: '100%' }}
+                >
+                  <option value="unid">unid (Unidade / Cada)</option>
+                  <option value="gr">gr (Gramas)</option>
+                  <option value="kg">kg (Quilogramas)</option>
+                  <option value="ml">ml (Mililitros)</option>
+                  <option value="l">l (Litros)</option>
+                  <option value="%">% (s/ Preço Venda)</option>
+                  <option value="fixo">fixo (Taxa Fixa R$)</option>
+                </select>
+              </div>
+
+              <div>
                 <label htmlFor="cost-item-cost" style={{ fontSize: '0.75rem', marginBottom: '4px' }}>
-                  Custo (R$) *
+                  {newCostItemUnit === '%' ? 'Valor %' : newCostItemUnit === 'fixo' ? 'Taxa (R$)' : `Custo / ${newCostItemUnit} (R$)`}
                 </label>
                 <input
                   id="cost-item-cost"
@@ -3294,12 +3497,6 @@ export const ProductsPage: React.FC = () => {
                   onChange={(e) => setNewCostItemUnitCost(formatCurrencyInputRTL(e.target.value, true))}
                   onFocus={(e) => e.target.select()}
                   style={{ textAlign: 'right' }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddCostItem();
-                    }
-                  }}
                 />
               </div>
 
@@ -3307,20 +3504,64 @@ export const ProductsPage: React.FC = () => {
                 type="button"
                 onClick={handleAddCostItem}
                 className="btn-primary"
-                style={{ height: '38px', padding: '0 14px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                title="Adicionar à soma de custos"
+                style={{ height: '38px', padding: '0 16px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                title="Adicionar à soma de custos do produto"
               >
                 <Plus size={16} />
                 <span>Adicionar</span>
               </button>
             </div>
+
+            {/* Prévia ao vivo do cálculo do subtotal */}
+            {(() => {
+              const qtyNum = parseFloat(newCostItemQuantity.replace(',', '.')) || 0;
+              const unitCostNum = parseCurrencyValue(newCostItemUnitCost);
+              const subtotal = calculateItemSubtotal(
+                newCostItemQuantity,
+                newCostItemUnit,
+                unitCostNum,
+                newCostItemBaseCost,
+                newCostItemBaseQuantity
+              );
+              return (
+                <div
+                  style={{
+                    marginTop: '10px',
+                    padding: '8px 12px',
+                    backgroundColor: '#fff',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--border-subtle)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                    {newCostItemUnit === '%' ? (
+                      formData.sale_price && parseOptionalCurrencyValue(formData.sale_price) ? (
+                        <>Cálculo: {qtyNum}% sobre o Preço de Venda (R$ {Number(parseOptionalCurrencyValue(formData.sale_price) || 0).toFixed(2)})</>
+                      ) : (
+                        <span style={{ color: '#b45309' }}>⚠️ Preço de Venda do produto ainda não informado (digite o preço para calcular o %)</span>
+                      )
+                    ) : newCostItemUnit === 'gr' && newCostItemBaseQuantity === 100 ? (
+                      <>Cálculo: {qtyNum} gr (proporcional a R$ {newCostItemBaseCost.toFixed(2)} por 100 gr = R$ {unitCostNum.toFixed(4)}/gr)</>
+                    ) : (
+                      <>Cálculo: {qtyNum} {newCostItemUnit} × R$ {unitCostNum.toFixed(2)}/{newCostItemUnit}</>
+                    )}
+                  </span>
+                  <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--brand-primary)' }}>
+                    Subtotal: R$ {subtotal.toFixed(2)}
+                  </span>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Lista de Itens Cadastrados */}
           <div style={{ marginBottom: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
               <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Itens Somados ({costItems.length})
+                Itens Somados na Composição ({costItems.length})
               </span>
               {costItems.length > 0 && (
                 <button
@@ -3355,9 +3596,9 @@ export const ProductsPage: React.FC = () => {
                 }}
               >
                 <Calculator size={28} color="var(--brand-accent)" style={{ margin: '0 auto 8px', opacity: 0.6 }} />
-                <p style={{ margin: 0, fontWeight: 500 }}>Nenhum insumo adicionado ainda.</p>
+                <p style={{ margin: 0, fontWeight: 500 }}>Nenhum insumo ou matéria-prima adicionada ainda.</p>
                 <span style={{ fontSize: '0.78rem' }}>
-                  Preencha o insumo, quantidade e valor acima para calcular o custo manual total.
+                  Selecione um insumo no combo box acima e informe a quantidade para calcular o custo estimado do produto.
                 </span>
               </div>
             ) : (
@@ -3374,7 +3615,7 @@ export const ProductsPage: React.FC = () => {
                   <thead>
                     <tr style={{ backgroundColor: 'var(--bg-sand-light)', borderBottom: '1px solid var(--border-subtle)', textAlign: 'left' }}>
                       <th style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-secondary)' }}>Item</th>
-                      <th style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center' }}>Qtd</th>
+                      <th style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center' }}>Qtd / Medida</th>
                       <th style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'right' }}>Unit. (R$)</th>
                       <th style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'right' }}>Total (R$)</th>
                       <th style={{ padding: '8px 12px', textAlign: 'center', width: '40px' }}></th>
@@ -3383,10 +3624,14 @@ export const ProductsPage: React.FC = () => {
                   <tbody>
                     {costItems.map((item) => (
                       <tr key={item.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                        <td style={{ padding: '8px 12px', fontWeight: 500, color: 'var(--text-primary)' }}>{item.name}</td>
-                        <td style={{ padding: '8px 12px', textAlign: 'center', color: 'var(--text-secondary)' }}>{item.quantity}</td>
+                        <td style={{ padding: '8px 12px', fontWeight: 500, color: 'var(--text-primary)' }}>
+                          {item.name}
+                        </td>
+                        <td style={{ padding: '8px 12px', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                          {item.quantity} {item.unit || ''}
+                        </td>
                         <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--text-secondary)' }}>
-                          R$ {item.unit_cost.toFixed(2)}
+                          {item.unit === '%' ? `${item.quantity}%` : `R$ ${item.unit_cost.toFixed(4)}`}
                         </td>
                         <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: 'var(--brand-primary)' }}>
                           R$ {item.total.toFixed(2)}
@@ -3430,10 +3675,10 @@ export const ProductsPage: React.FC = () => {
           >
             <div>
               <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--brand-accent)', textTransform: 'uppercase' }}>
-                Custo Manual Total Calculado
+                Custo Estimado Total Calculado
               </span>
               <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                Soma de todos os {costItems.length} componentes individuais
+                Soma de todos os {costItems.length} insumos e componentes
               </p>
             </div>
             <div style={{ textAlign: 'right' }}>
@@ -3456,10 +3701,138 @@ export const ProductsPage: React.FC = () => {
               onClick={handleApplyCalculatedCost}
               className="btn-primary"
             >
-              Aplicar Custo ao Produto
+              Aplicar Custo Estimado ao Produto
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal Rápido de Cadastro de Insumo Permanente */}
+      <Modal
+        isOpen={isQuickSupplyModalOpen}
+        onClose={() => setIsQuickSupplyModalOpen(false)}
+        title="Cadastrar Novo Insumo de Produção"
+        subtitle="Adicione matérias-primas ou embalagens que ficarão salvas para outros produtos"
+        maxWidth="500px"
+      >
+        <form onSubmit={handleSaveQuickSupply}>
+          {quickSupplyError && (
+            <div
+              style={{
+                padding: '10px 14px',
+                backgroundColor: 'var(--status-danger-bg)',
+                color: 'var(--status-danger-text)',
+                borderRadius: 'var(--radius-sm)',
+                marginBottom: '16px',
+                fontSize: '0.85rem',
+              }}
+            >
+              {quickSupplyError}
+            </div>
+          )}
+
+          <div style={{ marginBottom: '14px' }}>
+            <label htmlFor="quick-sup-name">Nome do Insumo / Matéria-Prima *</label>
+            <input
+              id="quick-sup-name"
+              type="text"
+              required
+              placeholder="Ex.: Cimento, Batente Silicone, Essência Lavanda..."
+              value={quickSupplyName}
+              onChange={(e) => setQuickSupplyName(e.target.value)}
+              autoFocus
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+            <div>
+              <label htmlFor="quick-sup-cat">Categoria</label>
+              <select
+                id="quick-sup-cat"
+                value={quickSupplyCategory}
+                onChange={(e) => setQuickSupplyCategory(e.target.value)}
+              >
+                <option value="Matéria-Prima">Matéria-Prima</option>
+                <option value="Embalagem">Embalagem</option>
+                <option value="Material Auxiliar">Material Auxiliar</option>
+                <option value="Taxas e Marketplaces">Taxas e Marketplaces</option>
+                <option value="Outros">Outros</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="quick-sup-unit">Unidade *</label>
+              <select
+                id="quick-sup-unit"
+                value={quickSupplyUnit}
+                onChange={(e) => setQuickSupplyUnit(e.target.value)}
+              >
+                <option value="unid">unid (Unidade / Cada)</option>
+                <option value="gr">gr (Gramas)</option>
+                <option value="kg">kg (Quilogramas)</option>
+                <option value="ml">ml (Mililitros)</option>
+                <option value="l">l (Litros)</option>
+                <option value="%">% (% sobre Venda)</option>
+                <option value="fixo">fixo (Taxa Fixa R$)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+            <div>
+              <label htmlFor="quick-sup-base-qty">
+                {quickSupplyUnit === '%' ? 'Porcentagem (%)' : quickSupplyUnit === 'fixo' ? 'Quantidade' : `Qtd Base (${quickSupplyUnit})`}
+              </label>
+              <input
+                id="quick-sup-base-qty"
+                type="text"
+                placeholder={quickSupplyUnit === 'gr' ? '100' : '1'}
+                value={quickSupplyBaseQty}
+                onChange={(e) => setQuickSupplyBaseQty(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="quick-sup-base-cost">
+                {quickSupplyUnit === '%' ? 'Valor %' : 'Custo Total Base (R$) *'}
+              </label>
+              <input
+                id="quick-sup-base-cost"
+                type="text"
+                placeholder="0,00"
+                value={quickSupplyBaseCost}
+                onChange={(e) => setQuickSupplyBaseCost(formatCurrencyInputRTL(e.target.value, true))}
+                onFocus={(e) => e.target.select()}
+                style={{ textAlign: 'right' }}
+              />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label htmlFor="quick-sup-notes">Observações / Detalhes (Opcional)</label>
+            <input
+              id="quick-sup-notes"
+              type="text"
+              placeholder="Ex.: R$ 3,44 a cada 100g..."
+              value={quickSupplyNotes}
+              onChange={(e) => setQuickSupplyNotes(e.target.value)}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+            <button
+              type="button"
+              onClick={() => setIsQuickSupplyModalOpen(false)}
+              className="btn-secondary"
+              disabled={savingQuickSupply}
+            >
+              Cancelar
+            </button>
+            <button type="submit" className="btn-primary" disabled={savingQuickSupply}>
+              {savingQuickSupply ? 'Salvando...' : 'Salvar Insumo'}
+            </button>
+          </div>
+        </form>
       </Modal>
 
       {/* Modal Encaminhar via WhatsApp */}

@@ -3,16 +3,19 @@ from sqlalchemy import select, func, delete
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
+from decimal import Decimal
 from app.core.config import settings
 from app.models.category import Category
 from app.models.unit import UnitOfMeasure
 from app.models.color import ProductColor
 from app.models.material import ProductMaterial
+from app.models.supply import ProductSupply
 from app.models.product import Product, ProductImage, ItemType
 from app.schemas.category import CategoryCreate, CategoryUpdate
 from app.schemas.unit import UnitCreate, UnitUpdate
 from app.schemas.color import ColorCreate, ColorUpdate
 from app.schemas.material import MaterialCreate, MaterialUpdate
+from app.schemas.supply import SupplyCreate, SupplyUpdate
 from app.schemas.product import ProductCreate, ProductUpdate, ImageReorderItem
 from app.services.storage_service import storage_service
 
@@ -77,6 +80,118 @@ DEFAULT_INITIAL_MATERIALS = [
     {"name": "Cerâmica", "description": "Peças cerâmicas esmaltadas ou queimadas"},
     {"name": "Madeira / Bambu", "description": "Tampas e bases torneadas em madeira ou bambu natural"},
     {"name": "Alumínio / Metal", "description": "Latas, tampas e recipientes metálicos"},
+]
+
+
+DEFAULT_INITIAL_SUPPLIES = [
+    {
+        "name": "Cimento",
+        "category": "Matéria-Prima",
+        "unit": "gr",
+        "base_quantity": Decimal("100.000"),
+        "base_cost": Decimal("3.4400"),
+        "unit_cost": Decimal("0.0344"),
+        "notes": "R$ 3,44 a cada 100 gramas",
+    },
+    {
+        "name": "Batente Silicone",
+        "category": "Material Auxiliar",
+        "unit": "unid",
+        "base_quantity": Decimal("1.000"),
+        "base_cost": Decimal("0.1100"),
+        "unit_cost": Decimal("0.1100"),
+        "notes": "R$ 0,11 cada unidade",
+    },
+    {
+        "name": "Etiqueta Grande",
+        "category": "Material Auxiliar",
+        "unit": "unid",
+        "base_quantity": Decimal("1.000"),
+        "base_cost": Decimal("0.2500"),
+        "unit_cost": Decimal("0.2500"),
+        "notes": "R$ 0,25 cada",
+    },
+    {
+        "name": "Etiqueta Pequena",
+        "category": "Material Auxiliar",
+        "unit": "unid",
+        "base_quantity": Decimal("1.000"),
+        "base_cost": Decimal("0.1300"),
+        "unit_cost": Decimal("0.1300"),
+        "notes": "R$ 0,13 cada",
+    },
+    {
+        "name": "Papel Seda Estampado",
+        "category": "Embalagem",
+        "unit": "unid",
+        "base_quantity": Decimal("1.000"),
+        "base_cost": Decimal("0.2900"),
+        "unit_cost": Decimal("0.2900"),
+        "notes": "R$ 0,29 cada folha",
+    },
+    {
+        "name": "Caixa Papelão P",
+        "category": "Embalagem",
+        "unit": "unid",
+        "base_quantity": Decimal("1.000"),
+        "base_cost": Decimal("2.8000"),
+        "unit_cost": Decimal("2.8000"),
+        "notes": "R$ 2,80 cada",
+    },
+    {
+        "name": "Caixa Papelão M",
+        "category": "Embalagem",
+        "unit": "unid",
+        "base_quantity": Decimal("1.000"),
+        "base_cost": Decimal("2.8000"),
+        "unit_cost": Decimal("2.8000"),
+        "notes": "R$ 2,80 cada",
+    },
+    {
+        "name": "Caixa Papelão G",
+        "category": "Embalagem",
+        "unit": "unid",
+        "base_quantity": Decimal("1.000"),
+        "base_cost": Decimal("2.8000"),
+        "unit_cost": Decimal("2.8000"),
+        "notes": "R$ 2,80 cada",
+    },
+    {
+        "name": "Pavio para Vela 18cm",
+        "category": "Matéria-Prima",
+        "unit": "unid",
+        "base_quantity": Decimal("1.000"),
+        "base_cost": Decimal("0.5000"),
+        "unit_cost": Decimal("0.5000"),
+        "notes": "Pavio com ilhós 18cm",
+    },
+    {
+        "name": "Plástico Bolha",
+        "category": "Embalagem",
+        "unit": "unid",
+        "base_quantity": Decimal("1.000"),
+        "base_cost": Decimal("0.3500"),
+        "unit_cost": Decimal("0.3500"),
+        "notes": "R$ 0,35 por pedaço / metro",
+    },
+    {
+        "name": "Comissão Shopee (20%)",
+        "category": "Taxas e Marketplaces",
+        "unit": "%",
+        "base_quantity": Decimal("20.000"),
+        "base_cost": Decimal("20.0000"),
+        "unit_cost": Decimal("0.2000"),
+        "notes": "20% sobre o preço de venda",
+    },
+    {
+        "name": "Taxa Fixa Shopee",
+        "category": "Taxas e Marketplaces",
+        "unit": "fixo",
+        "base_quantity": Decimal("1.000"),
+        "base_cost": Decimal("4.0000"),
+        "unit_cost": Decimal("4.0000"),
+        "notes": "Taxa fixa de R$ 4,00 por venda/pedido",
+    },
 ]
 
 
@@ -423,6 +538,116 @@ class ProductService:
                 detail=f"Não é possível excluir o material '{mat.name}' pois existem {products_count} produto(s) associado(s).",
             )
         db.delete(mat)
+        db.commit()
+
+    # --- Insumos / Matérias-Primas de Produção ---
+    @staticmethod
+    def seed_initial_supplies(db: Session) -> None:
+        """Garante a existência dos insumos iniciais de produção se a tabela estiver vazia."""
+        count = db.execute(select(func.count(ProductSupply.id))).scalar() or 0
+        if count == 0:
+            for item in DEFAULT_INITIAL_SUPPLIES:
+                existing = ProductService.get_supply_by_name(db, item["name"])
+                if not existing:
+                    new_sup = ProductSupply(
+                        name=item["name"],
+                        category=item["category"],
+                        unit=item["unit"],
+                        base_quantity=item["base_quantity"],
+                        base_cost=item["base_cost"],
+                        unit_cost=item["unit_cost"],
+                        notes=item["notes"],
+                        is_active=True,
+                    )
+                    db.add(new_sup)
+            db.commit()
+
+    @staticmethod
+    def list_supplies(db: Session, active_only: bool = False) -> List[ProductSupply]:
+        ProductService.seed_initial_supplies(db)
+        stmt = select(ProductSupply)
+        if active_only:
+            stmt = stmt.where(ProductSupply.is_active.is_(True))
+        return list(db.execute(stmt.order_by(ProductSupply.category, ProductSupply.name)).scalars().all())
+
+    @staticmethod
+    def get_supply_by_id(db: Session, supply_id: int) -> Optional[ProductSupply]:
+        return db.get(ProductSupply, supply_id)
+
+    @staticmethod
+    def get_supply_by_name(db: Session, name: str) -> Optional[ProductSupply]:
+        stmt = select(ProductSupply).where(func.lower(ProductSupply.name) == name.lower().strip())
+        return db.execute(stmt).scalars().first()
+
+    @staticmethod
+    def create_supply(db: Session, supply_in: SupplyCreate) -> ProductSupply:
+        clean_name = supply_in.name.strip()
+        existing = ProductService.get_supply_by_name(db, clean_name)
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Já existe um insumo cadastrado com o nome '{clean_name}'.",
+            )
+        base_qty = supply_in.base_quantity if supply_in.base_quantity and supply_in.base_quantity > 0 else Decimal("1.000")
+        base_c = supply_in.base_cost if supply_in.base_cost is not None else Decimal("0.00")
+        calc_unit_cost = (base_c / base_qty) if base_qty > 0 else Decimal("0.00")
+
+        sup = ProductSupply(
+            name=clean_name,
+            category=supply_in.category.strip() if supply_in.category else None,
+            unit=supply_in.unit.strip() if supply_in.unit else "unid",
+            base_quantity=base_qty,
+            base_cost=base_c,
+            unit_cost=supply_in.unit_cost if supply_in.unit_cost is not None and supply_in.unit_cost > 0 else calc_unit_cost,
+            notes=supply_in.notes.strip() if supply_in.notes else None,
+            is_active=supply_in.is_active,
+        )
+        db.add(sup)
+        db.commit()
+        db.refresh(sup)
+        return sup
+
+    @staticmethod
+    def update_supply(db: Session, sup: ProductSupply, supply_in: SupplyUpdate) -> ProductSupply:
+        if supply_in.name is not None:
+            clean_name = supply_in.name.strip()
+            existing = ProductService.get_supply_by_name(db, clean_name)
+            if existing and existing.id != sup.id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Já existe outro insumo com o nome '{clean_name}'.",
+                )
+            sup.name = clean_name
+        if supply_in.category is not None:
+            sup.category = supply_in.category.strip() if supply_in.category else None
+        if supply_in.unit is not None:
+            sup.unit = supply_in.unit.strip() if supply_in.unit else "unid"
+        if supply_in.base_quantity is not None:
+            sup.base_quantity = supply_in.base_quantity
+        if supply_in.base_cost is not None:
+            sup.base_cost = supply_in.base_cost
+        if supply_in.unit_cost is not None:
+            sup.unit_cost = supply_in.unit_cost
+        elif supply_in.base_cost is not None or supply_in.base_quantity is not None:
+            base_qty = sup.base_quantity if sup.base_quantity > 0 else Decimal("1.000")
+            sup.unit_cost = sup.base_cost / base_qty
+        if supply_in.notes is not None:
+            sup.notes = supply_in.notes.strip() if supply_in.notes else None
+        if supply_in.is_active is not None:
+            sup.is_active = supply_in.is_active
+        db.commit()
+        db.refresh(sup)
+        return sup
+
+    @staticmethod
+    def delete_supply(db: Session, supply_id: int) -> None:
+        sup = ProductService.get_supply_by_id(db, supply_id)
+        if not sup:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Insumo não encontrado.",
+            )
+        db.delete(sup)
         db.commit()
 
     # --- Produtos ---
