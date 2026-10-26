@@ -1,11 +1,14 @@
+from decimal import Decimal
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Query
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.dependencies import get_db, get_current_user
 from app.models.user import User
 from app.models.product import ItemType, Product
+from app.models.stock import StockMovement
 from app.schemas.product import (
     ProductCreate,
     ProductUpdate,
@@ -14,14 +17,17 @@ from app.schemas.product import (
     ImageReorderRequest,
 )
 from app.services.product_service import product_service
+from app.services.stock_service import stock_service
 from app.services.storage_service import storage_service
 
 router = APIRouter()
 
 
-def _enrich_product_response(product: Product) -> ProductResponse:
-    """Calcula URLs de imagens e enriquece a resposta do schema."""
+def _enrich_product_response(product: Product, current_stock: Optional[Decimal] = None) -> ProductResponse:
+    """Calcula URLs de imagens e enriquece a resposta do schema com saldo de estoque real."""
     resp = ProductResponse.model_validate(product)
+    if current_stock is not None:
+        resp.current_stock = current_stock
     enriched_images = []
     primary_url = None
 
@@ -51,7 +57,7 @@ def list_products(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    """Lista itens cadastrados (produtos acabados, insumos, etc.) com filtros."""
+    """Lista itens cadastrados (produtos acabados, insumos, etc.) com filtros e saldo de estoque real."""
     products = product_service.list_products(
         db,
         item_type=item_type,
@@ -61,7 +67,20 @@ def list_products(
         skip=skip,
         limit=limit,
     )
-    return [_enrich_product_response(p) for p in products]
+    product_ids = [p.id for p in products]
+    stock_map = {}
+    if product_ids:
+        stock_rows = db.execute(
+            select(
+                StockMovement.product_id,
+                func.coalesce(func.sum(StockMovement.quantity), Decimal("0.000")),
+            )
+            .where(StockMovement.product_id.in_(product_ids))
+            .group_by(StockMovement.product_id)
+        ).all()
+        stock_map = {row[0]: Decimal(str(row[1])) for row in stock_rows}
+
+    return [_enrich_product_response(p, current_stock=stock_map.get(p.id, Decimal("0.000"))) for p in products]
 
 
 @router.post("", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
@@ -72,7 +91,7 @@ def create_product(
 ):
     """Cadastra um novo item (produto acabado, matéria-prima, embalagem ou material auxiliar)."""
     product = product_service.create_product(db, product_in)
-    return _enrich_product_response(product)
+    return _enrich_product_response(product, current_stock=Decimal("0.000"))
 
 
 @router.get("/{product_id}", response_model=ProductResponse)
@@ -81,14 +100,15 @@ def get_product(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    """Retorna detalhes de um item por ID."""
+    """Retorna detalhes de um item por ID com saldo atual de estoque."""
     product = product_service.get_product_by_id(db, product_id)
     if not product:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Item não encontrado.",
         )
-    return _enrich_product_response(product)
+    current_stock = stock_service.get_product_balance(db, product.id)
+    return _enrich_product_response(product, current_stock=current_stock)
 
 
 @router.put("/{product_id}", response_model=ProductResponse)
@@ -106,7 +126,8 @@ def update_product(
             detail="Item não encontrado.",
         )
     updated = product_service.update_product(db, product, product_in)
-    return _enrich_product_response(updated)
+    current_stock = stock_service.get_product_balance(db, updated.id)
+    return _enrich_product_response(updated, current_stock=current_stock)
 
 
 @router.put("/{product_id}/status", response_model=ProductResponse)
@@ -126,7 +147,8 @@ def toggle_product_status(
     product.is_active = is_active
     db.commit()
     db.refresh(product)
-    return _enrich_product_response(product)
+    current_stock = stock_service.get_product_balance(db, product.id)
+    return _enrich_product_response(product, current_stock=current_stock)
 
 
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)

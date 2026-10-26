@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Plus,
   Search,
@@ -21,6 +21,7 @@ import {
   Layers,
   Copy,
   Check,
+  Eye,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { Badge } from '../components/Badge';
@@ -63,12 +64,6 @@ const formatCurrencyInputRTL = (rawValue: string, allowEmpty = false): string =>
   });
 };
 
-const formatStockInputRTL = (rawValue: string): string => {
-  const digits = rawValue.replace(/\D/g, '');
-  if (!digits) return '';
-  const num = parseInt(digits, 10);
-  return String(num);
-};
 
 const cleanStockValue = (val: string | number | null | undefined): string => {
   if (val === null || val === undefined || val === '') return '';
@@ -201,6 +196,117 @@ export const ProductsPage: React.FC = () => {
   const [whatsAppSelectedLink, setWhatsAppSelectedLink] = useState<string>('all');
   const [whatsAppMessage, setWhatsAppMessage] = useState('');
   const [copiedMessage, setCopiedMessage] = useState(false);
+
+  // Pop-up ao Passar o Mouse (Hovercard) e Modal de Pré-visualização
+  const [hoveredProduct, setHoveredProduct] = useState<Product | null>(null);
+  const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [previewProductModal, setPreviewProductModal] = useState<Product | null>(null);
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleProductMouseEnter = (prod: Product, e: React.MouseEvent) => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    const rect = e.currentTarget.getBoundingClientRect();
+    const popupWidth = 380;
+    let x = rect.right + 14;
+    if (x + popupWidth > window.innerWidth - 20) {
+      x = Math.max(16, rect.left - popupWidth - 14);
+    }
+    let y = Math.max(20, Math.min(rect.top - 10, window.innerHeight - 560));
+
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredProduct(prod);
+      setHoverPosition({ x, y });
+    }, 160);
+  };
+
+  const handleProductMouseLeave = () => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredProduct(null);
+    }, 240);
+  };
+
+  const renderStockDisplay = (prod: Product, isCompact = false) => {
+    const stockNum = Number(prod.current_stock ?? 0);
+    const unit = prod.unit?.code || 'UN';
+    const formattedStock = Number.isInteger(stockNum) ? stockNum : stockNum.toFixed(2);
+    const isOutOfStock = stockNum <= 0;
+    const isLowStock = stockNum > 0 && stockNum <= 5;
+
+    if (isOutOfStock) {
+      return (
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '5px',
+            padding: isCompact ? '2px 8px' : '4px 10px',
+            borderRadius: '12px',
+            fontSize: isCompact ? '0.74rem' : '0.82rem',
+            fontWeight: 700,
+            backgroundColor: 'var(--status-danger-bg)',
+            color: 'var(--status-danger-text)',
+            border: '1px solid var(--status-danger-border)',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+          }}
+          title="Estoque esgotado (0 peças disponíveis)"
+        >
+          <span>🚨</span>
+          <span>0 {unit} (Esgotado)</span>
+        </span>
+      );
+    }
+
+    if (isLowStock) {
+      return (
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '5px',
+            padding: isCompact ? '2px 8px' : '4px 10px',
+            borderRadius: '12px',
+            fontSize: isCompact ? '0.74rem' : '0.82rem',
+            fontWeight: 700,
+            backgroundColor: '#fffbeb',
+            color: '#b45309',
+            border: '1px solid #fde68a',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+          }}
+          title="⚠️ Alerta: Estoque crítico com 5 peças ou menos!"
+        >
+          <span>⚠️</span>
+          <span>{formattedStock} {unit}</span>
+          {!isCompact && (
+            <span style={{ fontSize: '0.7rem', fontWeight: 600, opacity: 0.9 }}>
+              (Alerta: ≤ 5)
+            </span>
+          )}
+        </span>
+      );
+    }
+
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '5px',
+          padding: isCompact ? '2px 8px' : '4px 10px',
+          borderRadius: '12px',
+          fontSize: isCompact ? '0.74rem' : '0.82rem',
+          fontWeight: 600,
+          backgroundColor: 'var(--bg-sand-light)',
+          color: 'var(--text-primary)',
+          border: '1px solid var(--border-subtle)',
+        }}
+        title={`Estoque disponível: ${formattedStock} ${unit}`}
+      >
+        <span>📦</span>
+        <span>{formattedStock} {unit}</span>
+      </span>
+    );
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -1269,6 +1375,8 @@ export const ProductsPage: React.FC = () => {
                   transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                   border: '1px solid var(--border-subtle)',
                 }}
+                onMouseEnter={(e) => handleProductMouseEnter(prod, e)}
+                onMouseLeave={handleProductMouseLeave}
               >
                 {/* Imagem de Capa do Produto */}
                 <div
@@ -1650,10 +1758,11 @@ export const ProductsPage: React.FC = () => {
                       borderTop: '1px solid var(--border-subtle)',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                        Estoque: <strong>{Number(prod.min_stock)} {prod.unit?.code}</strong>
+                        Estoque:
                       </span>
+                      {renderStockDisplay(prod, true)}
                       <button
                         type="button"
                         onClick={() => handleToggleStatus(prod)}
@@ -1665,6 +1774,14 @@ export const ProductsPage: React.FC = () => {
                     </div>
 
                     <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewProductModal(prod)}
+                        className="btn-icon"
+                        title="Visualizar Informações Rápidas"
+                      >
+                        <Eye size={15} />
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleOpenWhatsAppModal(prod)}
@@ -1745,7 +1862,7 @@ export const ProductsPage: React.FC = () => {
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>CATEGORIA</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>CUSTO ESTIMADO</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>PREÇO VENDA</th>
-                  <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>ESTOQUE MÍN.</th>
+                  <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>ESTOQUE TOTAL</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>STATUS</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', textAlign: 'right' }}>AÇÕES</th>
                 </tr>
@@ -1766,8 +1883,14 @@ export const ProductsPage: React.FC = () => {
                         borderBottom: '1px solid var(--border-subtle)',
                         transition: 'background var(--transition-fast)',
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-surface-hover)')}
-                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'var(--bg-surface-hover)';
+                        handleProductMouseEnter(prod, e);
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        handleProductMouseLeave();
+                      }}
                     >
                       {/* Miniatura e Grupo de Fotos */}
                       <td style={{ padding: '12px 20px' }}>
@@ -1983,9 +2106,9 @@ export const ProductsPage: React.FC = () => {
                         {prod.sale_price ? `R$ ${Number(prod.sale_price).toFixed(2)}` : '—'}
                       </td>
 
-                      {/* Estoque Mínimo */}
-                      <td style={{ padding: '12px 20px', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-                        {Number(prod.min_stock)} {prod.unit?.code}
+                      {/* Estoque Total */}
+                      <td style={{ padding: '12px 20px' }}>
+                        {renderStockDisplay(prod)}
                       </td>
 
                       {/* Status */}
@@ -2002,6 +2125,14 @@ export const ProductsPage: React.FC = () => {
                       {/* Ações */}
                       <td style={{ padding: '12px 20px', textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', gap: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewProductModal(prod)}
+                            className="btn-icon"
+                            title="Visualizar Informações Rápidas"
+                          >
+                            <Eye size={16} />
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleOpenWhatsAppModal(prod)}
@@ -2358,7 +2489,7 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                 <label htmlFor="prod-cost" style={{ margin: 0 }}>Custo Estimado (R$)</label>
@@ -2417,7 +2548,7 @@ export const ProductsPage: React.FC = () => {
               )}
             </div>
             <div>
-              <label htmlFor="prod-price">Preço Venda (R$)</label>
+              <label htmlFor="prod-price" style={{ marginBottom: '6px', display: 'block' }}>Preço Venda (R$)</label>
               <input
                 id="prod-price"
                 type="text"
@@ -2429,22 +2560,6 @@ export const ProductsPage: React.FC = () => {
                 }}
                 onFocus={(e) => e.target.select()}
                 placeholder="0,00"
-                style={{ textAlign: 'right' }}
-              />
-            </div>
-            <div>
-              <label htmlFor="prod-min">Estoque Mínimo</label>
-              <input
-                id="prod-min"
-                type="text"
-                inputMode="numeric"
-                value={formData.min_stock}
-                onChange={(e) => {
-                  const formatted = formatStockInputRTL(e.target.value);
-                  setFormData({ ...formData, min_stock: formatted });
-                }}
-                onFocus={(e) => e.target.select()}
-                placeholder="0"
                 style={{ textAlign: 'right' }}
               />
             </div>
@@ -4376,6 +4491,523 @@ export const ProductsPage: React.FC = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Pop-up Flutuante ao Passar o Mouse (Hovercard) */}
+      {hoveredProduct && (
+        <div
+          style={{
+            position: 'fixed',
+            left: `${hoverPosition.x}px`,
+            top: `${hoverPosition.y}px`,
+            width: '380px',
+            maxHeight: '88vh',
+            overflowY: 'auto',
+            backgroundColor: '#ffffff',
+            borderRadius: 'var(--radius-md)',
+            boxShadow: '0 24px 60px rgba(44, 40, 36, 0.28), 0 8px 24px rgba(44, 40, 36, 0.12)',
+            border: '1px solid var(--border-medium)',
+            zIndex: 9999,
+            pointerEvents: 'auto',
+            animation: 'fadeInScale 0.15s ease-out',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+          onMouseEnter={() => {
+            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+          }}
+          onMouseLeave={handleProductMouseLeave}
+        >
+          {(() => {
+            const rawPrimary =
+              hoveredProduct.primary_image_url ||
+              (hoveredProduct.images && hoveredProduct.images.length > 0
+                ? hoveredProduct.images.find((i) => i.is_primary)?.url ||
+                  hoveredProduct.images[0].url ||
+                  hoveredProduct.images[0].file_path
+                : null);
+            const hasImage = !!rawPrimary;
+            const imgUrl = getProductImageUrl(rawPrimary);
+            const unitCode = hoveredProduct.unit?.code || 'UN';
+            const currentStockNum = Number(hoveredProduct.current_stock ?? 0);
+            const isLowStock = currentStockNum <= 5;
+            const costVal = Number(hoveredProduct.unit_cost) || 0;
+            const saleVal = Number(hoveredProduct.sale_price) || 0;
+            const profitVal = saleVal > 0 ? saleVal - costVal : 0;
+            const marginPct = saleVal > 0 ? ((profitVal / saleVal) * 100).toFixed(1) : '0.0';
+            const links = parseSalesLinks(hoveredProduct.sales_links);
+            let costItemsParsed: CostComponentItem[] = [];
+            if (hoveredProduct.cost_breakdown) {
+              try {
+                costItemsParsed = JSON.parse(hoveredProduct.cost_breakdown);
+              } catch {}
+            }
+
+            return (
+              <>
+                <div style={{ position: 'relative', height: '170px', backgroundColor: 'var(--bg-sand-light)', overflow: 'hidden', borderTopLeftRadius: 'var(--radius-md)', borderTopRightRadius: 'var(--radius-md)' }}>
+                  {hasImage ? (
+                    <img
+                      src={imgUrl}
+                      alt={hoveredProduct.name}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={handleImageError}
+                    />
+                  ) : (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', flexDirection: 'column', gap: '6px' }}>
+                      <ImageIcon size={36} opacity={0.4} />
+                      <span style={{ fontSize: '0.78rem' }}>Sem foto cadastrada</span>
+                    </div>
+                  )}
+
+                  {/* Badges Flutuantes */}
+                  <div style={{ position: 'absolute', top: '10px', left: '10px', display: 'flex', gap: '6px', flexWrap: 'wrap', zIndex: 2 }}>
+                    <Badge type={hoveredProduct.item_type} />
+                    {hoveredProduct.category && (
+                      <span style={{ backgroundColor: 'rgba(255,255,255,0.92)', color: 'var(--brand-primary)', fontSize: '0.72rem', fontWeight: 600, padding: '2px 7px', borderRadius: 'var(--radius-xs)', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                        {hoveredProduct.category.name}
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 2 }}>
+                    <span style={{ fontFamily: 'monospace', fontSize: '0.72rem', fontWeight: 700, backgroundColor: 'rgba(0,0,0,0.7)', color: '#fff', padding: '2px 7px', borderRadius: 'var(--radius-xs)' }}>
+                      {hoveredProduct.sku}
+                    </span>
+                  </div>
+
+                  {hoveredProduct.images.length > 1 && (
+                    <span style={{ position: 'absolute', bottom: '8px', right: '8px', backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '0.7rem', fontWeight: 600, padding: '2px 6px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <ImageIcon size={11} /> {hoveredProduct.images.length} fotos
+                    </span>
+                  )}
+                </div>
+
+                {/* Corpo das Informações */}
+                <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {/* Nome e Tags */}
+                  <div>
+                    <h3 style={{ margin: '0 0 6px', fontSize: '1.15rem', color: 'var(--brand-primary)', fontFamily: 'var(--font-heading)', fontWeight: 700, lineHeight: 1.3 }}>
+                      {hoveredProduct.name}
+                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      {hoveredProduct.material && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 600, backgroundColor: 'var(--bg-sand-light)', color: 'var(--text-primary)', padding: '2px 7px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                          🧱 {hoveredProduct.material}
+                        </span>
+                      )}
+                      {hoveredProduct.color && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 600, backgroundColor: '#fff', color: 'var(--brand-primary)', padding: '2px 7px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: getColorHex(hoveredProduct.color), border: '1px solid rgba(0,0,0,0.2)' }} />
+                          {hoveredProduct.color}
+                        </span>
+                      )}
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                        Unidade: <strong>{unitCode}</strong>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Card de Estoque com Alerta */}
+                  <div style={{ padding: '10px 12px', borderRadius: 'var(--radius-sm)', backgroundColor: isLowStock ? '#fffbeb' : 'var(--bg-sand-light)', border: isLowStock ? '1px solid #fde68a' : '1px solid var(--border-subtle)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '0.74rem', textTransform: 'uppercase', fontWeight: 700, color: isLowStock ? '#92400e' : 'var(--text-secondary)' }}>
+                        Estoque Total Disponível
+                      </span>
+                      {renderStockDisplay(hoveredProduct, true)}
+                    </div>
+                    {isLowStock && (
+                      <p style={{ margin: '4px 0 0', fontSize: '0.76rem', color: '#b45309', fontWeight: 600 }}>
+                        ⚠️ {currentStockNum <= 0 ? 'Item esgotado no depósito!' : `Atenção: Apenas ${currentStockNum} ${unitCode} restantes no estoque.`}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Card de Preços e Margens */}
+                  <div style={{ padding: '10px 12px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-surface-hover)', border: '1px solid var(--border-subtle)' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: saleVal > 0 ? '8px' : 0 }}>
+                      <div>
+                        <span style={{ fontSize: '0.68rem', textTransform: 'uppercase', color: 'var(--text-tertiary)', fontWeight: 700, display: 'block' }}>
+                          Custo Estimado
+                        </span>
+                        <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--brand-primary)' }}>
+                          R$ {costVal.toFixed(2)}
+                        </span>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.68rem', textTransform: 'uppercase', color: 'var(--text-tertiary)', fontWeight: 700, display: 'block' }}>
+                          Preço de Venda
+                        </span>
+                        <span style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--brand-accent)' }}>
+                          {saleVal > 0 ? `R$ ${saleVal.toFixed(2)}` : 'Não definido'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {saleVal > 0 && (
+                      <div style={{ paddingTop: '6px', borderTop: '1px dashed var(--border-medium)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Lucro Bruto Est.:</span>
+                        <span style={{ fontWeight: 700, color: profitVal >= 0 ? '#15803d' : 'var(--status-danger-text)' }}>
+                          R$ {profitVal.toFixed(2)} ({marginPct}%)
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Resumo de Composição de Insumos se houver */}
+                    {costItemsParsed.length > 0 && (
+                      <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px solid var(--border-subtle)' }}>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--brand-primary)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                          Composição de Insumos ({costItemsParsed.length}):
+                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          {costItemsParsed.slice(0, 4).map((it, idx) => (
+                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                              <span>• {it.name} ({it.quantity}{it.unit ? ` ${it.unit}` : ''})</span>
+                              <span style={{ fontWeight: 600 }}>R$ {Number(it.total).toFixed(2)}</span>
+                            </div>
+                          ))}
+                          {costItemsParsed.length > 4 && (
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
+                              + {costItemsParsed.length - 4} outros insumos...
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Links de Vendas em Marketplaces */}
+                  {links.length > 0 && (
+                    <div>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                        Links de Venda
+                      </span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {links.map((link) => {
+                          const style = getMarketplaceStyle(link.platform);
+                          return (
+                            <a
+                              key={link.id}
+                              href={link.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '4px 9px',
+                                borderRadius: '4px',
+                                backgroundColor: style.bg,
+                                color: style.color,
+                                border: `1px solid ${style.border}`,
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                textDecoration: 'none',
+                              }}
+                            >
+                              <span>{link.platform}</span>
+                              <ExternalLink size={10} />
+                            </a>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Descrição / Notas */}
+                  {hoveredProduct.description && (
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-sand-light)', padding: '8px 10px', borderRadius: 'var(--radius-xs)', fontStyle: 'italic' }}>
+                      "{hoveredProduct.description}"
+                    </div>
+                  )}
+
+                  {/* Ações Rápidas no Rodapé do Pop-up */}
+                  <div style={{ display: 'flex', gap: '8px', paddingTop: '8px', borderTop: '1px solid var(--border-subtle)' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const p = hoveredProduct;
+                        setHoveredProduct(null);
+                        handleOpenEditModal(p);
+                      }}
+                      className="btn-primary"
+                      style={{ flex: 1, padding: '7px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                    >
+                      <Edit2 size={13} /> Editar Produto
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const p = hoveredProduct;
+                        setHoveredProduct(null);
+                        handleOpenImageModal(p);
+                      }}
+                      className="btn-secondary"
+                      style={{ padding: '7px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                      title="Gerenciar fotos"
+                    >
+                      <ImageIcon size={13} /> Fotos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const p = hoveredProduct;
+                        setHoveredProduct(null);
+                        handleOpenWhatsAppModal(p);
+                      }}
+                      className="btn-secondary"
+                      style={{ padding: '7px 10px', color: '#15803d', backgroundColor: '#e8f9ee', borderColor: '#a3e9b9' }}
+                      title="Compartilhar via WhatsApp"
+                    >
+                      <WhatsAppIcon size={14} color="#25D366" />
+                    </button>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Modal de Detalhes Completos do Produto (Visualização Pura / Sem Editar) */}
+      <Modal
+        isOpen={!!previewProductModal}
+        onClose={() => setPreviewProductModal(null)}
+        title={previewProductModal ? previewProductModal.name : 'Detalhes do Produto'}
+        subtitle={previewProductModal ? `SKU: ${previewProductModal.sku}` : ''}
+        maxWidth="620px"
+      >
+        {previewProductModal && (() => {
+          const rawPrimary =
+            previewProductModal.primary_image_url ||
+            (previewProductModal.images && previewProductModal.images.length > 0
+              ? previewProductModal.images.find((i) => i.is_primary)?.url ||
+                previewProductModal.images[0].url ||
+                previewProductModal.images[0].file_path
+              : null);
+          const hasImage = !!rawPrimary;
+          const imgUrl = getProductImageUrl(rawPrimary);
+          const unitCode = previewProductModal.unit?.code || 'UN';
+          const currentStockNum = Number(previewProductModal.current_stock ?? 0);
+          const isLowStock = currentStockNum <= 5;
+          const costVal = Number(previewProductModal.unit_cost) || 0;
+          const saleVal = Number(previewProductModal.sale_price) || 0;
+          const profitVal = saleVal > 0 ? saleVal - costVal : 0;
+          const marginPct = saleVal > 0 ? ((profitVal / saleVal) * 100).toFixed(1) : '0.0';
+          const links = parseSalesLinks(previewProductModal.sales_links);
+          let costItemsParsed: CostComponentItem[] = [];
+          if (previewProductModal.cost_breakdown) {
+            try {
+              costItemsParsed = JSON.parse(previewProductModal.cost_breakdown);
+            } catch {}
+          }
+
+          return (
+            <div>
+              {/* Galeria de Fotos */}
+              {hasImage ? (
+                <div style={{ marginBottom: '18px' }}>
+                  <div style={{ height: '220px', borderRadius: 'var(--radius-sm)', overflow: 'hidden', backgroundColor: 'var(--bg-sand-light)', border: '1px solid var(--border-subtle)' }}>
+                    <img src={imgUrl} alt={previewProductModal.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={handleImageError} />
+                  </div>
+                  {previewProductModal.images.length > 1 && (
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+                      {previewProductModal.images.map((im, idx) => (
+                        <div
+                          key={im.id}
+                          onClick={() => {
+                            setLightboxProduct(previewProductModal);
+                            setLightboxIndex(idx);
+                          }}
+                          style={{ width: '48px', height: '48px', borderRadius: 'var(--radius-xs)', overflow: 'hidden', cursor: 'pointer', border: '1px solid var(--border-medium)', flexShrink: 0 }}
+                          title="Ver foto em tela cheia"
+                        >
+                          <img src={getProductImageUrl(im.url || im.file_path)} alt={im.original_filename} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={handleImageError} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              {/* Informações Principais */}
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px', alignItems: 'center' }}>
+                <Badge type={previewProductModal.item_type} />
+                <Badge status={previewProductModal.is_active ? 'active' : 'inactive'} />
+                {previewProductModal.category && (
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--brand-primary)', backgroundColor: 'var(--bg-sand-light)', padding: '2px 8px', borderRadius: '10px' }}>
+                    📁 {previewProductModal.category.name}
+                  </span>
+                )}
+                {previewProductModal.material && (
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', backgroundColor: 'var(--bg-sand-light)', padding: '2px 8px', borderRadius: '10px' }}>
+                    🧱 {previewProductModal.material}
+                  </span>
+                )}
+                {previewProductModal.color && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--brand-primary)', backgroundColor: '#fff', border: '1px solid var(--border-subtle)', padding: '2px 8px', borderRadius: '10px' }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: getColorHex(previewProductModal.color), border: '1px solid rgba(0,0,0,0.2)' }} />
+                    {previewProductModal.color}
+                  </span>
+                )}
+              </div>
+
+              {/* Bloco de Estoque Total com Alerta */}
+              <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-sm)', backgroundColor: isLowStock ? '#fffbeb' : 'var(--bg-sand-light)', border: isLowStock ? '1px solid #fde68a' : '1px solid var(--border-subtle)', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', fontWeight: 700, color: isLowStock ? '#92400e' : 'var(--text-secondary)', display: 'block' }}>
+                      Estoque Total Disponível
+                    </span>
+                    <span style={{ fontSize: '1.15rem', fontWeight: 800, color: isLowStock ? '#b45309' : 'var(--brand-primary)' }}>
+                      {currentStockNum} {unitCode}
+                    </span>
+                  </div>
+                  {renderStockDisplay(previewProductModal)}
+                </div>
+                {isLowStock && (
+                  <p style={{ margin: '6px 0 0', fontSize: '0.82rem', color: '#b45309', fontWeight: 600 }}>
+                    ⚠️ {currentStockNum <= 0 ? 'Item esgotado no depósito!' : `Atenção: Apenas ${currentStockNum} ${unitCode} no estoque (alerta configurado para ≤ 5 peças).`}
+                  </p>
+                )}
+              </div>
+
+              {/* Bloco Financeiro */}
+              <div style={{ padding: '14px 16px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-surface-hover)', border: '1px solid var(--border-subtle)', marginBottom: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: saleVal > 0 ? '12px' : 0 }}>
+                  <div>
+                    <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-tertiary)', fontWeight: 700, display: 'block' }}>
+                      Custo Estimado
+                    </span>
+                    <span style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--brand-primary)' }}>
+                      R$ {costVal.toFixed(2)}
+                    </span>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-tertiary)', fontWeight: 700, display: 'block' }}>
+                      Preço de Venda
+                    </span>
+                    <span style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--brand-accent)' }}>
+                      {saleVal > 0 ? `R$ ${saleVal.toFixed(2)}` : 'Não definido'}
+                    </span>
+                  </div>
+                </div>
+
+                {saleVal > 0 && (
+                  <div style={{ paddingTop: '8px', borderTop: '1px dashed var(--border-medium)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.84rem' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Lucro Bruto Estimado:</span>
+                    <span style={{ fontWeight: 700, color: profitVal >= 0 ? '#15803d' : 'var(--status-danger-text)' }}>
+                      R$ {profitVal.toFixed(2)} ({marginPct}%)
+                    </span>
+                  </div>
+                )}
+
+                {/* Lista de Insumos da Composição */}
+                {costItemsParsed.length > 0 && (
+                  <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)' }}>
+                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--brand-primary)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                      Composição de Custo Estimado ({costItemsParsed.length} insumos):
+                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {costItemsParsed.map((it, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          <span>• {it.name} ({it.quantity}{it.unit ? ` ${it.unit}` : ''})</span>
+                          <span style={{ fontWeight: 600 }}>R$ {Number(it.total).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Links de Venda em Marketplaces */}
+              {links.length > 0 && (
+                <div style={{ marginBottom: '16px' }}>
+                  <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                    Anúncios nos Marketplaces
+                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {links.map((link) => {
+                      const style = getMarketplaceStyle(link.platform);
+                      return (
+                        <a
+                          key={link.id}
+                          href={link.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '6px 12px',
+                            borderRadius: '4px',
+                            backgroundColor: style.bg,
+                            color: style.color,
+                            border: `1px solid ${style.border}`,
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            textDecoration: 'none',
+                          }}
+                        >
+                          <span>{link.platform}</span>
+                          <ExternalLink size={12} />
+                        </a>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Descrição / Observações */}
+              {previewProductModal.description && (
+                <div style={{ marginBottom: '20px', padding: '10px 14px', backgroundColor: 'var(--bg-sand-light)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '2px' }}>Descrição / Observações:</strong>
+                  {previewProductModal.description}
+                </div>
+              )}
+
+              {/* Ações */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const p = previewProductModal;
+                    setPreviewProductModal(null);
+                    handleOpenWhatsAppModal(p);
+                  }}
+                  className="btn-secondary"
+                  style={{ color: '#15803d', backgroundColor: '#e8f9ee', borderColor: '#a3e9b9', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <WhatsAppIcon size={16} color="#25D366" /> WhatsApp
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const p = previewProductModal;
+                    setPreviewProductModal(null);
+                    handleOpenImageModal(p);
+                  }}
+                  className="btn-secondary"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <ImageIcon size={16} /> Fotos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const p = previewProductModal;
+                    setPreviewProductModal(null);
+                    handleOpenEditModal(p);
+                  }}
+                  className="btn-primary"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Edit2 size={16} /> Editar Produto
+                </button>
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
     </div>
   );
