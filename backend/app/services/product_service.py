@@ -7,10 +7,12 @@ from app.core.config import settings
 from app.models.category import Category
 from app.models.unit import UnitOfMeasure
 from app.models.color import ProductColor
+from app.models.material import ProductMaterial
 from app.models.product import Product, ProductImage, ItemType
 from app.schemas.category import CategoryCreate, CategoryUpdate
 from app.schemas.unit import UnitCreate, UnitUpdate
 from app.schemas.color import ColorCreate, ColorUpdate
+from app.schemas.material import MaterialCreate, MaterialUpdate
 from app.schemas.product import ProductCreate, ProductUpdate, ImageReorderItem
 from app.services.storage_service import storage_service
 
@@ -59,6 +61,22 @@ DEFAULT_INITIAL_COLORS = [
     {"name": "Âmbar", "hex_code": "#fb923c"},
     {"name": "Cinza", "hex_code": "#d1d5db"},
     {"name": "Vinho", "hex_code": "#991b1b"},
+]
+
+
+DEFAULT_INITIAL_MATERIALS = [
+    {"name": "Cimento Estrutural", "description": "Concreto / Cimento de alta resistência estrutural"},
+    {"name": "Granilite", "description": "Composto de cimento com agregados minerais ou mármore"},
+    {"name": "Cimento + Argamassa ACIII", "description": "Mistura especial com polímeros para peças artesanais"},
+    {"name": "Cera Vegetal de Coco", "description": "Cera 100% vegetal para velas aromáticas de alta qualidade"},
+    {"name": "Cera de Palma", "description": "Cera natural vegetal com textura aveludada"},
+    {"name": "Parafina Gel", "description": "Base translúcida para velas decorativas"},
+    {"name": "Gesso Cerâmico", "description": "Gesso de alta dureza para peças decorativas"},
+    {"name": "Resina Ecológica / Jesmonite", "description": "Composto mineral ecológico à base de água"},
+    {"name": "Vidro", "description": "Frascos, potes e recipientes em vidro"},
+    {"name": "Cerâmica", "description": "Peças cerâmicas esmaltadas ou queimadas"},
+    {"name": "Madeira / Bambu", "description": "Tampas e bases torneadas em madeira ou bambu natural"},
+    {"name": "Alumínio / Metal", "description": "Latas, tampas e recipientes metálicos"},
 ]
 
 
@@ -316,6 +334,97 @@ class ProductService:
         db.delete(color)
         db.commit()
 
+    # --- Materiais dos Produtos ---
+    @staticmethod
+    def seed_initial_materials(db: Session) -> None:
+        """Garante a existência dos materiais padrão se não existirem."""
+        count = db.execute(select(func.count(ProductMaterial.id))).scalar() or 0
+        if count == 0:
+            for item in DEFAULT_INITIAL_MATERIALS:
+                existing = ProductService.get_material_by_name(db, item["name"])
+                if not existing:
+                    new_mat = ProductMaterial(
+                        name=item["name"],
+                        description=item["description"],
+                        is_active=True,
+                    )
+                    db.add(new_mat)
+            db.commit()
+
+    @staticmethod
+    def list_materials(db: Session, active_only: bool = False) -> List[ProductMaterial]:
+        ProductService.seed_initial_materials(db)
+        stmt = select(ProductMaterial)
+        if active_only:
+            stmt = stmt.where(ProductMaterial.is_active.is_(True))
+        return list(db.execute(stmt.order_by(ProductMaterial.name)).scalars().all())
+
+    @staticmethod
+    def get_material_by_id(db: Session, material_id: int) -> Optional[ProductMaterial]:
+        return db.get(ProductMaterial, material_id)
+
+    @staticmethod
+    def get_material_by_name(db: Session, name: str) -> Optional[ProductMaterial]:
+        stmt = select(ProductMaterial).where(func.lower(ProductMaterial.name) == name.lower().strip())
+        return db.execute(stmt).scalars().first()
+
+    @staticmethod
+    def create_material(db: Session, material_in: MaterialCreate) -> ProductMaterial:
+        clean_name = material_in.name.strip()
+        existing = ProductService.get_material_by_name(db, clean_name)
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Já existe um material cadastrado com o nome '{clean_name}'.",
+            )
+        mat = ProductMaterial(
+            name=clean_name,
+            description=material_in.description.strip() if material_in.description else None,
+            is_active=material_in.is_active,
+        )
+        db.add(mat)
+        db.commit()
+        db.refresh(mat)
+        return mat
+
+    @staticmethod
+    def update_material(db: Session, mat: ProductMaterial, material_in: MaterialUpdate) -> ProductMaterial:
+        if material_in.name is not None:
+            clean_name = material_in.name.strip()
+            existing = ProductService.get_material_by_name(db, clean_name)
+            if existing and existing.id != mat.id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Já existe outro material com o nome '{clean_name}'.",
+                )
+            mat.name = clean_name
+        if material_in.description is not None:
+            mat.description = material_in.description.strip() if material_in.description else None
+        if material_in.is_active is not None:
+            mat.is_active = material_in.is_active
+        db.commit()
+        db.refresh(mat)
+        return mat
+
+    @staticmethod
+    def delete_material(db: Session, material_id: int) -> None:
+        mat = ProductService.get_material_by_id(db, material_id)
+        if not mat:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Material não encontrado.",
+            )
+        products_count = db.execute(
+            select(func.count(Product.id)).where(func.lower(Product.material) == mat.name.lower())
+        ).scalar() or 0
+        if products_count > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Não é possível excluir o material '{mat.name}' pois existem {products_count} produto(s) associado(s).",
+            )
+        db.delete(mat)
+        db.commit()
+
     # --- Produtos ---
     @staticmethod
     def get_product_by_id(db: Session, product_id: int) -> Optional[Product]:
@@ -390,6 +499,7 @@ class ProductService:
             cost_breakdown=product_in.cost_breakdown,
             sales_links=product_in.sales_links,
             color=product_in.color.strip() if product_in.color else None,
+            material=product_in.material.strip() if product_in.material else None,
             sale_price=product_in.sale_price,
             min_stock=product_in.min_stock,
             is_active=product_in.is_active,
@@ -444,6 +554,8 @@ class ProductService:
             product.sales_links = product_in.sales_links
         if product_in.color is not None:
             product.color = product_in.color.strip() if product_in.color else None
+        if product_in.material is not None:
+            product.material = product_in.material.strip() if product_in.material else None
         if product_in.sale_price is not None:
             product.sale_price = product_in.sale_price
         if product_in.min_stock is not None:

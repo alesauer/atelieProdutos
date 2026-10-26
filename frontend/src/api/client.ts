@@ -8,6 +8,7 @@ import type {
   NotificationLogItem,
   Product,
   ProductColor,
+  ProductMaterial,
   ProductFormData,
   ProductImage,
   ProductionOrder,
@@ -186,6 +187,31 @@ class ApiClient {
 
   async deleteColor(colorId: number): Promise<void> {
     return this.request<void>(`/colors/${colorId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // --- Materiais dos Produtos ---
+  async listMaterials(): Promise<ProductMaterial[]> {
+    return this.request<ProductMaterial[]>('/materials');
+  }
+
+  async createMaterial(name: string, description?: string): Promise<ProductMaterial> {
+    return this.request<ProductMaterial>('/materials', {
+      method: 'POST',
+      body: JSON.stringify({ name, description }),
+    });
+  }
+
+  async updateMaterial(materialId: number, data: { name?: string; description?: string; is_active?: boolean }): Promise<ProductMaterial> {
+    return this.request<ProductMaterial>(`/materials/${materialId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteMaterial(materialId: number): Promise<void> {
+    return this.request<void>(`/materials/${materialId}`, {
       method: 'DELETE',
     });
   }

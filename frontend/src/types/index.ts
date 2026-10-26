@@ -69,6 +69,14 @@ export interface ProductColor {
   created_at: string;
 }
 
+export interface ProductMaterial {
+  id: number;
+  name: string;
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface ProductImage {
   id: number;
   product_id: number;
@@ -102,6 +110,7 @@ export interface Product {
   name: string;
   description?: string;
   color?: string | null;
+  material?: string | null;
   item_type: ItemType;
   category_id?: number | null;
   unit_id: number;
@@ -125,6 +134,7 @@ export interface ProductFormData {
   name: string;
   description?: string;
   color?: string;
+  material?: string;
   item_type: ItemType;
   category_id?: number | null;
   unit_id: number;

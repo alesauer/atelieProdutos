@@ -14,10 +14,10 @@ import {
 } from 'lucide-react';
 import { api } from '../api/client';
 import { Modal } from '../components/Modal';
-import type { Category, UnitOfMeasure, ItemTypeDefinition, ProductColor } from '../types';
+import type { Category, UnitOfMeasure, ItemTypeDefinition, ProductColor, ProductMaterial } from '../types';
 
 export const SettingsPage: React.FC = () => {
-  const [activeSubTab, setActiveSubTab] = useState<'categorias' | 'unidades' | 'tipos' | 'cores'>('categorias');
+  const [activeSubTab, setActiveSubTab] = useState<'categorias' | 'unidades' | 'tipos' | 'cores' | 'materiais'>('categorias');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,6 +26,7 @@ export const SettingsPage: React.FC = () => {
   const [units, setUnits] = useState<UnitOfMeasure[]>([]);
   const [itemTypes, setItemTypes] = useState<ItemTypeDefinition[]>([]);
   const [colors, setColors] = useState<ProductColor[]>([]);
+  const [materials, setMaterials] = useState<ProductMaterial[]>([]);
   const [search, setSearch] = useState('');
 
   // Modais de Categoria
@@ -61,20 +62,30 @@ export const SettingsPage: React.FC = () => {
   const [savingColor, setSavingColor] = useState(false);
   const [colorFormError, setColorFormError] = useState<string | null>(null);
 
+  // Modais de Material
+  const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
+  const [editingMaterial, setEditingMaterial] = useState<ProductMaterial | null>(null);
+  const [materialName, setMaterialName] = useState('');
+  const [materialDesc, setMaterialDesc] = useState('');
+  const [savingMaterial, setSavingMaterial] = useState(false);
+  const [materialFormError, setMaterialFormError] = useState<string | null>(null);
+
   const loadData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [cats, unities, types, productColors] = await Promise.all([
+      const [cats, unities, types, productColors, productMaterials] = await Promise.all([
         api.listCategories(),
         api.listUnits(),
         api.listItemTypes(),
         api.listColors(),
+        api.listMaterials(),
       ]);
       setCategories(cats);
       setUnits(unities);
       setItemTypes(types);
       setColors(productColors);
+      setMaterials(productMaterials);
     } catch (err: any) {
       setError(err.message || 'Erro ao carregar configurações do ateliê.');
     } finally {
@@ -296,6 +307,57 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
+  // --- Handlers de Material ---
+  const handleOpenNewMaterial = () => {
+    setEditingMaterial(null);
+    setMaterialName('');
+    setMaterialDesc('');
+    setMaterialFormError(null);
+    setIsMaterialModalOpen(true);
+  };
+
+  const handleOpenEditMaterial = (m: ProductMaterial) => {
+    setEditingMaterial(m);
+    setMaterialName(m.name);
+    setMaterialDesc(m.description || '');
+    setMaterialFormError(null);
+    setIsMaterialModalOpen(true);
+  };
+
+  const handleSaveMaterial = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!materialName.trim()) return;
+    setSavingMaterial(true);
+    setMaterialFormError(null);
+    try {
+      if (editingMaterial) {
+        const updated = await api.updateMaterial(editingMaterial.id, {
+          name: materialName.trim(),
+          description: materialDesc.trim() || undefined,
+        });
+        setMaterials((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      } else {
+        const created = await api.createMaterial(materialName.trim(), materialDesc.trim() || undefined);
+        setMaterials((prev) => [...prev, created]);
+      }
+      setIsMaterialModalOpen(false);
+    } catch (err: any) {
+      setMaterialFormError(err.message || 'Erro ao salvar material.');
+    } finally {
+      setSavingMaterial(false);
+    }
+  };
+
+  const handleDeleteMaterial = async (m: ProductMaterial) => {
+    if (!confirm(`Deseja realmente excluir o material "${m.name}"?`)) return;
+    try {
+      await api.deleteMaterial(m.id);
+      setMaterials((prev) => prev.filter((item) => item.id !== m.id));
+    } catch (err: any) {
+      alert(err.message || 'Erro ao excluir material.');
+    }
+  };
+
   // Filtros de busca locais
   const filteredCategories = categories.filter(
     (c) =>
@@ -319,6 +381,12 @@ export const SettingsPage: React.FC = () => {
     (c) =>
       c.name.toLowerCase().includes(search.toLowerCase()) ||
       (c.hex_code && c.hex_code.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const filteredMaterials = materials.filter(
+    (m) =>
+      m.name.toLowerCase().includes(search.toLowerCase()) ||
+      (m.description && m.description.toLowerCase().includes(search.toLowerCase()))
   );
 
   return (
@@ -481,6 +549,43 @@ export const SettingsPage: React.FC = () => {
             {colors.length}
           </span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveSubTab('materiais');
+            setSearch('');
+          }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '9px 18px',
+            borderRadius: 'var(--radius-sm)',
+            border: activeSubTab === 'materiais' ? '1px solid var(--border-medium)' : '1px solid transparent',
+            backgroundColor: activeSubTab === 'materiais' ? 'var(--bg-sand)' : 'transparent',
+            color: activeSubTab === 'materiais' ? 'var(--brand-primary)' : 'var(--text-secondary)',
+            fontWeight: activeSubTab === 'materiais' ? 700 : 500,
+            fontSize: '0.92rem',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <Layers size={18} color={activeSubTab === 'materiais' ? 'var(--brand-accent)' : 'currentColor'} />
+          <span>Materiais</span>
+          <span
+            style={{
+              padding: '2px 7px',
+              borderRadius: '10px',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              backgroundColor: activeSubTab === 'materiais' ? 'var(--brand-accent)' : 'var(--border-subtle)',
+              color: activeSubTab === 'materiais' ? '#fff' : 'var(--text-tertiary)',
+            }}
+          >
+            {materials.length}
+          </span>
+        </button>
       </div>
 
       {/* Barra de Ações: Busca e Botão de Adição */}
@@ -516,6 +621,8 @@ export const SettingsPage: React.FC = () => {
                 ? 'Buscar por código ou nome da unidade...'
                 : activeSubTab === 'cores'
                 ? 'Buscar por nome ou código hexadecimal da cor...'
+                : activeSubTab === 'materiais'
+                ? 'Buscar por nome ou descrição do material...'
                 : 'Buscar por nome ou código do tipo...'
             }
             value={search}
@@ -549,6 +656,13 @@ export const SettingsPage: React.FC = () => {
           <button onClick={handleOpenNewColor} className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
             <Plus size={18} />
             <span>Nova Cor</span>
+          </button>
+        )}
+
+        {activeSubTab === 'materiais' && (
+          <button onClick={handleOpenNewMaterial} className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <Plus size={18} />
+            <span>Novo Material</span>
           </button>
         )}
       </div>
@@ -870,6 +984,86 @@ export const SettingsPage: React.FC = () => {
                                 onClick={() => handleDeleteColor(c)}
                                 className="btn-icon"
                                 title="Excluir Cor"
+                                style={{ color: 'var(--status-danger-text)' }}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Subaba: Materiais */}
+          {activeSubTab === 'materiais' && (
+            <div className="card" style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', margin: '0 0 4px', color: 'var(--brand-primary)', fontFamily: 'var(--font-heading)' }}>
+                    Materiais de Fabricação e Composição ({filteredMaterials.length})
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '0.84rem', color: 'var(--text-secondary)' }}>
+                    Cimento estrutural, argamassa, ceras ecológicas, resinas e demais insumos-base
+                  </p>
+                </div>
+              </div>
+
+              {filteredMaterials.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-secondary)' }}>
+                  <p style={{ fontSize: '0.95rem', margin: '0 0 12px' }}>Nenhum material encontrado.</p>
+                  <button onClick={handleOpenNewMaterial} className="btn-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <Plus size={16} /> Cadastrar Primeiro Material
+                  </button>
+                </div>
+              ) : (
+                <div className="table-responsive">
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid var(--border-medium)', color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase' }}>
+                        <th style={{ padding: '12px 18px' }}>Nome do Material</th>
+                        <th style={{ padding: '12px 18px' }}>Descrição / Observações</th>
+                        <th style={{ padding: '12px 18px', textAlign: 'right' }}>Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredMaterials.map((m) => (
+                        <tr
+                          key={m.id}
+                          style={{
+                            borderBottom: '1px solid var(--border-subtle)',
+                            transition: 'background-color 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-sand-light)')}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                        >
+                          <td style={{ padding: '14px 18px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                              🧱 {m.name}
+                            </span>
+                          </td>
+                          <td style={{ padding: '14px 18px', color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
+                            {m.description || <span style={{ color: 'var(--text-tertiary)', fontStyle: 'italic' }}>Sem descrição</span>}
+                          </td>
+                          <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                            <div style={{ display: 'inline-flex', gap: '8px' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditMaterial(m)}
+                                className="btn-icon"
+                                title="Editar Material"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteMaterial(m)}
+                                className="btn-icon"
+                                title="Excluir Material"
                                 style={{ color: 'var(--status-danger-text)' }}
                               >
                                 <Trash2 size={16} />
@@ -1221,6 +1415,69 @@ export const SettingsPage: React.FC = () => {
             </button>
             <button type="submit" className="btn-primary" disabled={savingColor}>
               {savingColor ? 'Salvando...' : editingColor ? 'Salvar Alterações' : 'Criar Cor'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal Criar/Editar Material */}
+      <Modal
+        isOpen={isMaterialModalOpen}
+        onClose={() => setIsMaterialModalOpen(false)}
+        title={editingMaterial ? 'Editar Material' : 'Novo Material'}
+        subtitle="Gerencie matérias-primas e bases (cimento, granilite, cera, resina, etc.)"
+        maxWidth="480px"
+      >
+        <form onSubmit={handleSaveMaterial}>
+          {materialFormError && (
+            <div
+              style={{
+                padding: '10px 14px',
+                backgroundColor: 'var(--status-danger-bg)',
+                color: 'var(--status-danger-text)',
+                borderRadius: 'var(--radius-sm)',
+                marginBottom: '16px',
+                fontSize: '0.85rem',
+              }}
+            >
+              {materialFormError}
+            </div>
+          )}
+
+          <div style={{ marginBottom: '16px' }}>
+            <label htmlFor="mat-name">Nome do Material *</label>
+            <input
+              id="mat-name"
+              type="text"
+              required
+              placeholder="Ex.: Cimento Estrutural, Granilite, Cera de Coco..."
+              value={materialName}
+              onChange={(e) => setMaterialName(e.target.value)}
+            />
+          </div>
+
+          <div style={{ marginBottom: '24px' }}>
+            <label htmlFor="mat-desc">Descrição / Composição (Opcional)</label>
+            <textarea
+              id="mat-desc"
+              rows={3}
+              placeholder="Ex.: Traço especial para peças com acabamento acetinado..."
+              value={materialDesc}
+              onChange={(e) => setMaterialDesc(e.target.value)}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+            <button
+              type="button"
+              onClick={() => setIsMaterialModalOpen(false)}
+              className="btn-secondary"
+              disabled={savingMaterial}
+            >
+              Cancelar
+            </button>
+            <button type="submit" className="btn-primary" disabled={savingMaterial}>
+              {savingMaterial ? 'Salvando...' : editingMaterial ? 'Salvar Alterações' : 'Criar Material'}
             </button>
           </div>
         </form>

@@ -4,6 +4,7 @@ from app.models.user import User, PasswordResetToken
 from app.models.category import Category
 from app.models.unit import UnitOfMeasure
 from app.models.color import ProductColor
+from app.models.material import ProductMaterial
 from app.models.product import Product, ProductImage, ItemType
 from app.models.item_type import ItemTypeModel
 from app.models.stock import StockMovement, MovementType
@@ -25,6 +26,7 @@ __all__ = [
     "Category",
     "UnitOfMeasure",
     "ProductColor",
+    "ProductMaterial",
     "Product",
     "ProductImage",
     "ItemType",

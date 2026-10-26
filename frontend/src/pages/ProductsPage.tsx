@@ -18,6 +18,7 @@ import {
   ExternalLink,
   Store,
   Palette,
+  Layers,
   Copy,
   Check,
 } from 'lucide-react';
@@ -25,7 +26,7 @@ import { api } from '../api/client';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import { getProductImageUrl, handleImageError } from '../utils/imageUrl';
-import type { Category, CostComponentItem, ItemType, ItemTypeDefinition, Product, ProductColor, ProductFormData, SalesLinkItem, UnitOfMeasure } from '../types';
+import type { Category, CostComponentItem, ItemType, ItemTypeDefinition, Product, ProductColor, ProductMaterial, ProductFormData, SalesLinkItem, UnitOfMeasure } from '../types';
 
 const WhatsAppIcon: React.FC<{ size?: number; color?: string; style?: React.CSSProperties }> = ({
   size = 16,
@@ -56,6 +57,7 @@ export const ProductsPage: React.FC = () => {
   const [units, setUnits] = useState<UnitOfMeasure[]>([]);
   const [itemTypes, setItemTypes] = useState<ItemTypeDefinition[]>([]);
   const [colors, setColors] = useState<ProductColor[]>([]);
+  const [materials, setMaterials] = useState<ProductMaterial[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,6 +74,7 @@ export const ProductsPage: React.FC = () => {
     name: '',
     description: '',
     color: '',
+    material: '',
     item_type: 'PRODUTO_ACABADO',
     category_id: null,
     unit_id: 1,
@@ -82,6 +85,19 @@ export const ProductsPage: React.FC = () => {
     min_stock: '5.000',
     is_active: true,
   });
+
+  // Modais rápidos de Nova Cor e Novo Material
+  const [isQuickColorModalOpen, setIsQuickColorModalOpen] = useState(false);
+  const [quickColorName, setQuickColorName] = useState('');
+  const [quickColorHex, setQuickColorHex] = useState('#d1d5db');
+  const [savingQuickColor, setSavingQuickColor] = useState(false);
+  const [quickColorError, setQuickColorError] = useState<string | null>(null);
+
+  const [isQuickMaterialModalOpen, setIsQuickMaterialModalOpen] = useState(false);
+  const [quickMaterialName, setQuickMaterialName] = useState('');
+  const [quickMaterialDesc, setQuickMaterialDesc] = useState('');
+  const [savingQuickMaterial, setSavingQuickMaterial] = useState(false);
+  const [quickMaterialError, setQuickMaterialError] = useState<string | null>(null);
 
   // Links de Vendas em Marketplaces
   const [salesLinks, setSalesLinks] = useState<SalesLinkItem[]>([]);
@@ -124,12 +140,13 @@ export const ProductsPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [prodsData, catsData, unitsData, itemTypesData, colorsData] = await Promise.all([
+      const [prodsData, catsData, unitsData, itemTypesData, colorsData, materialsData] = await Promise.all([
         api.listProducts({ active_only: false }),
         api.listCategories(),
         api.listUnits(),
         api.listItemTypes(),
         api.listColors(),
+        api.listMaterials(),
       ]);
 
       setProducts(prodsData);
@@ -137,6 +154,7 @@ export const ProductsPage: React.FC = () => {
       setUnits(unitsData);
       setItemTypes(itemTypesData);
       setColors(colorsData);
+      setMaterials(materialsData);
 
       // Definir unidade padrão como Unidade (UN)
       const defaultUnit = unitsData.find(
@@ -162,7 +180,8 @@ export const ProductsPage: React.FC = () => {
     const matchSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.sku.toLowerCase().includes(search.toLowerCase()) ||
-      (p.color && p.color.toLowerCase().includes(search.toLowerCase()));
+      (p.color && p.color.toLowerCase().includes(search.toLowerCase())) ||
+      (p.material && p.material.toLowerCase().includes(search.toLowerCase()));
 
     const matchType = selectedType === 'TODOS' || p.item_type === selectedType;
     const matchCategory =
@@ -192,6 +211,7 @@ export const ProductsPage: React.FC = () => {
       name: '',
       description: '',
       color: '',
+      material: '',
       item_type: 'PRODUTO_ACABADO',
       category_id: categories.length > 0 ? categories[0].id : null,
       unit_id: defaultUnit ? defaultUnit.id : 1,
@@ -233,6 +253,7 @@ export const ProductsPage: React.FC = () => {
       name: prod.name,
       description: prod.description || '',
       color: prod.color || '',
+      material: prod.material || '',
       item_type: prod.item_type,
       category_id: prod.category_id || null,
       unit_id: prod.unit_id,
@@ -244,6 +265,45 @@ export const ProductsPage: React.FC = () => {
       is_active: prod.is_active,
     });
     setIsFormModalOpen(true);
+  };
+
+  // Criação rápida de cor
+  const handleSaveQuickColor = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!quickColorName.trim()) return;
+    setSavingQuickColor(true);
+    setQuickColorError(null);
+    try {
+      const newColor = await api.createColor(quickColorName.trim(), quickColorHex);
+      setColors((prev) => [...prev, newColor]);
+      setFormData((prev) => ({ ...prev, color: newColor.name }));
+      setIsQuickColorModalOpen(false);
+      setQuickColorName('');
+    } catch (err: any) {
+      setQuickColorError(err.message || 'Erro ao cadastrar cor.');
+    } finally {
+      setSavingQuickColor(false);
+    }
+  };
+
+  // Criação rápida de material
+  const handleSaveQuickMaterial = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!quickMaterialName.trim()) return;
+    setSavingQuickMaterial(true);
+    setQuickMaterialError(null);
+    try {
+      const newMat = await api.createMaterial(quickMaterialName.trim(), quickMaterialDesc.trim() || undefined);
+      setMaterials((prev) => [...prev, newMat]);
+      setFormData((prev) => ({ ...prev, material: newMat.name }));
+      setIsQuickMaterialModalOpen(false);
+      setQuickMaterialName('');
+      setQuickMaterialDesc('');
+    } catch (err: any) {
+      setQuickMaterialError(err.message || 'Erro ao cadastrar material.');
+    } finally {
+      setSavingQuickMaterial(false);
+    }
   };
 
   // Helpers para Estilização de Marketplaces
@@ -371,6 +431,9 @@ export const ProductsPage: React.FC = () => {
     }
     if (prod.color) {
       msg += `🎨 *Cor:* ${prod.color}\n`;
+    }
+    if (prod.material) {
+      msg += `🧱 *Material:* ${prod.material}\n`;
     }
     if (prod.description && prod.description.trim()) {
       const shortDesc =
@@ -622,6 +685,7 @@ export const ProductsPage: React.FC = () => {
       const productPayload: ProductFormData = {
         ...formData,
         color: formData.color?.trim() || undefined,
+        material: formData.material?.trim() || undefined,
         sales_links: currentSalesLinks.length > 0 ? JSON.stringify(currentSalesLinks) : '',
       };
 
@@ -1227,12 +1291,31 @@ export const ProductsPage: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* Categoria e Cor do Produto na Vitrine */}
-                  {(prod.category || prod.color) && (
+                  {/* Categoria, Material e Cor do Produto na Vitrine */}
+                  {(prod.category || prod.material || prod.color) && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
                       {prod.category && (
                         <span style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
                           {prod.category.name}
+                        </span>
+                      )}
+                      {prod.material && (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '1px 7px',
+                            borderRadius: '10px',
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                            backgroundColor: 'var(--bg-tertiary)',
+                            color: 'var(--text-primary)',
+                            border: '1px solid var(--border-subtle)',
+                          }}
+                          title={`Material: ${prod.material}`}
+                        >
+                          🧱 {prod.material}
                         </span>
                       )}
                       {prod.color && (
@@ -1588,6 +1671,25 @@ export const ProductsPage: React.FC = () => {
                           <span style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>
                             {prod.sku}
                           </span>
+                          {prod.material && (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                fontSize: '0.7rem',
+                                color: 'var(--text-secondary)',
+                                fontWeight: 600,
+                                backgroundColor: 'var(--bg-sand-light)',
+                                padding: '1px 6px',
+                                borderRadius: '10px',
+                                border: '1px solid var(--border-subtle)',
+                              }}
+                              title={`Material: ${prod.material}`}
+                            >
+                              🧱 {prod.material}
+                            </span>
+                          )}
                           {prod.color && (
                             <span
                               style={{
@@ -1838,18 +1940,20 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '16px', marginBottom: '16px' }}>
-            <div>
-              <label htmlFor="prod-name">Nome do Produto *</label>
-              <input
-                id="prod-name"
-                type="text"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Ex.: Vela Aromática Lavanda Francesa 180g"
-              />
-            </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label htmlFor="prod-name">Nome do Produto *</label>
+            <input
+              id="prod-name"
+              type="text"
+              required
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="Ex.: Vela Aromática Lavanda Francesa 180g"
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+            {/* Cor do Produto */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                 <label htmlFor="prod-color" style={{ margin: 0, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
@@ -1881,29 +1985,154 @@ export const ProductsPage: React.FC = () => {
                   </span>
                 )}
               </div>
-              <select
-                id="prod-color"
-                value={formData.color || ''}
-                onChange={(e) => setFormData({ ...formData, color: e.target.value || undefined })}
-              >
-                <option value="">Sem cor especificada</option>
-                {colors.length > 0
-                  ? colors.map((c) => (
-                      <option key={c.id} value={c.name}>
-                        {c.name}
-                      </option>
-                    ))
-                  : COLOR_PRESETS.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <select
+                  id="prod-color"
+                  value={formData.color || ''}
+                  onChange={(e) => {
+                    if (e.target.value === '__NEW_COLOR__') {
+                      setQuickColorName('');
+                      setQuickColorHex('#d1d5db');
+                      setQuickColorError(null);
+                      setIsQuickColorModalOpen(true);
+                    } else {
+                      setFormData({ ...formData, color: e.target.value || undefined });
+                    }
+                  }}
+                  style={{ flex: 1 }}
+                >
+                  <option value="">Sem cor especificada</option>
+                  <option value="__NEW_COLOR__" style={{ fontWeight: 700, color: 'var(--brand-accent)' }}>
+                    ➕ Cadastrar nova cor...
+                  </option>
+                  <optgroup label="Cores Cadastradas">
+                    {colors.length > 0
+                      ? colors.map((c) => (
+                          <option key={c.id} value={c.name}>
+                            {c.name}
+                          </option>
+                        ))
+                      : COLOR_PRESETS.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                    {formData.color &&
+                      !colors.some((c) => c.name.toLowerCase() === formData.color?.toLowerCase()) &&
+                      !COLOR_PRESETS.includes(formData.color) && (
+                        <option value={formData.color}>{formData.color}</option>
+                      )}
+                  </optgroup>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuickColorName('');
+                    setQuickColorHex('#d1d5db');
+                    setQuickColorError(null);
+                    setIsQuickColorModalOpen(true);
+                  }}
+                  title="Cadastrar nova cor"
+                  style={{
+                    padding: '0 12px',
+                    height: '38px',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-sm)',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--brand-accent)',
+                    fontWeight: 700,
+                    fontSize: '1.2rem',
+                    lineHeight: 1,
+                  }}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            {/* Material do Produto */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label htmlFor="prod-material" style={{ margin: 0, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  <Layers size={14} color="var(--brand-accent)" />
+                  Material
+                </label>
+                {formData.material && (
+                  <span
+                    style={{
+                      fontSize: '0.72rem',
+                      color: 'var(--text-secondary)',
+                      fontWeight: 600,
+                    }}
+                  >
+                    🧱 {formData.material}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <select
+                  id="prod-material"
+                  value={formData.material || ''}
+                  onChange={(e) => {
+                    if (e.target.value === '__NEW_MATERIAL__') {
+                      setQuickMaterialName('');
+                      setQuickMaterialDesc('');
+                      setQuickMaterialError(null);
+                      setIsQuickMaterialModalOpen(true);
+                    } else {
+                      setFormData({ ...formData, material: e.target.value || undefined });
+                    }
+                  }}
+                  style={{ flex: 1 }}
+                >
+                  <option value="">Sem material especificado</option>
+                  <option value="__NEW_MATERIAL__" style={{ fontWeight: 700, color: 'var(--brand-accent)' }}>
+                    ➕ Cadastrar novo material...
+                  </option>
+                  <optgroup label="Materiais Cadastrados">
+                    {materials.map((m) => (
+                      <option key={m.id} value={m.name}>
+                        {m.name}
                       </option>
                     ))}
-                {formData.color &&
-                  !colors.some((c) => c.name.toLowerCase() === formData.color?.toLowerCase()) &&
-                  !COLOR_PRESETS.includes(formData.color) && (
-                    <option value={formData.color}>{formData.color}</option>
-                  )}
-              </select>
+                    {formData.material &&
+                      !materials.some((m) => m.name.toLowerCase() === formData.material?.toLowerCase()) && (
+                        <option value={formData.material}>{formData.material}</option>
+                      )}
+                  </optgroup>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuickMaterialName('');
+                    setQuickMaterialDesc('');
+                    setQuickMaterialError(null);
+                    setIsQuickMaterialModalOpen(true);
+                  }}
+                  title="Cadastrar novo material"
+                  style={{
+                    padding: '0 12px',
+                    height: '38px',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-sm)',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--brand-accent)',
+                    fontWeight: 700,
+                    fontSize: '1.2rem',
+                    lineHeight: 1,
+                  }}
+                >
+                  +
+                </button>
+              </div>
             </div>
           </div>
 
@@ -3246,6 +3475,19 @@ export const ProductsPage: React.FC = () => {
                     >
                       {whatsAppProduct.sku}
                     </span>
+                    {whatsAppProduct.material && (
+                      <span
+                        style={{
+                          fontSize: '0.74rem',
+                          color: 'var(--text-secondary)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                        }}
+                      >
+                        🧱 {whatsAppProduct.material}
+                      </span>
+                    )}
                     {whatsAppProduct.color && (
                       <span
                         style={{
@@ -3515,6 +3757,180 @@ export const ProductsPage: React.FC = () => {
             </form>
           );
         })()}
+      </Modal>
+
+      {/* Modal Rápido: Cadastrar Nova Cor */}
+      <Modal
+        isOpen={isQuickColorModalOpen}
+        onClose={() => setIsQuickColorModalOpen(false)}
+        title="Cadastrar Nova Cor de Produto"
+        maxWidth="460px"
+      >
+        <form onSubmit={handleSaveQuickColor}>
+          {quickColorError && (
+            <div className="alert alert-danger" style={{ marginBottom: '14px', fontSize: '0.85rem' }}>
+              <AlertCircle size={15} /> {quickColorError}
+            </div>
+          )}
+
+          <div style={{ marginBottom: '14px' }}>
+            <label htmlFor="quick-color-name" style={{ display: 'block', marginBottom: '6px', fontWeight: 600 }}>
+              Nome da Cor / Acabamento *
+            </label>
+            <input
+              id="quick-color-name"
+              type="text"
+              required
+              autoFocus
+              placeholder="Ex.: Marmorizado Branco e Cinza, Terracota Rústico..."
+              value={quickColorName}
+              onChange={(e) => setQuickColorName(e.target.value)}
+              style={{ width: '100%' }}
+            />
+          </div>
+
+          <div style={{ marginBottom: '18px' }}>
+            <label htmlFor="quick-color-hex" style={{ display: 'block', marginBottom: '6px', fontWeight: 600 }}>
+              Cor Visual / Amostra (Opcional)
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <input
+                id="quick-color-hex"
+                type="color"
+                value={quickColorHex}
+                onChange={(e) => setQuickColorHex(e.target.value)}
+                style={{
+                  width: '44px',
+                  height: '38px',
+                  padding: '2px',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer',
+                  backgroundColor: 'transparent',
+                }}
+              />
+              <input
+                type="text"
+                placeholder="#d1d5db"
+                value={quickColorHex}
+                onChange={(e) => setQuickColorHex(e.target.value)}
+                style={{ flex: 1, fontFamily: 'monospace' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
+              {['#ffffff', '#f7f4ea', '#fef3c7', '#d8b4fe', '#fbcfe8', '#c86d51', '#86efac', '#93c5fd', '#2c2824', '#d1d5db'].map((pal) => (
+                <button
+                  key={pal}
+                  type="button"
+                  onClick={() => setQuickColorHex(pal)}
+                  style={{
+                    width: '22px',
+                    height: '22px',
+                    borderRadius: '50%',
+                    backgroundColor: pal,
+                    border: quickColorHex === pal ? '2px solid var(--brand-accent)' : '1px solid rgba(0,0,0,0.2)',
+                    cursor: 'pointer',
+                  }}
+                  title={pal}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setIsQuickColorModalOpen(false)}
+              disabled={savingQuickColor}
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={savingQuickColor || !quickColorName.trim()}
+            >
+              {savingQuickColor ? (
+                <>
+                  <Loader2 size={15} className="spinner" /> Salvando...
+                </>
+              ) : (
+                'Salvar Cor'
+              )}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal Rápido: Cadastrar Novo Material */}
+      <Modal
+        isOpen={isQuickMaterialModalOpen}
+        onClose={() => setIsQuickMaterialModalOpen(false)}
+        title="Cadastrar Novo Material"
+        maxWidth="460px"
+      >
+        <form onSubmit={handleSaveQuickMaterial}>
+          {quickMaterialError && (
+            <div className="alert alert-danger" style={{ marginBottom: '14px', fontSize: '0.85rem' }}>
+              <AlertCircle size={15} /> {quickMaterialError}
+            </div>
+          )}
+
+          <div style={{ marginBottom: '14px' }}>
+            <label htmlFor="quick-material-name" style={{ display: 'block', marginBottom: '6px', fontWeight: 600 }}>
+              Nome do Material *
+            </label>
+            <input
+              id="quick-material-name"
+              type="text"
+              required
+              autoFocus
+              placeholder="Ex.: Cimento Estrutural, Granilite, Cera de Coco..."
+              value={quickMaterialName}
+              onChange={(e) => setQuickMaterialName(e.target.value)}
+              style={{ width: '100%' }}
+            />
+          </div>
+
+          <div style={{ marginBottom: '18px' }}>
+            <label htmlFor="quick-material-desc" style={{ display: 'block', marginBottom: '6px', fontWeight: 600 }}>
+              Descrição / Observações (Opcional)
+            </label>
+            <textarea
+              id="quick-material-desc"
+              rows={2}
+              placeholder="Ex.: Traço especial de argamassa ACIII, cera ecológica pura..."
+              value={quickMaterialDesc}
+              onChange={(e) => setQuickMaterialDesc(e.target.value)}
+              style={{ width: '100%', resize: 'vertical' }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setIsQuickMaterialModalOpen(false)}
+              disabled={savingQuickMaterial}
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={savingQuickMaterial || !quickMaterialName.trim()}
+            >
+              {savingQuickMaterial ? (
+                <>
+                  <Loader2 size={15} className="spinner" /> Salvando...
+                </>
+              ) : (
+                'Salvar Material'
+              )}
+            </button>
+          </div>
+        </form>
       </Modal>
     </div>
   );
