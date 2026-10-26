@@ -14,6 +14,13 @@ import { api } from '../api/client';
 import { Modal } from '../components/Modal';
 import type { ProductionOrder, Recipe, Product } from '../types';
 
+const formatQuantity = (val: string | number | undefined | null): string => {
+  if (val === undefined || val === null) return '0';
+  const num = typeof val === 'number' ? val : parseFloat(val);
+  if (isNaN(num)) return '0';
+  return parseFloat(num.toFixed(3)).toLocaleString('pt-BR');
+};
+
 export const ProductionPage: React.FC = () => {
   const [orders, setOrders] = useState<ProductionOrder[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -27,7 +34,7 @@ export const ProductionPage: React.FC = () => {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderProductId, setOrderProductId] = useState<number>(0);
   const [orderRecipeId, setOrderRecipeId] = useState<number | null>(null);
-  const [orderPlannedQty, setOrderPlannedQty] = useState<string>('1.000');
+  const [orderPlannedQty, setOrderPlannedQty] = useState<string>('1');
   const [orderNotes, setOrderNotes] = useState<string>('');
   const [submittingOrder, setSubmittingOrder] = useState(false);
 
@@ -35,7 +42,7 @@ export const ProductionPage: React.FC = () => {
   const [isRecipeModalOpen, setIsRecipeModalOpen] = useState(false);
   const [recipeProductId, setRecipeProductId] = useState<number>(0);
   const [recipeName, setRecipeName] = useState<string>('');
-  const [recipeYield, setRecipeYield] = useState<string>('1.000');
+  const [recipeYield, setRecipeYield] = useState<string>('1');
   const [recipeInstructions, setRecipeInstructions] = useState<string>('');
   const [recipeItems, setRecipeItems] = useState<{ component_product_id: number; standard_quantity: string }[]>([]);
   const [submittingRecipe, setSubmittingRecipe] = useState(false);
@@ -349,10 +356,10 @@ export const ProductionPage: React.FC = () => {
                         {o.product_name}
                       </td>
                       <td style={{ padding: '14px 20px', fontSize: '0.9rem' }}>
-                        {Number(o.planned_quantity).toFixed(3)}
+                        {formatQuantity(o.planned_quantity)}
                       </td>
                       <td style={{ padding: '14px 20px', fontSize: '0.9rem', fontWeight: 600 }}>
-                        {o.produced_quantity ? Number(o.produced_quantity).toFixed(3) : '—'}
+                        {o.produced_quantity ? formatQuantity(o.produced_quantity) : '—'}
                       </td>
                       <td style={{ padding: '14px 20px' }}>
                         <span
@@ -459,7 +466,7 @@ export const ProductionPage: React.FC = () => {
                   </h3>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--brand-accent)' }}>
-                      Rende: {Number(r.yield_quantity).toFixed(0)} un
+                      Rende: {formatQuantity(r.yield_quantity)} un
                     </span>
                     <button
                       type="button"
@@ -491,7 +498,7 @@ export const ProductionPage: React.FC = () => {
                     {r.items.map((it) => (
                       <li key={it.id} style={{ fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between' }}>
                         <span>{it.component_name}</span>
-                        <span style={{ fontWeight: 600 }}>{Number(it.standard_quantity).toFixed(3)} {it.component_unit}</span>
+                        <span style={{ fontWeight: 600 }}>{formatQuantity(it.standard_quantity)} {it.component_unit}</span>
                       </li>
                     ))}
                   </ul>
@@ -613,9 +620,9 @@ export const ProductionPage: React.FC = () => {
                   {selectedOrder.items.map((it) => (
                     <tr key={it.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                       <td style={{ padding: '8px 12px', fontWeight: 500 }}>{it.component_name}</td>
-                      <td style={{ padding: '8px 12px' }}>{Number(it.planned_quantity).toFixed(3)} {it.component_unit}</td>
-                      <td style={{ padding: '8px 12px' }}>{Number(it.actual_quantity || it.planned_quantity).toFixed(3)} {it.component_unit}</td>
-                      <td style={{ padding: '8px 12px' }}>{Number(it.loss_quantity).toFixed(3)} {it.component_unit}</td>
+                      <td style={{ padding: '8px 12px' }}>{formatQuantity(it.planned_quantity)} {it.component_unit}</td>
+                      <td style={{ padding: '8px 12px' }}>{formatQuantity(it.actual_quantity || it.planned_quantity)} {it.component_unit}</td>
+                      <td style={{ padding: '8px 12px' }}>{formatQuantity(it.loss_quantity)} {it.component_unit}</td>
                     </tr>
                   ))}
                 </tbody>

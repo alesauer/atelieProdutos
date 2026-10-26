@@ -18,6 +18,13 @@ import { api } from '../api/client';
 import type { DashboardMetrics } from '../types';
 import { Badge } from '../components/Badge';
 
+const formatQuantity = (val: string | number | undefined | null): string => {
+  if (val === undefined || val === null) return '0';
+  const num = typeof val === 'number' ? val : parseFloat(val);
+  if (isNaN(num)) return '0';
+  return parseFloat(num.toFixed(3)).toLocaleString('pt-BR');
+};
+
 interface DashboardPageProps {
   onNavigate: (tab: string) => void;
 }
@@ -313,7 +320,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                 <span style={{ fontSize: '2.1rem', fontWeight: 700, color: '#c05621' }}>
                   {isLoading ? '...' : metrics?.catalog.items_low_stock ?? 0}
                   <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-secondary)', marginLeft: '4px' }}>
-                    mínimo
+                    alerta (≤ 5)
                   </span>
                 </span>
                 <span style={{ fontSize: '1.4rem', fontWeight: 700, color: '#c53030' }}>
@@ -453,7 +460,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                       {item.name}
                     </p>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                      Saldo: <strong>{item.current_stock} {item.unit}</strong> (Mínimo: {item.min_stock} {item.unit})
+                      Saldo: <strong>{formatQuantity(item.current_stock)} {item.unit}</strong> (Alerta: ≤ 5)
                     </span>
                   </div>
 
