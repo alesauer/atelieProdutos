@@ -101,7 +101,7 @@ export const ProductsPage: React.FC = () => {
 
   // Links de Vendas em Marketplaces
   const [salesLinks, setSalesLinks] = useState<SalesLinkItem[]>([]);
-  const [newLinkPlatform, setNewLinkPlatform] = useState('Mercado Livre');
+  const [newLinkPlatform, setNewLinkPlatform] = useState('Shopee');
   const [newLinkUrl, setNewLinkUrl] = useState('');
 
   // Calculadora de Composição de Custo Manual
@@ -198,7 +198,7 @@ export const ProductsPage: React.FC = () => {
     setFormError(null);
     setCostItems([]);
     setSalesLinks([]);
-    setNewLinkPlatform('Mercado Livre');
+    setNewLinkPlatform('Shopee');
     setNewLinkUrl('');
     setEditingProduct(null);
 
@@ -244,7 +244,7 @@ export const ProductsPage: React.FC = () => {
       } catch {}
     }
     setSalesLinks(parsedLinks);
-    setNewLinkPlatform('Mercado Livre');
+    setNewLinkPlatform('Shopee');
     setNewLinkUrl('');
 
     setEditingProduct(prod);
@@ -393,7 +393,7 @@ export const ProductsPage: React.FC = () => {
       formattedUrl = `https://${formattedUrl}`;
     }
 
-    const platformName = newLinkPlatform.trim() || 'Mercado Livre';
+    const platformName = newLinkPlatform.trim() || 'Shopee';
 
     const newLink: SalesLinkItem = {
       id: `${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -672,7 +672,7 @@ export const ProductsPage: React.FC = () => {
         if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
           formattedUrl = `https://${formattedUrl}`;
         }
-        const platformName = newLinkPlatform.trim() || 'Mercado Livre';
+        const platformName = newLinkPlatform.trim() || 'Shopee';
         currentSalesLinks.push({
           id: `${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
           platform: platformName,
@@ -2306,12 +2306,12 @@ export const ProductsPage: React.FC = () => {
               <div>
                 <select
                   id="marketplace-platform-input"
-                  value={newLinkPlatform || 'Mercado Livre'}
+                  value={newLinkPlatform || 'Shopee'}
                   onChange={(e) => setNewLinkPlatform(e.target.value)}
                   style={{ fontSize: '0.85rem', padding: '8px 10px', width: '100%' }}
                 >
-                  <option value="Mercado Livre">Mercado Livre</option>
                   <option value="Shopee">Shopee</option>
+                  <option value="Mercado Livre">Mercado Livre</option>
                   <option value="Amazon">Amazon</option>
                   <option value="Elo7">Elo7</option>
                   <option value="Shein">Shein</option>
@@ -2326,7 +2326,7 @@ export const ProductsPage: React.FC = () => {
                 <input
                   type="text"
                   id="marketplace-url-input"
-                  placeholder="Cole aqui o link do anúncio (Ex.: https://produto.mercadolivre.com.br/...)"
+                  placeholder="Cole aqui o link do anúncio (Ex.: https://shopee.com.br/...)"
                   value={newLinkUrl}
                   onChange={(e) => setNewLinkUrl(e.target.value)}
                   style={{ fontSize: '0.85rem', padding: '8px 10px', width: '100%' }}
