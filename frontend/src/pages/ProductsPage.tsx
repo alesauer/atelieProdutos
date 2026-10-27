@@ -424,9 +424,16 @@ export const ProductsPage: React.FC = () => {
         (u) => u.code.toUpperCase() === 'UN' || u.name.toLowerCase().includes('unidade')
       ) || (unitsData.length > 0 ? unitsData[0] : null);
 
-      if (defaultUnit) {
-        setFormData((prev) => ({ ...prev, unit_id: defaultUnit.id }));
-      }
+      // Definir categoria padrão como Kit
+      const defaultKitCategory = catsData.find(
+        (c) => c.name.trim().toLowerCase() === 'kit'
+      ) || (catsData.length > 0 ? catsData[0] : null);
+
+      setFormData((prev) => ({
+        ...prev,
+        ...(defaultUnit ? { unit_id: defaultUnit.id } : {}),
+        ...(defaultKitCategory ? { category_id: defaultKitCategory.id } : {}),
+      }));
     } catch (err: any) {
       setError(err.message || 'Falha ao carregar itens do ateliê.');
     } finally {
@@ -469,6 +476,10 @@ export const ProductsPage: React.FC = () => {
       (u) => u.code.toUpperCase() === 'UN' || u.name.toLowerCase().includes('unidade')
     ) || (units.length > 0 ? units[0] : null);
 
+    const defaultKitCategory = categories.find(
+      (c) => c.name.trim().toLowerCase() === 'kit'
+    ) || (categories.length > 0 ? categories[0] : null);
+
     setFormData({
       sku: '',
       name: '',
@@ -476,7 +487,7 @@ export const ProductsPage: React.FC = () => {
       color: '',
       material: '',
       item_type: 'PRODUTO_ACABADO',
-      category_id: categories.length > 0 ? categories[0].id : null,
+      category_id: defaultKitCategory ? defaultKitCategory.id : null,
       unit_id: defaultUnit ? defaultUnit.id : 1,
       unit_cost: '0,00',
       cost_breakdown: '',
@@ -2874,11 +2885,19 @@ export const ProductsPage: React.FC = () => {
                 }
               >
                 <option value="">Sem categoria</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
+                {[...categories]
+                  .sort((a, b) => {
+                    const isAKit = a.name.toLowerCase() === 'kit';
+                    const isBKit = b.name.toLowerCase() === 'kit';
+                    if (isAKit && !isBKit) return -1;
+                    if (!isAKit && isBKit) return 1;
+                    return a.name.localeCompare(b.name);
+                  })
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
               </select>
             </div>
             <div>

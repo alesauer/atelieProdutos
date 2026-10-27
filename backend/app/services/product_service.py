@@ -1,5 +1,5 @@
 from typing import List, Optional
-from sqlalchemy import select, func, delete
+from sqlalchemy import select, func, delete, case
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
@@ -200,18 +200,16 @@ class ProductService:
     @staticmethod
     def seed_initial_categories(db: Session) -> None:
         """Garante a existência das categorias iniciais solicitadas se não existirem."""
-        count = db.execute(select(func.count(Category.id))).scalar() or 0
-        if count == 0:
-            for item in DEFAULT_INITIAL_CATEGORIES:
-                existing = ProductService.get_category_by_name(db, item["name"])
-                if not existing:
-                    new_cat = Category(
-                        name=item["name"],
-                        description=item["description"],
-                        is_active=True,
-                    )
-                    db.add(new_cat)
-            db.commit()
+        for item in DEFAULT_INITIAL_CATEGORIES:
+            existing = ProductService.get_category_by_name(db, item["name"])
+            if not existing:
+                new_cat = Category(
+                    name=item["name"],
+                    description=item["description"],
+                    is_active=True,
+                )
+                db.add(new_cat)
+        db.commit()
 
     @staticmethod
     def get_category_by_id(db: Session, category_id: int) -> Optional[Category]:
@@ -228,7 +226,12 @@ class ProductService:
         stmt = select(Category)
         if active_only:
             stmt = stmt.where(Category.is_active.is_(True))
-        return list(db.execute(stmt.order_by(Category.name)).scalars().all())
+        # Kit como padrão prioritário no topo da lista
+        stmt = stmt.order_by(
+            case((func.lower(Category.name) == "kit", 0), else_=1),
+            Category.name,
+        )
+        return list(db.execute(stmt).scalars().all())
 
     @staticmethod
     def create_category(db: Session, category_in: CategoryCreate) -> Category:
