@@ -510,8 +510,25 @@ class ApiClient {
     });
   }
 
-  async listSales(): Promise<Sale[]> {
-    return this.request<Sale[]>('/sales');
+  async listSales(params?: {
+    start_date?: string;
+    end_date?: string;
+    status?: string;
+    customer_id?: number;
+    search?: string;
+    skip?: number;
+    limit?: number;
+  }): Promise<Sale[]> {
+    const qp = new URLSearchParams();
+    if (params?.start_date) qp.append('start_date', params.start_date);
+    if (params?.end_date) qp.append('end_date', params.end_date);
+    if (params?.status) qp.append('status', params.status);
+    if (params?.customer_id) qp.append('customer_id', String(params.customer_id));
+    if (params?.search) qp.append('search', params.search);
+    if (params?.skip !== undefined) qp.append('skip', String(params.skip));
+    if (params?.limit !== undefined) qp.append('limit', String(params.limit));
+    const qs = qp.toString();
+    return this.request<Sale[]>(`/sales${qs ? `?${qs}` : ''}`);
   }
 
   async createDraftSale(data: {

@@ -1,10 +1,11 @@
+from datetime import date
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_db, get_current_user
 from app.models.user import User
-from app.models.sale import Sale
+from app.models.sale import Sale, SaleStatus
 from app.schemas.sale import (
     CustomerCreate,
     CustomerResponse,
@@ -82,12 +83,27 @@ def delete_customer(
 
 @router.get("", response_model=List[SaleResponse])
 def list_sales(
+    start_date: Optional[date] = Query(None, description="Data inicial do período (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="Data final do período (YYYY-MM-DD)"),
+    status: Optional[SaleStatus] = Query(None, description="Status da venda (RASCUNHO, CONFIRMADA, CANCELADA)"),
+    customer_id: Optional[int] = Query(None, description="ID do cliente"),
+    search: Optional[str] = Query(None, description="Busca por número, cliente ou notas"),
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
+    limit: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    sales = sale_service.list_sales(db, skip=skip, limit=limit)
+    """Lista vendas com filtros por período (dia, mês, ano ou intervalo livre), status, cliente e busca."""
+    sales = sale_service.list_sales(
+        db,
+        start_date=start_date,
+        end_date=end_date,
+        status=status,
+        customer_id=customer_id,
+        search=search,
+        skip=skip,
+        limit=limit,
+    )
     return [_enrich_sale_response(s) for s in sales]
 
 

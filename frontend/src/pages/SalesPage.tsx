@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ShoppingBag,
   Plus,
@@ -9,12 +9,34 @@ import {
   Loader2,
   Trash2,
   CreditCard,
+  Calendar,
+  Filter,
+  Search,
+  RotateCcw,
+  RefreshCw,
 } from 'lucide-react';
 
 import { api } from '../api/client';
 import { Modal } from '../components/Modal';
 import { formatDateOnly } from '../utils/date';
 import type { Sale, Customer, Product } from '../types';
+
+type PeriodOption =
+  | 'all'
+  | 'today'
+  | 'month'
+  | 'year'
+  | 'specific_day'
+  | 'specific_month'
+  | 'specific_year'
+  | 'custom';
+
+const formatLocalDate = (d: Date): string => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const formatQuantity = (val: string | number | undefined | null): string => {
   if (val === undefined || val === null || val === '') return '0.00';
@@ -28,7 +50,19 @@ export const SalesPage: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [salesLoading, setSalesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Filtros de Período, Status e Busca
+  const [period, setPeriod] = useState<PeriodOption>('all');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [specificDay, setSpecificDay] = useState<string>(formatLocalDate(new Date()));
+  const [specificMonth, setSpecificMonth] = useState<string>(formatLocalDate(new Date()).slice(0, 7));
+  const [specificYear, setSpecificYear] = useState<number>(new Date().getFullYear());
+  const [filterStatus, setFilterStatus] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const isFirstRender = useRef(true);
 
   // Modal Nova Venda
   const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
@@ -48,12 +82,44 @@ export const SalesPage: React.FC = () => {
   // Modal Detalhes
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
 
+  const loadSales = async (overrideParams?: {
+    startDate?: string;
+    endDate?: string;
+    status?: string;
+    search?: string;
+  }) => {
+    setSalesLoading(true);
+    try {
+      const sStart = overrideParams && 'startDate' in overrideParams ? overrideParams.startDate : startDate;
+      const sEnd = overrideParams && 'endDate' in overrideParams ? overrideParams.endDate : endDate;
+      const sStatus = overrideParams && 'status' in overrideParams ? overrideParams.status : filterStatus;
+      const sSearch = overrideParams && 'search' in overrideParams ? overrideParams.search : searchQuery;
+
+      const sData = await api.listSales({
+        start_date: sStart || undefined,
+        end_date: sEnd || undefined,
+        status: sStatus || undefined,
+        search: sSearch ? sSearch.trim() : undefined,
+      });
+      setSales(sData);
+    } catch (err: any) {
+      setError(err.message || 'Falha ao carregar vendas.');
+    } finally {
+      setSalesLoading(false);
+    }
+  };
+
   const loadData = async () => {
     setLoading(true);
     setError(null);
     try {
       const [sData, cData, pData] = await Promise.all([
-        api.listSales(),
+        api.listSales({
+          start_date: startDate || undefined,
+          end_date: endDate || undefined,
+          status: filterStatus || undefined,
+          search: searchQuery.trim() || undefined,
+        }),
         api.listCustomers(),
         api.listProducts({ active_only: true }),
       ]);
@@ -61,7 +127,7 @@ export const SalesPage: React.FC = () => {
       setCustomers(cData);
       setProducts(pData);
     } catch (err: any) {
-      setError(err.message || 'Falha ao carregar vendas.');
+      setError(err.message || 'Falha ao carregar dados do ateliê.');
     } finally {
       setLoading(false);
     }
@@ -70,6 +136,156 @@ export const SalesPage: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      loadSales();
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handlePeriodChange = (option: PeriodOption) => {
+    setPeriod(option);
+    const now = new Date();
+    let newStart = '';
+    let newEnd = '';
+
+    if (option === 'all') {
+      newStart = '';
+      newEnd = '';
+    } else if (option === 'today') {
+      const today = formatLocalDate(now);
+      newStart = today;
+      newEnd = today;
+    } else if (option === 'month') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      newStart = formatLocalDate(start);
+      newEnd = formatLocalDate(end);
+    } else if (option === 'year') {
+      newStart = `${now.getFullYear()}-01-01`;
+      newEnd = `${now.getFullYear()}-12-31`;
+    } else if (option === 'specific_day') {
+      newStart = specificDay;
+      newEnd = specificDay;
+    } else if (option === 'specific_month') {
+      if (specificMonth) {
+        const [y, m] = specificMonth.split('-').map(Number);
+        newStart = formatLocalDate(new Date(y, m - 1, 1));
+        newEnd = formatLocalDate(new Date(y, m, 0));
+      }
+    } else if (option === 'specific_year') {
+      newStart = `${specificYear}-01-01`;
+      newEnd = `${specificYear}-12-31`;
+    }
+
+    setStartDate(newStart);
+    setEndDate(newEnd);
+    loadSales({ startDate: newStart, endDate: newEnd });
+  };
+
+  const handleSpecificDayChange = (val: string) => {
+    setSpecificDay(val);
+    setPeriod('specific_day');
+    setStartDate(val);
+    setEndDate(val);
+    loadSales({ startDate: val, endDate: val });
+  };
+
+  const handleSpecificMonthChange = (val: string) => {
+    setSpecificMonth(val);
+    setPeriod('specific_month');
+    if (val) {
+      const [y, m] = val.split('-').map(Number);
+      const start = formatLocalDate(new Date(y, m - 1, 1));
+      const end = formatLocalDate(new Date(y, m, 0));
+      setStartDate(start);
+      setEndDate(end);
+      loadSales({ startDate: start, endDate: end });
+    }
+  };
+
+  const handleSpecificYearChange = (year: number) => {
+    setSpecificYear(year);
+    setPeriod('specific_year');
+    const start = `${year}-01-01`;
+    const end = `${year}-12-31`;
+    setStartDate(start);
+    setEndDate(end);
+    loadSales({ startDate: start, endDate: end });
+  };
+
+  const handleCustomStartDateChange = (val: string) => {
+    setStartDate(val);
+    setPeriod('custom');
+    loadSales({ startDate: val });
+  };
+
+  const handleCustomEndDateChange = (val: string) => {
+    setEndDate(val);
+    setPeriod('custom');
+    loadSales({ endDate: val });
+  };
+
+  const handleStatusChange = (val: string) => {
+    setFilterStatus(val);
+    loadSales({ status: val });
+  };
+
+  const handleResetFilters = () => {
+    setPeriod('all');
+    setStartDate('');
+    setEndDate('');
+    setFilterStatus('');
+    setSearchQuery('');
+    loadSales({ startDate: '', endDate: '', status: '', search: '' });
+  };
+
+  const getActiveFilterLabel = () => {
+    if (period === 'all') return 'Todas as Vendas';
+    if (period === 'today') return `Hoje (${new Date().toLocaleDateString('pt-BR')})`;
+    if (period === 'month') {
+      const now = new Date();
+      const monthNames = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      ];
+      return `Mês Atual (${monthNames[now.getMonth()]}/${now.getFullYear()})`;
+    }
+    if (period === 'year') {
+      return `Ano Atual (${new Date().getFullYear()})`;
+    }
+    if (period === 'specific_day') {
+      if (!startDate) return 'Dia Específico';
+      const [y, m, d] = startDate.split('-');
+      return `Dia ${d}/${m}/${y}`;
+    }
+    if (period === 'specific_month') {
+      if (!specificMonth) return 'Mês Específico';
+      const [y, m] = specificMonth.split('-').map(Number);
+      const monthNames = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      ];
+      return `Mês de ${monthNames[m - 1]}/${y}`;
+    }
+    if (period === 'specific_year') {
+      return `Ano de ${specificYear}`;
+    }
+    if (period === 'custom') {
+      const s = startDate ? startDate.split('-').reverse().join('/') : '';
+      const e = endDate ? endDate.split('-').reverse().join('/') : '';
+      if (s && e) return `${s} até ${e}`;
+      if (s) return `A partir de ${s}`;
+      if (e) return `Até ${e}`;
+      return 'Período Personalizado';
+    }
+    return 'Todas as Vendas';
+  };
 
   // Produtos acabados destinados à venda (inclui variações se houver)
   const saleProducts = products.flatMap((p) => {
@@ -261,7 +477,7 @@ export const SalesPage: React.FC = () => {
             R$ {totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </h3>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
-            Vendas confirmadas com baixa efetiva
+            Vendas confirmadas ({getActiveFilterLabel()})
           </span>
         </div>
 
@@ -273,7 +489,7 @@ export const SalesPage: React.FC = () => {
             {sales.length}
           </h3>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
-            {confirmedSales.length} confirmadas
+            {confirmedSales.length} confirmadas no período
           </span>
         </div>
 
@@ -285,7 +501,7 @@ export const SalesPage: React.FC = () => {
             {sales.filter((s) => s.status === 'RASCUNHO').length}
           </h3>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
-            Não alteram estoque físico até a confirmação
+            Pendentes de confirmação no período
           </span>
         </div>
 
@@ -297,8 +513,254 @@ export const SalesPage: React.FC = () => {
             {customers.length}
           </h3>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
-            Compradores com histórico associado
+            Total da base de clientes
           </span>
+        </div>
+      </div>
+
+      {/* Barra de Filtros por Período, Status e Busca */}
+      <div
+        className="card"
+        style={{
+          padding: '18px 20px',
+          marginBottom: '24px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '14px',
+        }}
+      >
+        {/* Linha 1: Título e Botões Rápidos de Período */}
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+          }}
+        >
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--brand-primary)', marginRight: '4px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+              <Filter size={15} color="var(--brand-accent)" />
+              Período:
+            </span>
+
+            <button
+              type="button"
+              className={`btn-sm ${period === 'all' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => handlePeriodChange('all')}
+            >
+              Todas
+            </button>
+            <button
+              type="button"
+              className={`btn-sm ${period === 'today' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => handlePeriodChange('today')}
+            >
+              Hoje
+            </button>
+            <button
+              type="button"
+              className={`btn-sm ${period === 'month' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => handlePeriodChange('month')}
+            >
+              Este Mês
+            </button>
+            <button
+              type="button"
+              className={`btn-sm ${period === 'year' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => handlePeriodChange('year')}
+            >
+              Ano Atual
+            </button>
+
+            <span style={{ color: 'var(--border-medium)', margin: '0 2px' }}>|</span>
+
+            <button
+              type="button"
+              className={`btn-sm ${period === 'specific_day' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => handlePeriodChange('specific_day')}
+            >
+              📅 Por Dia
+            </button>
+            <button
+              type="button"
+              className={`btn-sm ${period === 'specific_month' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => handlePeriodChange('specific_month')}
+            >
+              📆 Por Mês
+            </button>
+            <button
+              type="button"
+              className={`btn-sm ${period === 'specific_year' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => handlePeriodChange('specific_year')}
+            >
+              🗓️ Por Ano
+            </button>
+            <button
+              type="button"
+              className={`btn-sm ${period === 'custom' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setPeriod('custom')}
+            >
+              ↔️ Personalizado
+            </button>
+          </div>
+
+          {/* Badge Informativo do Período Ativo */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 12px',
+                borderRadius: 'var(--radius-full)',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                backgroundColor: 'var(--bg-sand-light)',
+                color: 'var(--brand-primary)',
+                border: '1px solid var(--border-subtle)',
+              }}
+            >
+              <Calendar size={13} color="var(--brand-accent)" />
+              {getActiveFilterLabel()} • {sales.length} {sales.length === 1 ? 'venda' : 'vendas'}
+            </span>
+
+            <button
+              type="button"
+              onClick={() => loadSales()}
+              className="btn-icon"
+              title="Atualizar lista de vendas"
+              style={{ width: '32px', height: '32px' }}
+              disabled={salesLoading}
+            >
+              <RefreshCw size={14} className={salesLoading ? 'spinner' : ''} />
+            </button>
+          </div>
+        </div>
+
+        {/* Linha 2: Controles Específicos de Data, Status e Pesquisa */}
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: '12px',
+            paddingTop: '10px',
+            borderTop: '1px solid var(--border-subtle)',
+          }}
+        >
+          {/* Seletor do Modo Dia */}
+          {period === 'specific_day' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                Data:
+              </span>
+              <input
+                type="date"
+                style={{ width: '150px', padding: '6px 10px', fontSize: '0.84rem' }}
+                value={specificDay}
+                onChange={(e) => handleSpecificDayChange(e.target.value)}
+              />
+            </div>
+          )}
+
+          {/* Seletor do Modo Mês */}
+          {period === 'specific_month' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                Mês:
+              </span>
+              <input
+                type="month"
+                style={{ width: '160px', padding: '6px 10px', fontSize: '0.84rem' }}
+                value={specificMonth}
+                onChange={(e) => handleSpecificMonthChange(e.target.value)}
+              />
+            </div>
+          )}
+
+          {/* Seletor do Modo Ano */}
+          {period === 'specific_year' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                Ano:
+              </span>
+              <select
+                style={{ width: '120px', padding: '6px 10px', fontSize: '0.84rem' }}
+                value={specificYear}
+                onChange={(e) => handleSpecificYearChange(Number(e.target.value))}
+              >
+                {[2023, 2024, 2025, 2026, 2027, 2028].map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Seletor Personalizado (De / Até) */}
+          {period === 'custom' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                De:
+              </span>
+              <input
+                type="date"
+                style={{ width: '140px', padding: '6px 10px', fontSize: '0.84rem' }}
+                value={startDate}
+                onChange={(e) => handleCustomStartDateChange(e.target.value)}
+              />
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>até</span>
+              <input
+                type="date"
+                style={{ width: '140px', padding: '6px 10px', fontSize: '0.84rem' }}
+                value={endDate}
+                onChange={(e) => handleCustomEndDateChange(e.target.value)}
+              />
+            </div>
+          )}
+
+          {/* Filtro de Status */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <select
+              style={{ width: '170px', padding: '6px 10px', fontSize: '0.84rem' }}
+              value={filterStatus}
+              onChange={(e) => handleStatusChange(e.target.value)}
+            >
+              <option value="">Status: Todos</option>
+              <option value="CONFIRMADA">Apenas Confirmadas</option>
+              <option value="RASCUNHO">Apenas Rascunhos</option>
+              <option value="CANCELADA">Apenas Canceladas</option>
+            </select>
+          </div>
+
+          {/* Barra de Pesquisa */}
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: 1, minWidth: '220px' }}>
+            <Search size={14} color="var(--text-tertiary)" style={{ position: 'absolute', left: '10px' }} />
+            <input
+              type="text"
+              style={{ padding: '6px 10px 6px 30px', fontSize: '0.84rem' }}
+              placeholder="Buscar por cliente, pedido, notas..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+
+          {/* Botão Limpar Filtros */}
+          {(period !== 'all' || filterStatus !== '' || searchQuery.trim() !== '') && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="btn-secondary"
+              style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+              title="Redefinir filtros para exibir todas as vendas"
+            >
+              <RotateCcw size={13} />
+              Limpar Filtros
+            </button>
+          )}
         </div>
       </div>
 
@@ -349,21 +811,45 @@ export const SalesPage: React.FC = () => {
         </div>
       ) : sales.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-secondary)' }}>
-          <ShoppingBag size={42} color="var(--text-tertiary)" style={{ margin: '0 auto 12px' }} />
-          <h3 style={{ fontSize: '1.3rem', color: 'var(--brand-primary)', marginBottom: '4px' }}>
-            Nenhuma venda registrada ainda
-          </h3>
-          <p style={{ fontSize: '0.9rem', marginBottom: '18px' }}>
-            Inicie uma venda em rascunho com cliente opcional e dê baixa automática no estoque ao confirmar.
-          </p>
-          <button onClick={handleOpenSaleModal} className="btn-secondary">
-            <Plus size={16} />
-            <span>Registrar Primeira Venda</span>
-          </button>
+          {period !== 'all' || filterStatus !== '' || searchQuery.trim() !== '' ? (
+            <>
+              <Calendar size={42} color="var(--brand-accent)" style={{ margin: '0 auto 12px' }} />
+              <h3 style={{ fontSize: '1.3rem', color: 'var(--brand-primary)', marginBottom: '4px' }}>
+                Nenhuma venda encontrada para o período selecionado
+              </h3>
+              <p style={{ fontSize: '0.9rem', marginBottom: '18px' }}>
+                Não foram encontrados registros para <strong>{getActiveFilterLabel()}</strong>.
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
+                <button onClick={handleResetFilters} className="btn-secondary">
+                  <RotateCcw size={16} />
+                  <span>Ver Todas as Vendas</span>
+                </button>
+                <button onClick={handleOpenSaleModal} className="btn-primary">
+                  <Plus size={16} />
+                  <span>Registrar Nova Venda</span>
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <ShoppingBag size={42} color="var(--text-tertiary)" style={{ margin: '0 auto 12px' }} />
+              <h3 style={{ fontSize: '1.3rem', color: 'var(--brand-primary)', marginBottom: '4px' }}>
+                Nenhuma venda registrada ainda
+              </h3>
+              <p style={{ fontSize: '0.9rem', marginBottom: '18px' }}>
+                Inicie uma venda em rascunho com cliente opcional e dê baixa automática no estoque ao confirmar.
+              </p>
+              <button onClick={handleOpenSaleModal} className="btn-secondary">
+                <Plus size={16} />
+                <span>Registrar Primeira Venda</span>
+              </button>
+            </>
+          )}
         </div>
       ) : (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ overflowX: 'auto' }}>
+          <div style={{ overflowX: 'auto', opacity: salesLoading ? 0.6 : 1, transition: 'opacity 0.2s' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ backgroundColor: 'var(--bg-sand-light)', borderBottom: '1px solid var(--border-subtle)' }}>

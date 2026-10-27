@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
+from datetime import datetime, date, timezone
 from decimal import Decimal
 from typing import List, Optional
 import uuid
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
@@ -191,8 +191,39 @@ class SaleService:
         return sale
 
     @staticmethod
-    def list_sales(db: Session, skip: int = 0, limit: int = 100) -> List[Sale]:
-        stmt = select(Sale).order_by(Sale.created_at.desc()).offset(skip).limit(limit)
+    def list_sales(
+        db: Session,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        status: Optional[SaleStatus] = None,
+        customer_id: Optional[int] = None,
+        search: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 200,
+    ) -> List[Sale]:
+        stmt = select(Sale).order_by(Sale.created_at.desc())
+
+        if start_date:
+            start_dt = datetime.combine(start_date, datetime.min.time())
+            stmt = stmt.where(Sale.created_at >= start_dt)
+        if end_date:
+            end_dt = datetime.combine(end_date, datetime.max.time())
+            stmt = stmt.where(Sale.created_at <= end_dt)
+        if status:
+            stmt = stmt.where(Sale.status == status)
+        if customer_id:
+            stmt = stmt.where(Sale.customer_id == customer_id)
+        if search and search.strip():
+            search_term = f"%{search.strip()}%"
+            stmt = stmt.outerjoin(Sale.customer).where(
+                or_(
+                    Sale.sale_number.ilike(search_term),
+                    Customer.name.ilike(search_term),
+                    Sale.notes.ilike(search_term),
+                )
+            )
+
+        stmt = stmt.offset(skip).limit(limit)
         return list(db.execute(stmt).scalars().all())
 
     @staticmethod
