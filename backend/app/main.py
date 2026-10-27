@@ -36,6 +36,16 @@ async def lifespan(app: FastAPI):
                 conn.commit()
             except Exception:
                 pass
+            try:
+                conn.execute(text("ALTER TABLE production_orders ADD COLUMN color VARCHAR(80) NULL;"))
+                conn.commit()
+            except Exception:
+                pass
+            try:
+                conn.execute(text("ALTER TABLE sales ADD COLUMN payment_method VARCHAR(50) NULL;"))
+                conn.commit()
+            except Exception:
+                pass
     except Exception as e:
         print(f"[!] Aviso durante criacao das tabelas no startup: {e}")
     yield
