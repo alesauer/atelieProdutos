@@ -593,7 +593,7 @@ export const FinancialPage: React.FC = () => {
                 {formatCurrency(summary.gross_profit)}
               </div>
               <span style={{ fontSize: '0.78rem', color: '#0d9488', fontWeight: 600 }}>
-                Margem: {summary.gross_margin_pct.toFixed(1)}%
+                Margem: {summary.gross_margin_pct.toFixed(2)}%
               </span>
             </div>
 
@@ -646,7 +646,7 @@ export const FinancialPage: React.FC = () => {
                   color: Number(summary.net_profit) >= 0 ? '#15803d' : '#b91c1c',
                 }}
               >
-                Margem Líquida: {summary.net_margin_pct.toFixed(1)}%
+                Margem Líquida: {summary.net_margin_pct.toFixed(2)}%
               </span>
             </div>
 
@@ -724,7 +724,7 @@ export const FinancialPage: React.FC = () => {
                             textAlign: 'right',
                           }}
                         >
-                          {item.percentage.toFixed(1)}%
+                          {item.percentage.toFixed(2)}%
                         </span>
                       </div>
                     </div>
@@ -748,7 +748,7 @@ export const FinancialPage: React.FC = () => {
                       <div key={idx}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '4px' }}>
                           <span style={{ fontWeight: 600 }}>{pm.method} ({pm.count})</span>
-                          <span><strong>{formatCurrency(pm.amount)}</strong> ({pm.percentage.toFixed(1)}%)</span>
+                          <span><strong>{formatCurrency(pm.amount)}</strong> ({pm.percentage.toFixed(2)}%)</span>
                         </div>
                         <div style={{ height: '6px', borderRadius: '3px', backgroundColor: 'var(--border-subtle)', overflow: 'hidden' }}>
                           <div
@@ -782,7 +782,7 @@ export const FinancialPage: React.FC = () => {
                             <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: cat.color || '#8d5b4c' }} />
                             {cat.category_name}
                           </span>
-                          <span><strong>{formatCurrency(cat.amount)}</strong> ({cat.percentage.toFixed(1)}%)</span>
+                          <span><strong>{formatCurrency(cat.amount)}</strong> ({cat.percentage.toFixed(2)}%)</span>
                         </div>
                         <div style={{ height: '6px', borderRadius: '3px', backgroundColor: 'var(--border-subtle)', overflow: 'hidden' }}>
                           <div

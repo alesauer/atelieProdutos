@@ -17,10 +17,10 @@ import { formatDateOnly } from '../utils/date';
 import type { ProductionOrder, Recipe, Product, ProductColor } from '../types';
 
 const formatQuantity = (val: string | number | undefined | null): string => {
-  if (val === undefined || val === null) return '0';
-  const num = typeof val === 'number' ? val : parseFloat(val);
-  if (isNaN(num)) return '0';
-  return parseFloat(num.toFixed(3)).toLocaleString('pt-BR');
+  if (val === undefined || val === null || val === '') return '0.00';
+  const num = typeof val === 'number' ? val : parseFloat(String(val).replace(',', '.'));
+  if (isNaN(num)) return '0.00';
+  return num.toFixed(2);
 };
 
 export const ProductionPage: React.FC = () => {

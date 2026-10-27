@@ -54,8 +54,14 @@ def _enrich_product_response(
     enriched_variations: List[ProductVariationResponse] = []
     for var in product.variations:
         var_resp = ProductVariationResponse.model_validate(var)
-        var_stock = stock_map.get(var.id, Decimal("0.000")) if stock_map is not None else Decimal("0.000")
-        var_resp.current_stock = var_stock
+        var_stock = stock_map.get(var.id, Decimal("0.00")) if stock_map is not None else Decimal("0.00")
+        var_resp.current_stock = round(var_stock, 2)
+        if var_resp.unit_cost is not None:
+            var_resp.unit_cost = round(var_resp.unit_cost, 2)
+        if var_resp.sale_price is not None:
+            var_resp.sale_price = round(var_resp.sale_price, 2)
+        if var_resp.min_stock is not None:
+            var_resp.min_stock = round(var_resp.min_stock, 2)
 
         v_imgs = []
         v_primary = None
@@ -79,11 +85,20 @@ def _enrich_product_response(
 
     # Saldo de estoque consolidado
     if enriched_variations:
-        resp.current_stock = sum((v.current_stock for v in enriched_variations), Decimal("0.000"))
+        resp.current_stock = round(sum((v.current_stock for v in enriched_variations if v.current_stock is not None), Decimal("0.00")), 2)
     elif current_stock is not None:
-        resp.current_stock = current_stock
+        resp.current_stock = round(current_stock, 2)
     elif stock_map is not None:
-        resp.current_stock = stock_map.get(product.id, Decimal("0.000"))
+        resp.current_stock = round(stock_map.get(product.id, Decimal("0.00")), 2)
+    else:
+        resp.current_stock = Decimal("0.00")
+
+    if resp.unit_cost is not None:
+        resp.unit_cost = round(resp.unit_cost, 2)
+    if resp.sale_price is not None:
+        resp.sale_price = round(resp.sale_price, 2)
+    if resp.min_stock is not None:
+        resp.min_stock = round(resp.min_stock, 2)
 
     return resp
 

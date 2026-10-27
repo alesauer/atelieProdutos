@@ -1290,14 +1290,14 @@ export const SettingsPage: React.FC = () => {
                               ) : s.unit === 'fixo' ? (
                                 <span>R$ {bCost.toFixed(2)} fixo</span>
                               ) : (
-                                <span>R$ {bCost.toFixed(2)} / {bQty} {s.unit}</span>
+                                <span>R$ {bCost.toFixed(2)} / {Number(bQty).toFixed(2)} {s.unit}</span>
                               )}
                             </td>
                             <td style={{ padding: '14px 18px', textAlign: 'right', fontSize: '0.88rem', fontWeight: 700, color: 'var(--brand-primary)' }}>
                               {s.unit === '%' ? (
-                                <span>{bQty}%</span>
+                                <span>{Number(bQty).toFixed(2)}%</span>
                               ) : (
-                                <span>R$ {uCost.toFixed(4)} / {s.unit}</span>
+                                <span>R$ {uCost.toFixed(2)} / {s.unit}</span>
                               )}
                             </td>
                             <td style={{ padding: '14px 18px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>

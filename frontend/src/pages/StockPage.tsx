@@ -19,13 +19,10 @@ import { formatDateTime } from '../utils/date';
 import type { StockBalanceItem, StockMovementItem, Product } from '../types';
 
 const formatQuantity = (val: number | string | undefined | null): string => {
-  if (val === null || val === undefined || val === '') return '0';
+  if (val === null || val === undefined || val === '') return '0.00';
   const num = Number(val);
-  if (isNaN(num)) return '0';
-  if (Number.isInteger(num)) {
-    return String(num);
-  }
-  return parseFloat(num.toFixed(3)).toLocaleString('pt-BR');
+  if (isNaN(num)) return '0.00';
+  return num.toFixed(2);
 };
 
 export const StockPage: React.FC = () => {

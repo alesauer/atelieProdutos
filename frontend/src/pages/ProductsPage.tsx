@@ -307,7 +307,7 @@ export const ProductsPage: React.FC = () => {
   const renderStockDisplay = (item: Product | ProductVariation, isCompact = false) => {
     const stockNum = Number(item.current_stock ?? 0);
     const unit = ('unit' in item && item.unit?.code) ? item.unit.code : 'UN';
-    const formattedStock = Number.isInteger(stockNum) ? stockNum : stockNum.toFixed(2);
+    const formattedStock = stockNum.toFixed(2);
     const isOutOfStock = stockNum <= 0;
     const isLowStock = stockNum > 0 && stockNum <= 5;
     const hasVariations = 'variations' in item && Boolean(item.variations && item.variations.length > 0);
@@ -328,10 +328,10 @@ export const ProductsPage: React.FC = () => {
             border: '1px solid var(--status-danger-border)',
             boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
           }}
-          title="Estoque esgotado (0 peças disponíveis)"
+          title="Estoque esgotado (0.00 peças disponíveis)"
         >
           <span>🚨</span>
-          <span>0 {unit} (Esgotado)</span>
+          <span>0.00 {unit} (Esgotado)</span>
         </span>
       );
     }
@@ -352,13 +352,13 @@ export const ProductsPage: React.FC = () => {
             border: '1px solid #fde68a',
             boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
           }}
-          title="⚠️ Alerta: Estoque crítico com 5 peças ou menos!"
+          title="⚠️ Alerta: Estoque crítico com 5.00 peças ou menos!"
         >
           <span>⚠️</span>
           <span>{formattedStock} {unit}</span>
           {!isCompact && (
             <span style={{ fontSize: '0.7rem', fontWeight: 600, opacity: 0.9 }}>
-              (Alerta: ≤ 5)
+              (Alerta: ≤ 5.00)
             </span>
           )}
           {hasVariations && isCompact && (
@@ -1817,7 +1817,7 @@ export const ProductsPage: React.FC = () => {
                                 cursor: 'pointer',
                                 transition: 'all 0.15s ease',
                               }}
-                              title={`${v.variation_name || v.color} - Estoque: ${vStock} UN (SKU: ${v.sku})`}
+                              title={`${v.variation_name || v.color} - Estoque: ${vStock.toFixed(2)} UN (SKU: ${v.sku})`}
                             >
                               {colorHex && (
                                 <span
@@ -1841,7 +1841,7 @@ export const ProductsPage: React.FC = () => {
                                   paddingLeft: '2px',
                                 }}
                               >
-                                ({vStock} un)
+                                ({vStock.toFixed(2)} un)
                               </span>
                             </button>
                           );
@@ -2594,7 +2594,7 @@ export const ProductsPage: React.FC = () => {
                                       </div>
                                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', marginTop: '2px' }}>
                                         <span style={{ fontWeight: 600, color: 'var(--brand-accent)' }}>R$ {Number(v.sale_price || prod.sale_price || 0).toFixed(2)}</span>
-                                        <span style={{ fontWeight: 700, color: vStock <= 0 ? '#dc2626' : vStock <= 5 ? '#b45309' : '#15803d' }}>{vStock} UN</span>
+                                        <span style={{ fontWeight: 700, color: vStock <= 0 ? '#dc2626' : vStock <= 5 ? '#b45309' : '#15803d' }}>{vStock.toFixed(2)} UN</span>
                                       </div>
                                     </div>
                                   </div>
@@ -5130,7 +5130,7 @@ export const ProductsPage: React.FC = () => {
                               border: '1px solid var(--border-subtle)',
                             }}
                           >
-                            {vStock <= 0 ? 'Esgotado' : `${vStock} un`}
+                            {vStock <= 0 ? '0.00 un (Esgotado)' : `${vStock.toFixed(2)} un`}
                           </span>
                         </button>
                       );
@@ -5147,14 +5147,14 @@ export const ProductsPage: React.FC = () => {
                       {activeVar ? `Estoque da Variação (${activeVar.variation_name || activeVar.color})` : 'Estoque Total Disponível'}
                     </span>
                     <span style={{ fontSize: '1.15rem', fontWeight: 800, color: isLowStock ? '#b45309' : 'var(--brand-primary)' }}>
-                      {currentStockNum} {unitCode}
+                      {currentStockNum.toFixed(2)} {unitCode}
                     </span>
                   </div>
                   {activeVar ? renderStockDisplay(activeVar) : renderStockDisplay(previewProductModal)}
                 </div>
                 {isLowStock && (
                   <p style={{ margin: '6px 0 0', fontSize: '0.82rem', color: '#b45309', fontWeight: 600 }}>
-                    ⚠️ {currentStockNum <= 0 ? 'Item esgotado no depósito!' : `Atenção: Apenas ${currentStockNum} ${unitCode} no estoque (alerta configurado para ≤ 5 peças).`}
+                    ⚠️ {currentStockNum <= 0 ? 'Item esgotado no depósito!' : `Atenção: Apenas ${currentStockNum.toFixed(2)} ${unitCode} no estoque (alerta configurado para ≤ 5.00 peças).`}
                   </p>
                 )}
               </div>
@@ -5198,7 +5198,7 @@ export const ProductsPage: React.FC = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       {costItemsParsed.map((it, idx) => (
                         <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                          <span>• {it.name} ({it.quantity}{it.unit ? ` ${it.unit}` : ''})</span>
+                          <span>• {it.name} ({Number(it.quantity || 0).toFixed(2)}{it.unit ? ` ${it.unit}` : ''})</span>
                           <span style={{ fontWeight: 600 }}>R$ {Number(it.total).toFixed(2)}</span>
                         </div>
                       ))}
@@ -5377,7 +5377,7 @@ export const ProductsPage: React.FC = () => {
                   Variações Cadastradas ({(variationManageModalProduct.variations || []).length})
                 </h4>
                 <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                  Total em estoque somado: <strong>{variationManageModalProduct.current_stock ?? 0} {variationManageModalProduct.unit?.code || 'UN'}</strong>
+                  Total em estoque somado: <strong>{Number(variationManageModalProduct.current_stock ?? 0).toFixed(2)} {variationManageModalProduct.unit?.code || 'UN'}</strong>
                 </span>
               </div>
 
@@ -5545,7 +5545,7 @@ export const ProductsPage: React.FC = () => {
                       .filter((p) => p.id !== variationManageModalProduct.id && (!p.variations || p.variations.length === 0))
                       .map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name} {p.color ? `(${p.color})` : ''} - SKU: {p.sku} (Estoque: {p.current_stock ?? 0})
+                          {p.name} {p.color ? `(${p.color})` : ''} - SKU: {p.sku} (Estoque: {Number(p.current_stock ?? 0).toFixed(2)} {p.unit?.code || 'UN'})
                         </option>
                       ))}
                   </select>

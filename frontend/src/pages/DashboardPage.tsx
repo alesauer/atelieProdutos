@@ -20,10 +20,10 @@ import { Badge } from '../components/Badge';
 import { formatDateTime } from '../utils/date';
 
 const formatQuantity = (val: string | number | undefined | null): string => {
-  if (val === undefined || val === null) return '0';
-  const num = typeof val === 'number' ? val : parseFloat(val);
-  if (isNaN(num)) return '0';
-  return parseFloat(num.toFixed(3)).toLocaleString('pt-BR');
+  if (val === undefined || val === null || val === '') return '0.00';
+  const num = typeof val === 'number' ? val : parseFloat(String(val).replace(',', '.'));
+  if (isNaN(num)) return '0.00';
+  return num.toFixed(2);
 };
 
 interface DashboardPageProps {
@@ -451,7 +451,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                       {item.name}
                     </p>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                      Saldo: <strong>{formatQuantity(item.current_stock)} {item.unit}</strong> (Alerta: ≤ 5)
+                      Saldo: <strong>{formatQuantity(item.current_stock)} {item.unit}</strong> (Alerta: ≤ 5.00)
                     </span>
                   </div>
 
@@ -663,7 +663,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {mov.quantity > 0 ? `+${mov.quantity}` : mov.quantity} {mov.unit}
+                      {mov.quantity > 0 ? `+${formatQuantity(mov.quantity)}` : formatQuantity(mov.quantity)} {mov.unit}
                     </td>
                     <td style={{ padding: '12px', color: 'var(--text-secondary)', maxWidth: '280px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                       {mov.justification || '—'}
