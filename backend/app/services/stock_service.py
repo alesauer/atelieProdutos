@@ -178,13 +178,19 @@ class StockService:
     @staticmethod
     def list_balances(db: Session) -> List[StockBalanceResponse]:
         """Calcula o saldo consolidado de todos os itens ativos."""
+        try:
+            from app.services.production_service import production_service
+            production_service.auto_create_draft_orders_for_low_stock(db)
+        except Exception:
+            pass
+
         products = list(db.execute(select(Product).order_by(Product.name)).scalars().all())
 
         balances: List[StockBalanceResponse] = []
         for p in products:
             curr_stock = round(StockService.get_product_balance(db, p.id), 2)
             # Regra de estoque mínimo padronizada em 5 peças para Alerta de Produção
-            min_stock = round(Decimal(str(p.min_stock)), 2) if p.min_stock and p.min_stock > 0 else Decimal("5.00")
+            min_stock = Decimal("5.00")
             unit_cost = round(Decimal(str(p.unit_cost)), 2)
 
             is_zero = curr_stock <= Decimal("0.00")

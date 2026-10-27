@@ -44,11 +44,18 @@ def _enrich_recipe_response(recipe: ProductionRecipe) -> RecipeResponse:
 
 
 def _enrich_order_response(order: ProductionOrder) -> ProductionOrderResponse:
+    prod_name = None
+    if order.product:
+        if order.product.parent:
+            prod_name = f"{order.product.parent.name} - {order.product.variation_name or order.product.color or 'Variação'}"
+        else:
+            prod_name = order.product.name
+
     resp = ProductionOrderResponse(
         id=order.id,
         order_number=order.order_number,
         product_id=order.product_id,
-        product_name=order.product.name if order.product else None,
+        product_name=prod_name,
         recipe_id=order.recipe_id,
         color=order.color,
         planned_quantity=order.planned_quantity,

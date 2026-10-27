@@ -146,6 +146,13 @@ class SaleService:
 
         db.commit()
         db.refresh(sale)
+
+        try:
+            from app.services.production_service import production_service
+            production_service.auto_create_draft_orders_for_low_stock(db)
+        except Exception:
+            pass
+
         return sale
 
     @staticmethod

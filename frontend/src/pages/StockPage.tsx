@@ -176,7 +176,7 @@ export const StockPage: React.FC = () => {
             R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </h3>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
-            Cálculo: Saldo Atual × Custo Unitário Cadastrado
+            Cálculo: Estoque Atual × Custo Unitário Cadastrado
           </span>
         </div>
 
@@ -212,7 +212,7 @@ export const StockPage: React.FC = () => {
             {zeroStockCount}
           </h3>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
-            Saldo zerado ou em falta no ateliê
+            Estoque zerado ou em falta no ateliê
           </span>
         </div>
       </div>
@@ -237,7 +237,7 @@ export const StockPage: React.FC = () => {
             style={{ padding: '8px 16px' }}
           >
             <Boxes size={16} />
-            <span>Saldos em Tempo Real</span>
+            <span>Estoque em Tempo Real</span>
           </button>
           <button
             onClick={() => setActiveTab('movements')}
@@ -273,7 +273,7 @@ export const StockPage: React.FC = () => {
       {loading ? (
         <div style={{ textAlign: 'center', padding: '60px 20px' }}>
           <Loader2 size={32} className="spin-animation" color="var(--brand-accent)" style={{ margin: '0 auto 12px' }} />
-          <p style={{ color: 'var(--text-secondary)' }}>Calculando saldos em estoque...</p>
+          <p style={{ color: 'var(--text-secondary)' }}>Calculando estoque em tempo real...</p>
         </div>
       ) : error ? (
         <div
@@ -321,8 +321,7 @@ export const StockPage: React.FC = () => {
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>ITEM / SKU</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>TIPO</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>CATEGORIA</th>
-                  <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>SALDO ATUAL</th>
-                  <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>ESTOQUE MÍN.</th>
+                  <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>ESTOQUE ATUAL</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>SITUAÇÃO</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>CUSTO UNIT.</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>VALOR TOTAL</th>
@@ -369,9 +368,6 @@ export const StockPage: React.FC = () => {
                         {formatQuantity(b.current_stock)}
                       </span>{' '}
                       <span style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>{b.unit_code}</span>
-                    </td>
-                    <td style={{ padding: '14px 20px', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-                      {formatQuantity(b.min_stock || 5)} {b.unit_code}
                     </td>
                     <td style={{ padding: '14px 20px' }}>
                       {b.is_zero_stock || Number(b.current_stock) <= 0 ? (

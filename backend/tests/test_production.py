@@ -224,3 +224,24 @@ def test_delete_confirmed_order_forbidden(
     )
     assert del_rec_fail.status_code == 400
 
+
+def test_auto_create_draft_orders_for_low_stock(
+    client: TestClient, admin_token: str, production_setup: dict, db: Session
+):
+    from app.services.production_service import production_service
+
+    finished = production_setup["finished"]
+    # Saldo atual de 'finished' é 0 (que é <= 5, disparando alerta de produção)
+    orders = production_service.auto_create_draft_orders_for_low_stock(db)
+    assert len(orders) >= 1
+    draft_order = next((o for o in orders if o.product_id == finished.id), None)
+    assert draft_order is not None
+    assert draft_order.status.value == "RASCUNHO"
+    assert "Alerta de Produção" in draft_order.notes
+    assert draft_order.planned_quantity >= Decimal("5.000")
+
+    # Segunda chamada não deve duplicar o rascunho
+    orders_second_call = production_service.auto_create_draft_orders_for_low_stock(db)
+    duplicate = [o for o in orders_second_call if o.product_id == finished.id]
+    assert len(duplicate) == 0
+

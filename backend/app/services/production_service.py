@@ -299,7 +299,118 @@ class ProductionService:
         return order
 
     @staticmethod
+    def auto_create_draft_orders_for_low_stock(db: Session) -> List[ProductionOrder]:
+        """
+        Gera automaticamente rascunhos de ordens de produção artesanal para qualquer
+        produto acabado ativo cujo saldo em estoque esteja em nível de alerta (<= 5 peças).
+        Não duplica caso já exista uma ordem em rascunho aberta para o mesmo produto.
+        """
+        products = list(
+            db.execute(
+                select(Product).where(
+                    Product.is_active == True,
+                    Product.item_type == "PRODUTO_ACABADO",
+                )
+            ).scalars().all()
+        )
+
+        created_orders: List[ProductionOrder] = []
+        now = datetime.now(timezone.utc)
+
+        for p in products:
+            # Se for produto pai que possui variações ativas, avaliamos cada variação
+            if p.variations and len(p.variations) > 0:
+                target_items = [v for v in p.variations if v.is_active]
+            else:
+                target_items = [p]
+
+            for item in target_items:
+                curr_stock = stock_service.get_product_balance(db, item.id)
+
+                # Regra de Alerta de Produção: estoque atual <= 5 peças
+                if curr_stock <= Decimal("5.000"):
+                    # Verifica se já existe ordem em RASCUNHO pendente para este item
+                    existing_draft = db.execute(
+                        select(ProductionOrder).where(
+                            ProductionOrder.product_id == item.id,
+                            ProductionOrder.status == ProductionOrderStatus.RASCUNHO,
+                        )
+                    ).scalars().first()
+
+                    if existing_draft:
+                        continue
+
+                    # Localiza ficha técnica (pelo ID do item ou do pai)
+                    recipe = db.execute(
+                        select(ProductionRecipe).where(
+                            ProductionRecipe.product_id == item.id,
+                            ProductionRecipe.is_active == True,
+                        )
+                    ).scalars().first()
+
+                    if not recipe and item.parent_id:
+                        recipe = db.execute(
+                            select(ProductionRecipe).where(
+                                ProductionRecipe.product_id == item.parent_id,
+                                ProductionRecipe.is_active == True,
+                            )
+                        ).scalars().first()
+
+                    planned_qty = (
+                        recipe.yield_quantity
+                        if recipe and recipe.yield_quantity and recipe.yield_quantity > 0
+                        else Decimal("5.000")
+                    )
+                    if planned_qty < Decimal("5.000"):
+                        planned_qty = Decimal("5.000")
+
+                    order_color = item.color or (p.color if item.parent_id else None)
+                    order_number = f"OP-{now.strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+
+                    order = ProductionOrder(
+                        order_number=order_number,
+                        product_id=item.id,
+                        recipe_id=recipe.id if recipe else None,
+                        color=order_color,
+                        planned_quantity=planned_qty,
+                        produced_quantity=planned_qty,
+                        status=ProductionOrderStatus.RASCUNHO,
+                        notes=(
+                            f"Rascunho criado automaticamente por Alerta de Produção "
+                            f"(Estoque atual: {curr_stock:.2f} <= 5.00 peças)."
+                        ),
+                    )
+                    db.add(order)
+                    db.flush()
+
+                    if recipe and recipe.yield_quantity and recipe.yield_quantity > 0:
+                        ratio = planned_qty / recipe.yield_quantity
+                        for rit in recipe.items:
+                            needed = rit.standard_quantity * ratio
+                            order_item = ProductionOrderItem(
+                                production_order_id=order.id,
+                                component_product_id=rit.component_product_id,
+                                planned_quantity=needed,
+                                actual_quantity=needed,
+                                loss_quantity=Decimal("0.000"),
+                            )
+                            db.add(order_item)
+
+                    created_orders.append(order)
+
+        if created_orders:
+            db.commit()
+            for o in created_orders:
+                db.refresh(o)
+
+        return created_orders
+
+    @staticmethod
     def list_orders(db: Session, skip: int = 0, limit: int = 100) -> List[ProductionOrder]:
+        try:
+            ProductionService.auto_create_draft_orders_for_low_stock(db)
+        except Exception:
+            pass
         stmt = select(ProductionOrder).order_by(ProductionOrder.created_at.desc()).offset(skip).limit(limit)
         return list(db.execute(stmt).scalars().all())
 

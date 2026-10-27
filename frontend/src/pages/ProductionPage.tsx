@@ -279,6 +279,9 @@ export const ProductionPage: React.FC = () => {
           <h3 style={{ fontSize: '1.75rem', marginTop: '4px', color: 'var(--brand-primary)' }}>
             {orders.length}
           </h3>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
+            Total de ordens no histórico
+          </span>
         </div>
         <div className="card" style={{ padding: '20px' }}>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
@@ -287,6 +290,9 @@ export const ProductionPage: React.FC = () => {
           <h3 style={{ fontSize: '1.75rem', marginTop: '4px', color: 'var(--brand-accent)' }}>
             {orders.filter((o) => o.status === 'RASCUNHO').length}
           </h3>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
+            Inclui alertas automáticos de estoque baixo (≤ 5 peças)
+          </span>
         </div>
         <div className="card" style={{ padding: '20px' }}>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
@@ -411,8 +417,8 @@ export const ProductionPage: React.FC = () => {
                       </td>
                       <td style={{ padding: '14px 20px', fontWeight: 600, color: 'var(--text-primary)' }}>
                         <div>{o.product_name}</div>
-                        {o.color && (
-                          <div style={{ marginTop: '4px' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                          {o.color && (
                             <span
                               style={{
                                 display: 'inline-flex',
@@ -429,8 +435,27 @@ export const ProductionPage: React.FC = () => {
                             >
                               🎨 {o.color}
                             </span>
-                          </div>
-                        )}
+                          )}
+                          {o.notes && o.notes.includes('Alerta de Produção') && (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '1px 8px',
+                                borderRadius: '10px',
+                                fontSize: '0.72rem',
+                                fontWeight: 600,
+                                backgroundColor: 'var(--status-warning-bg)',
+                                color: 'var(--status-warning-text)',
+                                border: '1px solid var(--status-warning-border)',
+                              }}
+                              title={o.notes}
+                            >
+                              ⚠️ Alerta de Estoque (≤ 5 peças)
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td style={{ padding: '14px 20px', fontSize: '0.9rem' }}>
                         {formatQuantity(o.planned_quantity)}
