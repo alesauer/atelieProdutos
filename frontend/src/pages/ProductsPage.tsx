@@ -2904,6 +2904,22 @@ export const ProductsPage: React.FC = () => {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
             <div>
+              <label htmlFor="prod-price" style={{ marginBottom: '6px', display: 'block' }}>Preço Venda (R$)</label>
+              <input
+                id="prod-price"
+                type="text"
+                inputMode="numeric"
+                value={formData.sale_price || ''}
+                onChange={(e) => {
+                  const formatted = formatCurrencyInputRTL(e.target.value, true);
+                  setFormData({ ...formData, sale_price: formatted });
+                }}
+                onFocus={(e) => e.target.select()}
+                placeholder="0,00"
+                style={{ textAlign: 'right' }}
+              />
+            </div>
+            <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                 <label htmlFor="prod-cost" style={{ margin: 0 }}>Custo Estimado (R$)</label>
                 <button
@@ -2959,22 +2975,6 @@ export const ProductsPage: React.FC = () => {
                   </span>
                 </div>
               )}
-            </div>
-            <div>
-              <label htmlFor="prod-price" style={{ marginBottom: '6px', display: 'block' }}>Preço Venda (R$)</label>
-              <input
-                id="prod-price"
-                type="text"
-                inputMode="numeric"
-                value={formData.sale_price || ''}
-                onChange={(e) => {
-                  const formatted = formatCurrencyInputRTL(e.target.value, true);
-                  setFormData({ ...formData, sale_price: formatted });
-                }}
-                onFocus={(e) => e.target.select()}
-                placeholder="0,00"
-                style={{ textAlign: 'right' }}
-              />
             </div>
           </div>
 
@@ -3876,6 +3876,49 @@ export const ProductsPage: React.FC = () => {
         maxWidth="680px"
       >
         <div>
+          {/* Informação e ajuste do Preço de Venda Base */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '10px 14px',
+              backgroundColor: 'var(--bg-sand-light)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-medium)',
+              marginBottom: '16px',
+            }}
+          >
+            <div>
+              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Preço de Venda do Produto:
+              </span>{' '}
+              <strong style={{ fontSize: '0.9rem', color: formData.sale_price ? 'var(--brand-primary)' : 'var(--status-danger-text)' }}>
+                {formData.sale_price ? `R$ ${formData.sale_price}` : 'Não informado'}
+              </strong>
+              <span style={{ fontSize: '0.74rem', color: 'var(--text-tertiary)', marginLeft: '8px' }}>
+                (usado no cálculo de taxas em %, como Shopee)
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <label htmlFor="calc-sale-price-quick" style={{ fontSize: '0.78rem', margin: 0, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Ajustar Preço:
+              </label>
+              <input
+                id="calc-sale-price-quick"
+                type="text"
+                inputMode="numeric"
+                value={formData.sale_price || ''}
+                onChange={(e) => {
+                  const formatted = formatCurrencyInputRTL(e.target.value, true);
+                  setFormData({ ...formData, sale_price: formatted });
+                }}
+                placeholder="0,00"
+                style={{ width: '90px', padding: '4px 8px', fontSize: '0.82rem', textAlign: 'right' }}
+              />
+            </div>
+          </div>
+
           {/* Formulário de Adição de Item de Custo */}
           <div
             style={{
