@@ -1,0 +1,128 @@
+/* ==========================================================================
+   ATELIÊ CASA LUMA — CATÁLOGO EDITORIAL A4 (ESTILOS DE TELA E IMPRESSÃO)
+   ========================================================================== */
+
+/* Container de Pré-visualização na tela */
+.catalog-screen-preview {
+  background-color: #524b45;
+  padding: 24px 16px;
+  max-height: 75vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  border-radius: var(--radius-sm);
+}
+
+/* Folha A4 no Visualizador de Tela */
+.catalog-a4-page {
+  width: 210mm;
+  min-height: 297mm;
+  background-color: #ffffff;
+  color: #2c2824;
+  padding: 14mm 16mm;
+  box-sizing: border-box;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Moldura interna elegante para a Capa */
+.catalog-cover-border {
+  border: 1px solid #c5a059;
+  outline: 1px solid #dfd5c7;
+  outline-offset: 4mm;
+  padding: 12mm 14mm;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  text-align: center;
+  background: radial-gradient(circle at center, #ffffff 60%, #faf6f0 100%);
+  position: relative;
+}
+
+/* ==========================================================================
+   REGRAS DE IMPRESSÃO (@media print)
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm 10mm;
+  }
+
+  html, body {
+    width: 210mm !important;
+    height: auto !important;
+    background: #ffffff !important;
+    color: #2c2824 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Ocultar tudo na página exceto a área de impressão do catálogo */
+  #root,
+  .sidebar,
+  .modal-backdrop,
+  .no-print,
+  button,
+  header,
+  nav {
+    display: none !important;
+  }
+
+  body > *:not(#catalog-print-portal) {
+    display: none !important;
+  }
+
+  #catalog-print-portal {
+    display: block !important;
+    position: static !important;
+    width: 210mm !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  .catalog-screen-preview {
+    background: transparent !important;
+    padding: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    gap: 0 !important;
+  }
+
+  .catalog-a4-page {
+    width: 100% !important;
+    min-height: 275mm !important;
+    height: auto !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 10mm 12mm !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    background: #ffffff !important;
+  }
+
+  .catalog-a4-page:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  .catalog-product-card {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}

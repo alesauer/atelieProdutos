@@ -24,10 +24,12 @@ import {
   Eye,
   AlertTriangle,
   Link2,
+  FileText,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
+import { ProductCatalogModal } from '../components/ProductCatalogModal';
 import { getProductImageUrl, handleImageError } from '../utils/imageUrl';
 import type { Category, CostComponentItem, ItemType, ItemTypeDefinition, Product, ProductVariation, ProductColor, ProductMaterial, ProductSupply, ProductFormData, SalesLinkItem, UnitOfMeasure } from '../types';
 
@@ -115,6 +117,7 @@ export const ProductsPage: React.FC = () => {
 
   // Modais
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState<ProductFormData>({
     sku: '',
@@ -1397,6 +1400,25 @@ export const ProductsPage: React.FC = () => {
               <span>Grade</span>
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setIsCatalogModalOpen(true)}
+            className="btn-secondary"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: '#fff',
+              borderColor: 'var(--brand-accent)',
+              color: 'var(--brand-accent)',
+              fontWeight: 600,
+            }}
+            title="Gerar e exportar catálogo de produtos em PDF elegante para compartilhar"
+          >
+            <FileText size={17} />
+            <span>Gerar Catálogo PDF</span>
+          </button>
 
           <button onClick={handleOpenCreateModal} className="btn-primary">
             <Plus size={18} />
@@ -5769,6 +5791,15 @@ export const ProductsPage: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      {/* Modal de Catálogo em PDF */}
+      <ProductCatalogModal
+        isOpen={isCatalogModalOpen}
+        onClose={() => setIsCatalogModalOpen(false)}
+        products={products}
+        categories={categories}
+        itemTypes={itemTypes}
+      />
     </div>
   );
 };
