@@ -95,7 +95,20 @@ export const ProductionPage: React.FC = () => {
     loadData();
   }, []);
 
-  const finishedProducts = products.filter((p) => p.item_type === 'PRODUTO_ACABADO');
+  const finishedProducts = products.flatMap((p) => {
+    if (p.item_type !== 'PRODUTO_ACABADO') return [];
+    if (p.variations && p.variations.length > 0) {
+      return p.variations.map((v) => ({
+        ...p,
+        id: v.id,
+        sku: v.sku,
+        name: `${p.name} - ${v.variation_name || v.color || 'Variação'}`,
+        color: v.color || p.color,
+        current_stock: v.current_stock,
+      }));
+    }
+    return [p];
+  });
   const rawMaterials = products.filter((p) => p.item_type !== 'PRODUTO_ACABADO');
 
   // Ao selecionar o produto na nova ordem, tenta auto-selecionar a receita e cor vinculadas
@@ -103,7 +116,7 @@ export const ProductionPage: React.FC = () => {
     setOrderProductId(prodId);
     const foundRecipe = recipes.find((r) => r.product_id === prodId);
     setOrderRecipeId(foundRecipe ? foundRecipe.id : null);
-    const foundProd = products.find((p) => p.id === prodId);
+    const foundProd = finishedProducts.find((p) => p.id === prodId) || products.find((p) => p.id === prodId);
     if (foundProd && foundProd.color) {
       setOrderColor(foundProd.color);
     }

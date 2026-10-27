@@ -38,6 +38,8 @@ class ProductBase(BaseModel):
     sale_price: Optional[Decimal] = Field(default=None, ge=0)
     min_stock: Decimal = Field(default=Decimal("0.000"), ge=0)
     is_active: bool = True
+    parent_id: Optional[int] = None
+    variation_name: Optional[str] = Field(None, max_length=100)
 
 
 class ProductCreate(ProductBase):
@@ -59,6 +61,19 @@ class ProductUpdate(BaseModel):
     sale_price: Optional[Decimal] = Field(None, ge=0)
     min_stock: Optional[Decimal] = Field(None, ge=0)
     is_active: Optional[bool] = None
+    parent_id: Optional[int] = None
+    variation_name: Optional[str] = Field(None, max_length=100)
+
+
+class ProductVariationResponse(ProductBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    images: List[ProductImageResponse] = []
+    primary_image_url: Optional[str] = None
+    current_stock: Decimal = Field(default=Decimal("0.000"))
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProductResponse(ProductBase):
@@ -70,8 +85,25 @@ class ProductResponse(ProductBase):
     images: List[ProductImageResponse] = []
     primary_image_url: Optional[str] = None
     current_stock: Decimal = Field(default=Decimal("0.000"))
+    variations: List[ProductVariationResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class VariationCreate(BaseModel):
+    sku: str = Field(..., min_length=2, max_length=50)
+    variation_name: str = Field(..., min_length=1, max_length=100)
+    color: Optional[str] = Field(None, max_length=50)
+    material: Optional[str] = Field(None, max_length=100)
+    sale_price: Optional[Decimal] = Field(default=None, ge=0)
+    unit_cost: Optional[Decimal] = Field(default=None, ge=0)
+    min_stock: Decimal = Field(default=Decimal("0.000"), ge=0)
+    initial_stock: Decimal = Field(default=Decimal("0.000"), ge=0)
+
+
+class LinkVariationRequest(BaseModel):
+    child_id: int
+    variation_name: Optional[str] = Field(None, max_length=100)
 
 
 class ImageReorderItem(BaseModel):

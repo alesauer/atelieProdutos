@@ -7,10 +7,12 @@ import type {
   MovementReportItem,
   NotificationLogItem,
   Product,
+  ProductVariation,
   ProductColor,
   ProductMaterial,
   ProductSupply,
   ProductFormData,
+  VariationFormData,
   ProductImage,
   ProductionOrder,
   ProductionReportResponse,
@@ -289,12 +291,14 @@ class ApiClient {
     category_id?: number;
     search?: string;
     active_only?: boolean;
+    catalog_only?: boolean;
   }): Promise<Product[]> {
     const query = new URLSearchParams();
     if (params?.item_type) query.append('item_type', params.item_type);
     if (params?.category_id) query.append('category_id', params.category_id.toString());
     if (params?.search) query.append('search', params.search);
     if (params?.active_only !== undefined) query.append('active_only', params.active_only.toString());
+    if (params?.catalog_only !== undefined) query.append('catalog_only', params.catalog_only.toString());
 
     const qs = query.toString() ? `?${query.toString()}` : '';
     return this.request<Product[]>(`/products${qs}`);
@@ -326,6 +330,27 @@ class ApiClient {
 
   async deleteProduct(id: number): Promise<void> {
     return this.request<void>(`/products/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // --- Variações / Subprodutos (Estilo Shopee) ---
+  async createVariation(productId: number, data: VariationFormData): Promise<ProductVariation> {
+    return this.request<ProductVariation>(`/products/${productId}/variations`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async linkExistingProductAsVariation(productId: number, childId: number, variationName?: string): Promise<Product> {
+    return this.request<Product>(`/products/${productId}/link-variation`, {
+      method: 'POST',
+      body: JSON.stringify({ child_id: childId, variation_name: variationName }),
+    });
+  }
+
+  async unlinkVariation(productId: number, variationId: number): Promise<void> {
+    return this.request<void>(`/products/${productId}/variations/${variationId}`, {
       method: 'DELETE',
     });
   }

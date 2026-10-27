@@ -49,6 +49,12 @@ class Product(Base, TimestampMixin):
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    # Subprodutos e Variações estilo Shopee
+    parent_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    variation_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
     # Relacionamentos
     category = relationship("Category", back_populates="products")
     unit = relationship("UnitOfMeasure", back_populates="products")
@@ -57,6 +63,13 @@ class Product(Base, TimestampMixin):
         back_populates="product",
         cascade="all, delete-orphan",
         order_by="ProductImage.display_order",
+    )
+    parent = relationship("Product", remote_side=[id], back_populates="variations")
+    variations = relationship(
+        "Product",
+        back_populates="parent",
+        cascade="all, delete-orphan",
+        order_by="Product.id",
     )
 
 

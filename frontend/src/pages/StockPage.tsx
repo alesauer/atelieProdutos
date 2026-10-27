@@ -69,8 +69,9 @@ export const StockPage: React.FC = () => {
       setProducts(pData);
 
       if (pData.length > 0 && !adjProductId) {
-        setAdjProductId(pData[0].id);
-        setEntryProductId(pData[0].id);
+        const first = pData[0].variations && pData[0].variations.length > 0 ? pData[0].variations[0].id : pData[0].id;
+        setAdjProductId(first);
+        setEntryProductId(first);
       }
     } catch (err: any) {
       setError(err.message || 'Falha ao carregar dados do estoque.');
@@ -78,6 +79,18 @@ export const StockPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const selectableProducts = products.flatMap((p) => {
+    if (p.variations && p.variations.length > 0) {
+      return p.variations.map((v) => ({
+        ...p,
+        id: v.id,
+        sku: v.sku,
+        name: `${p.name} - ${v.variation_name || v.color || 'Variação'}`,
+      }));
+    }
+    return [p];
+  });
 
   useEffect(() => {
     loadData();
@@ -497,7 +510,7 @@ export const StockPage: React.FC = () => {
               value={adjProductId}
               onChange={(e) => setAdjProductId(Number(e.target.value))}
             >
-              {products.map((p) => (
+              {selectableProducts.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} ({p.sku})
                 </option>
@@ -560,7 +573,7 @@ export const StockPage: React.FC = () => {
               value={entryProductId}
               onChange={(e) => setEntryProductId(Number(e.target.value))}
             >
-              {products.map((p) => (
+              {selectableProducts.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} ({p.sku})
                 </option>

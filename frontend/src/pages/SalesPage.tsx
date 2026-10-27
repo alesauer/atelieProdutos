@@ -71,8 +71,23 @@ export const SalesPage: React.FC = () => {
     loadData();
   }, []);
 
-  // Produtos acabados destinados à venda
-  const saleProducts = products.filter((p) => p.item_type === 'PRODUTO_ACABADO');
+  // Produtos acabados destinados à venda (inclui variações se houver)
+  const saleProducts = products.flatMap((p) => {
+    if (p.item_type !== 'PRODUTO_ACABADO') return [];
+    if (p.variations && p.variations.length > 0) {
+      return p.variations.map((v) => ({
+        ...p,
+        id: v.id,
+        sku: v.sku,
+        name: `${p.name} - ${v.variation_name || v.color || 'Variação'}`,
+        color: v.color || p.color,
+        sale_price: v.sale_price !== null && v.sale_price !== undefined ? v.sale_price : p.sale_price,
+        unit_cost: v.unit_cost !== null && v.unit_cost !== undefined ? v.unit_cost : p.unit_cost,
+        current_stock: v.current_stock,
+      }));
+    }
+    return [p];
+  });
 
   // Cálculo de faturamento total confirmado
   const confirmedSales = sales.filter((s) => s.status === 'CONFIRMADA');

@@ -47,6 +47,22 @@ async def lifespan(app: FastAPI):
                 conn.commit()
             except Exception:
                 pass
+            # Migrações seguras da tabela products para subprodutos e variações estilo Shopee
+            try:
+                conn.execute(text("ALTER TABLE products ADD COLUMN parent_id INT NULL;"))
+                conn.commit()
+            except Exception:
+                pass
+            try:
+                conn.execute(text("ALTER TABLE products ADD COLUMN variation_name VARCHAR(100) NULL;"))
+                conn.commit()
+            except Exception:
+                pass
+            try:
+                conn.execute(text("ALTER TABLE products ADD CONSTRAINT fk_products_parent FOREIGN KEY (parent_id) REFERENCES products(id) ON DELETE CASCADE;"))
+                conn.commit()
+            except Exception:
+                pass
         # Popula categorias financeiras padrão se vazio
         try:
             with SessionLocal() as db:

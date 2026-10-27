@@ -119,6 +119,31 @@ export interface SalesLinkItem {
   url: string;
 }
 
+export interface ProductVariation {
+  id: number;
+  sku: string;
+  name: string;
+  description?: string;
+  color?: string | null;
+  material?: string | null;
+  item_type: ItemType;
+  category_id?: number | null;
+  unit_id: number;
+  unit_cost: string | number;
+  cost_breakdown?: string | null;
+  sales_links?: string | null;
+  sale_price?: string | number | null;
+  min_stock: string | number;
+  is_active: boolean;
+  parent_id?: number | null;
+  variation_name?: string | null;
+  created_at: string;
+  updated_at: string;
+  images: ProductImage[];
+  primary_image_url?: string | null;
+  current_stock?: string | number;
+}
+
 export interface Product {
   id: number;
   sku: string;
@@ -135,6 +160,8 @@ export interface Product {
   sale_price?: string | number | null;
   min_stock: string | number;
   is_active: boolean;
+  parent_id?: number | null;
+  variation_name?: string | null;
   created_at: string;
   updated_at: string;
   category?: Category | null;
@@ -142,6 +169,7 @@ export interface Product {
   images: ProductImage[];
   primary_image_url?: string | null;
   current_stock?: string | number;
+  variations?: ProductVariation[];
 }
 
 export interface ProductFormData {
@@ -159,6 +187,19 @@ export interface ProductFormData {
   sale_price?: number | string | null;
   min_stock: number | string;
   is_active: boolean;
+  parent_id?: number | null;
+  variation_name?: string | null;
+}
+
+export interface VariationFormData {
+  sku: string;
+  variation_name: string;
+  color?: string;
+  material?: string;
+  sale_price?: number | string | null;
+  unit_cost?: number | string | null;
+  min_stock?: number | string;
+  initial_stock?: number | string;
 }
 
 // --- Estoque ---

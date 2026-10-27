@@ -22,12 +22,14 @@ import {
   Copy,
   Check,
   Eye,
+  AlertTriangle,
+  Link2,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import { getProductImageUrl, handleImageError } from '../utils/imageUrl';
-import type { Category, CostComponentItem, ItemType, ItemTypeDefinition, Product, ProductColor, ProductMaterial, ProductSupply, ProductFormData, SalesLinkItem, UnitOfMeasure } from '../types';
+import type { Category, CostComponentItem, ItemType, ItemTypeDefinition, Product, ProductVariation, ProductColor, ProductMaterial, ProductSupply, ProductFormData, SalesLinkItem, UnitOfMeasure } from '../types';
 
 const WhatsAppIcon: React.FC<{ size?: number; color?: string; style?: React.CSSProperties }> = ({
   size = 16,
@@ -199,13 +201,116 @@ export const ProductsPage: React.FC = () => {
 
   // Modal de Detalhes do Produto (abre somente ao clicar)
   const [previewProductModal, setPreviewProductModal] = useState<Product | null>(null);
+  const [previewModalActiveVarId, setPreviewModalActiveVarId] = useState<number | null>(null);
 
-  const renderStockDisplay = (prod: Product, isCompact = false) => {
-    const stockNum = Number(prod.current_stock ?? 0);
-    const unit = prod.unit?.code || 'UN';
+  // Variações e Subprodutos (Estilo Shopee)
+  const [selectedVariationMap, setSelectedVariationMap] = useState<Record<number, number | null>>({});
+  const [expandedTableVariations, setExpandedTableVariations] = useState<Record<number, boolean>>({});
+
+  // Modal de Gestão de Variações de um Produto
+  const [variationManageModalProduct, setVariationManageModalProduct] = useState<Product | null>(null);
+  const [newVarName, setNewVarName] = useState('');
+  const [newVarColor, setNewVarColor] = useState('');
+  const [newVarSku, setNewVarSku] = useState('');
+  const [newVarSalePrice, setNewVarSalePrice] = useState('');
+  const [newVarUnitCost, setNewVarUnitCost] = useState('');
+  const [newVarStock, setNewVarStock] = useState('0');
+  const [savingNewVar, setSavingNewVar] = useState(false);
+  const [varFormError, setVarFormError] = useState<string | null>(null);
+
+  // Agrupamento de Produto Existente como Variação
+  const [linkExistingChildId, setLinkExistingChildId] = useState<number | null>(null);
+  const [linkExistingVarName, setLinkExistingVarName] = useState('');
+  const [linkingProduct, setLinkingProduct] = useState(false);
+
+  // Handlers de Variações
+  const handleCreateVariation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!variationManageModalProduct) return;
+    if (!newVarName.trim()) {
+      setVarFormError('Informe o nome da variação (ex: Branco, Cinza, P, M).');
+      return;
+    }
+    const cleanSku = newVarSku.trim() || `${variationManageModalProduct.sku}-${newVarName.trim().toUpperCase().replace(/\s+/g, '-')}`;
+    setSavingNewVar(true);
+    setVarFormError(null);
+    try {
+      await api.createVariation(variationManageModalProduct.id, {
+        sku: cleanSku,
+        variation_name: newVarName.trim(),
+        color: newVarColor.trim() || newVarName.trim(),
+        sale_price: parseOptionalCurrencyValue(newVarSalePrice) ?? (variationManageModalProduct.sale_price ? Number(variationManageModalProduct.sale_price) : null),
+        unit_cost: parseOptionalCurrencyValue(newVarUnitCost) ?? Number(variationManageModalProduct.unit_cost || 0),
+        min_stock: 5,
+        initial_stock: parseStockValue(newVarStock),
+      });
+
+      const updatedProd = await api.getProduct(variationManageModalProduct.id);
+      setVariationManageModalProduct(updatedProd);
+      setProducts((prev) => prev.map((p) => (p.id === updatedProd.id ? updatedProd : p)));
+      setNewVarName('');
+      setNewVarColor('');
+      setNewVarSku('');
+      setNewVarSalePrice('');
+      setNewVarUnitCost('');
+      setNewVarStock('0');
+    } catch (err: any) {
+      setVarFormError(err.message || 'Erro ao cadastrar variação.');
+    } finally {
+      setSavingNewVar(false);
+    }
+  };
+
+  const handleLinkExistingAsVariation = async () => {
+    if (!variationManageModalProduct || !linkExistingChildId) return;
+    setLinkingProduct(true);
+    setVarFormError(null);
+    try {
+      const updatedParent = await api.linkExistingProductAsVariation(
+        variationManageModalProduct.id,
+        linkExistingChildId,
+        linkExistingVarName.trim() || undefined
+      );
+      setVariationManageModalProduct(updatedParent);
+      setProducts((prev) => [
+        ...prev.filter((p) => p.id !== linkExistingChildId && p.id !== updatedParent.id),
+        updatedParent,
+      ]);
+      setLinkExistingChildId(null);
+      setLinkExistingVarName('');
+    } catch (err: any) {
+      setVarFormError(err.message || 'Erro ao agrupar produto.');
+    } finally {
+      setLinkingProduct(false);
+    }
+  };
+
+  const handleUnlinkVariation = async (varId: number) => {
+    if (!variationManageModalProduct) return;
+    if (!confirm('Deseja desvincular esta variação? Ela voltará a ser um produto avulso no catálogo.')) return;
+    try {
+      await api.unlinkVariation(variationManageModalProduct.id, varId);
+      const updatedProd = await api.getProduct(variationManageModalProduct.id);
+      setVariationManageModalProduct(updatedProd);
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'Erro ao desvincular variação.');
+    }
+  };
+
+  const handleOpenPreviewModal = (prod: Product) => {
+    setPreviewProductModal(prod);
+    const activeVarId = selectedVariationMap[prod.id] || (prod.variations && prod.variations.length > 0 ? prod.variations[0].id : null);
+    setPreviewModalActiveVarId(activeVarId);
+  };
+
+  const renderStockDisplay = (item: Product | ProductVariation, isCompact = false) => {
+    const stockNum = Number(item.current_stock ?? 0);
+    const unit = ('unit' in item && item.unit?.code) ? item.unit.code : 'UN';
     const formattedStock = Number.isInteger(stockNum) ? stockNum : stockNum.toFixed(2);
     const isOutOfStock = stockNum <= 0;
     const isLowStock = stockNum > 0 && stockNum <= 5;
+    const hasVariations = 'variations' in item && Boolean(item.variations && item.variations.length > 0);
 
     if (isOutOfStock) {
       return (
@@ -256,6 +361,11 @@ export const ProductsPage: React.FC = () => {
               (Alerta: ≤ 5)
             </span>
           )}
+          {hasVariations && isCompact && (
+            <span style={{ fontSize: '0.65rem', opacity: 0.85, fontWeight: 600 }}>
+              (total)
+            </span>
+          )}
         </span>
       );
     }
@@ -278,6 +388,11 @@ export const ProductsPage: React.FC = () => {
       >
         <span>📦</span>
         <span>{formattedStock} {unit}</span>
+        {hasVariations && isCompact && (
+          <span style={{ fontSize: '0.65rem', opacity: 0.85, fontWeight: 600 }}>
+            (total)
+          </span>
+        )}
       </span>
     );
   };
@@ -1330,13 +1445,29 @@ export const ProductsPage: React.FC = () => {
           }}
         >
           {filteredProducts.map((prod) => {
+            const selectedVarId = selectedVariationMap[prod.id];
+            const activeVar = prod.variations?.find((v) => v.id === selectedVarId) || null;
+
+            // Imagem ativa (da variação selecionada ou capa do produto pai)
             const rawPrimary =
+              activeVar?.primary_image_url ||
+              (activeVar?.images && activeVar.images.length > 0
+                ? activeVar.images.find((i) => i.is_primary)?.url || activeVar.images[0].url || activeVar.images[0].file_path
+                : null) ||
               prod.primary_image_url ||
               (prod.images && prod.images.length > 0
                 ? prod.images.find((i) => i.is_primary)?.url || prod.images[0].url || prod.images[0].file_path
                 : null);
             const hasImage = !!rawPrimary;
             const primaryImageUrl = getProductImageUrl(rawPrimary);
+
+            // Dados dinâmicos da variação ou do produto principal
+            const displaySku = activeVar ? activeVar.sku : prod.sku;
+            const displayCost = activeVar?.unit_cost !== null && activeVar?.unit_cost !== undefined ? activeVar.unit_cost : prod.unit_cost;
+            const displayPrice = activeVar?.sale_price !== null && activeVar?.sale_price !== undefined ? activeVar.sale_price : prod.sale_price;
+            const displayColor = activeVar ? (activeVar.color || activeVar.variation_name) : prod.color;
+            const displayStockItem = activeVar || prod;
+
             return (
               <div
                 key={prod.id}
@@ -1350,7 +1481,7 @@ export const ProductsPage: React.FC = () => {
                   border: '1px solid var(--border-subtle)',
                   cursor: 'pointer',
                 }}
-                onClick={() => setPreviewProductModal(prod)}
+                onClick={() => handleOpenPreviewModal(prod)}
                 title="Clique para visualizar detalhes do produto"
               >
                 {/* Imagem de Capa do Produto */}
@@ -1362,7 +1493,7 @@ export const ProductsPage: React.FC = () => {
                     cursor: 'pointer',
                     overflow: 'hidden',
                   }}
-                  onClick={() => setPreviewProductModal(prod)}
+                  onClick={() => handleOpenPreviewModal(prod)}
                 >
                   {hasImage ? (
                     <img
@@ -1424,6 +1555,22 @@ export const ProductsPage: React.FC = () => {
                         }}
                       >
                         {prod.category.name}
+                      </span>
+                    )}
+                    {prod.variations && prod.variations.length > 0 && (
+                      <span
+                        style={{
+                          backgroundColor: '#fff5f0',
+                          color: '#ee4d2d',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          borderRadius: 'var(--radius-xs)',
+                          border: '1px solid #ffdcd4',
+                          boxShadow: '0 1px 3px rgba(238,77,45,0.15)',
+                        }}
+                      >
+                        🛍️ {prod.variations.length} variações
                       </span>
                     )}
                   </div>
@@ -1545,12 +1692,12 @@ export const ProductsPage: React.FC = () => {
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {prod.sku}
+                      {displaySku}
                     </span>
                   </div>
 
                   {/* Categoria, Material e Cor do Produto na Vitrine */}
-                  {(prod.category || prod.material || prod.color) && (
+                  {(prod.category || prod.material || displayColor) && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
                       {prod.category && (
                         <span style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
@@ -1576,7 +1723,7 @@ export const ProductsPage: React.FC = () => {
                           🧱 {prod.material}
                         </span>
                       )}
-                      {prod.color && (
+                      {displayColor && (
                         <span
                           style={{
                             display: 'inline-flex',
@@ -1590,21 +1737,116 @@ export const ProductsPage: React.FC = () => {
                             color: 'var(--brand-primary)',
                             border: '1px solid var(--border-subtle)',
                           }}
-                          title={`Cor: ${prod.color}`}
+                          title={`Cor: ${displayColor}`}
                         >
                           <span
                             style={{
                               width: '7px',
                               height: '7px',
                               borderRadius: '50%',
-                              backgroundColor: getColorHex(prod.color),
+                              backgroundColor: getColorHex(displayColor),
                               border: '1px solid rgba(0,0,0,0.2)',
                               display: 'inline-block',
                             }}
                           />
-                          <span>{prod.color}</span>
+                          <span>{displayColor}</span>
                         </span>
                       )}
+                    </div>
+                  )}
+
+                  {/* Seletor de Variações estilo Shopee no Card */}
+                  {prod.variations && prod.variations.length > 0 && (
+                    <div style={{ marginTop: '4px', marginBottom: '10px' }} onClick={(e) => e.stopPropagation()}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          Variações ({prod.variations.length}):
+                        </span>
+                        {selectedVarId ? (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedVariationMap((prev) => ({ ...prev, [prod.id]: null }))}
+                            style={{
+                              fontSize: '0.68rem',
+                              color: 'var(--brand-accent)',
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: 0,
+                              fontWeight: 600,
+                              textDecoration: 'underline',
+                            }}
+                          >
+                            Ver estoque total
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: '0.66rem', color: 'var(--text-tertiary)' }}>
+                            Toque para ver cor/foto
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                        {prod.variations.map((v) => {
+                          const isSelected = selectedVarId === v.id;
+                          const vStock = Number(v.current_stock || 0);
+                          const isOutOfStock = vStock <= 0;
+                          const colorHex = getColorHex(v.color || v.variation_name);
+
+                          return (
+                            <button
+                              key={v.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedVariationMap((prev) => ({
+                                  ...prev,
+                                  [prod.id]: isSelected ? null : v.id,
+                                }));
+                              }}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                padding: '3px 8px',
+                                borderRadius: '4px',
+                                fontSize: '0.72rem',
+                                fontWeight: isSelected ? 700 : 500,
+                                backgroundColor: isSelected ? '#fff5f0' : '#ffffff',
+                                color: isSelected ? '#ee4d2d' : isOutOfStock ? 'var(--text-tertiary)' : 'var(--text-primary)',
+                                border: isSelected ? '1.5px solid #ee4d2d' : '1px solid var(--border-subtle)',
+                                boxShadow: isSelected ? '0 1px 4px rgba(238, 77, 45, 0.25)' : 'none',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                              }}
+                              title={`${v.variation_name || v.color} - Estoque: ${vStock} UN (SKU: ${v.sku})`}
+                            >
+                              {colorHex && (
+                                <span
+                                  style={{
+                                    width: '8px',
+                                    height: '8px',
+                                    borderRadius: '50%',
+                                    backgroundColor: colorHex,
+                                    border: '1px solid rgba(0,0,0,0.2)',
+                                    display: 'inline-block',
+                                    flexShrink: 0,
+                                  }}
+                                />
+                              )}
+                              <span>{v.variation_name || v.color || v.sku}</span>
+                              <span
+                                style={{
+                                  fontSize: '0.65rem',
+                                  fontWeight: 600,
+                                  color: isSelected ? '#ee4d2d' : isOutOfStock ? '#dc2626' : 'var(--text-secondary)',
+                                  paddingLeft: '2px',
+                                }}
+                              >
+                                ({vStock} un)
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 
@@ -1642,7 +1884,7 @@ export const ProductsPage: React.FC = () => {
                         Custo Estimado
                       </span>
                       <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                        R$ {Number(prod.unit_cost).toFixed(2)}
+                        R$ {Number(displayCost).toFixed(2)}
                       </span>
                     </div>
                     <div>
@@ -1650,7 +1892,7 @@ export const ProductsPage: React.FC = () => {
                         Preço Venda
                       </span>
                       <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--brand-accent)' }}>
-                        {prod.sale_price ? `R$ ${Number(prod.sale_price).toFixed(2)}` : '—'}
+                        {displayPrice ? `R$ ${Number(displayPrice).toFixed(2)}` : '—'}
                       </span>
                     </div>
                   </div>
@@ -1732,7 +1974,7 @@ export const ProductsPage: React.FC = () => {
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                         Estoque:
                       </span>
-                      {renderStockDisplay(prod, true)}
+                      {renderStockDisplay(displayStockItem, true)}
                       <button
                         type="button"
                         onClick={(e) => {
@@ -1751,12 +1993,50 @@ export const ProductsPage: React.FC = () => {
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setPreviewProductModal(prod);
+                          handleOpenPreviewModal(prod);
                         }}
                         className="btn-icon"
                         title="Visualizar Informações Rápidas"
                       >
                         <Eye size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setVariationManageModalProduct(prod);
+                        }}
+                        className="btn-icon"
+                        title="Variações e Subprodutos estilo Shopee (Cores, Modelos)"
+                        style={{
+                          position: 'relative',
+                          color: prod.variations && prod.variations.length > 0 ? '#ee4d2d' : undefined,
+                          backgroundColor: prod.variations && prod.variations.length > 0 ? '#fff5f0' : undefined,
+                          borderColor: prod.variations && prod.variations.length > 0 ? '#ffdcd4' : undefined,
+                        }}
+                      >
+                        <Layers size={15} />
+                        {prod.variations && prod.variations.length > 0 && (
+                          <span
+                            style={{
+                              position: 'absolute',
+                              top: '-3px',
+                              right: '-3px',
+                              backgroundColor: '#ee4d2d',
+                              color: '#fff',
+                              fontSize: '0.6rem',
+                              fontWeight: 700,
+                              width: '14px',
+                              height: '14px',
+                              borderRadius: '50%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            {prod.variations.length}
+                          </span>
+                        )}
                       </button>
                       <button
                         type="button"
@@ -1865,9 +2145,9 @@ export const ProductsPage: React.FC = () => {
                   const hasImage = !!rawPrimary;
                   const tableImageUrl = getProductImageUrl(rawPrimary);
                   return (
-                    <tr
-                      key={prod.id}
-                      style={{
+                    <React.Fragment key={prod.id}>
+                      <tr
+                        style={{
                         borderBottom: '1px solid var(--border-subtle)',
                         transition: 'background var(--transition-fast)',
                       }}
@@ -1955,7 +2235,7 @@ export const ProductsPage: React.FC = () => {
                       <td style={{ padding: '12px 20px' }}>
                         <div
                           style={{ fontWeight: 600, color: 'var(--brand-primary)', fontSize: '0.95rem', cursor: 'pointer' }}
-                          onClick={() => setPreviewProductModal(prod)}
+                          onClick={() => handleOpenPreviewModal(prod)}
                           title="Clique para visualizar detalhes do produto"
                         >
                           {prod.name}
@@ -2073,6 +2353,34 @@ export const ProductsPage: React.FC = () => {
                               </div>
                             );
                           })()}
+
+                          {prod.variations && prod.variations.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedTableVariations((prev) => ({ ...prev, [prod.id]: !prev[prod.id] }));
+                              }}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                fontSize: '0.7rem',
+                                color: '#ee4d2d',
+                                fontWeight: 700,
+                                backgroundColor: '#fff5f0',
+                                padding: '2px 8px',
+                                borderRadius: '10px',
+                                border: '1px solid #ffdcd4',
+                                cursor: 'pointer',
+                                marginTop: '4px',
+                              }}
+                              title="Clique para ver ou ocultar variações estilo Shopee"
+                            >
+                              <span>🛍️ {prod.variations.length} variações</span>
+                              <span style={{ fontSize: '0.65rem' }}>{expandedTableVariations[prod.id] ? '▲' : '▼'}</span>
+                            </button>
+                          )}
                         </div>
                       </td>
 
@@ -2117,11 +2425,49 @@ export const ProductsPage: React.FC = () => {
                         <div style={{ display: 'inline-flex', gap: '6px' }}>
                           <button
                             type="button"
-                            onClick={() => setPreviewProductModal(prod)}
+                            onClick={() => handleOpenPreviewModal(prod)}
                             className="btn-icon"
                             title="Visualizar Informações Rápidas"
                           >
                             <Eye size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setVariationManageModalProduct(prod);
+                            }}
+                            className="btn-icon"
+                            title="Variações e Subprodutos estilo Shopee (Cores, Modelos)"
+                            style={{
+                              position: 'relative',
+                              color: prod.variations && prod.variations.length > 0 ? '#ee4d2d' : undefined,
+                              backgroundColor: prod.variations && prod.variations.length > 0 ? '#fff5f0' : undefined,
+                              borderColor: prod.variations && prod.variations.length > 0 ? '#ffdcd4' : undefined,
+                            }}
+                          >
+                            <Layers size={16} />
+                            {prod.variations && prod.variations.length > 0 && (
+                              <span
+                                style={{
+                                  position: 'absolute',
+                                  top: '-4px',
+                                  right: '-4px',
+                                  backgroundColor: '#ee4d2d',
+                                  color: '#fff',
+                                  fontSize: '0.65rem',
+                                  fontWeight: 700,
+                                  width: '15px',
+                                  height: '15px',
+                                  borderRadius: '50%',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                }}
+                              >
+                                {prod.variations.length}
+                              </span>
+                            )}
                           </button>
                           <button
                             type="button"
@@ -2183,9 +2529,86 @@ export const ProductsPage: React.FC = () => {
                         </div>
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
+                    {expandedTableVariations[prod.id] && prod.variations && prod.variations.length > 0 && (
+                      <tr key={`vars-row-${prod.id}`} style={{ backgroundColor: '#faf8f5', borderBottom: '2px solid var(--border-medium)' }}>
+                        <td colSpan={9} style={{ padding: '12px 24px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--brand-primary)', textTransform: 'uppercase' }}>
+                                Subprodutos / Variações deste Item ({prod.variations.length}):
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setVariationManageModalProduct(prod)}
+                                className="btn-secondary"
+                                style={{ padding: '3px 10px', fontSize: '0.74rem', color: '#ee4d2d' }}
+                              >
+                                + Gerenciar Variações
+                              </button>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '10px' }}>
+                              {prod.variations.map((v) => {
+                                const colorHex = getColorHex(v.color || v.variation_name);
+                                const vStock = Number(v.current_stock || 0);
+                                const vImg = v.primary_image_url || v.images?.[0]?.url || prod.primary_image_url;
+                                return (
+                                  <div
+                                    key={v.id}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '10px',
+                                      padding: '8px 12px',
+                                      borderRadius: '6px',
+                                      backgroundColor: '#fff',
+                                      border: '1px solid var(--border-subtle)',
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        width: '36px',
+                                        height: '36px',
+                                        borderRadius: '4px',
+                                        overflow: 'hidden',
+                                        backgroundColor: 'var(--bg-sand-light)',
+                                        flexShrink: 0,
+                                      }}
+                                    >
+                                      {vImg ? (
+                                        <img src={getProductImageUrl(vImg)} alt={v.variation_name || v.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={handleImageError} />
+                                      ) : (
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-tertiary)' }}><ImageIcon size={14} /></div>
+                                      )}
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        {colorHex && (
+                                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: colorHex, border: '1px solid rgba(0,0,0,0.2)' }} />
+                                        )}
+                                        <strong style={{ fontSize: '0.8rem', color: 'var(--brand-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                          {v.variation_name || v.color}
+                                        </strong>
+                                        <span style={{ fontSize: '0.68rem', fontFamily: 'monospace', color: 'var(--text-tertiary)' }}>
+                                          {v.sku}
+                                        </span>
+                                      </div>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', marginTop: '2px' }}>
+                                        <span style={{ fontWeight: 600, color: 'var(--brand-accent)' }}>R$ {Number(v.sale_price || prod.sale_price || 0).toFixed(2)}</span>
+                                        <span style={{ fontWeight: 700, color: vStock <= 0 ? '#dc2626' : vStock <= 5 ? '#b45309' : '#15803d' }}>{vStock} UN</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
             </table>
           </div>
         </div>
@@ -4486,13 +4909,28 @@ export const ProductsPage: React.FC = () => {
       {/* Modal de Detalhes Completos do Produto (Visualização Pura / Sem Editar) */}
       <Modal
         isOpen={!!previewProductModal}
-        onClose={() => setPreviewProductModal(null)}
+        onClose={() => {
+          setPreviewProductModal(null);
+          setPreviewModalActiveVarId(null);
+        }}
         title={previewProductModal ? previewProductModal.name : 'Detalhes do Produto'}
-        subtitle={previewProductModal ? `SKU: ${previewProductModal.sku}` : ''}
-        maxWidth="620px"
+        subtitle={previewProductModal ? (() => {
+          const activeVar = (previewProductModal.variations && previewProductModal.variations.length > 0)
+            ? (previewProductModal.variations.find((v) => v.id === previewModalActiveVarId) || null)
+            : null;
+          return activeVar
+            ? `SKU: ${activeVar.sku} • Variação: ${activeVar.variation_name || activeVar.color || ''}`
+            : `SKU: ${previewProductModal.sku}${previewProductModal.variations && previewProductModal.variations.length > 0 ? ` • ${previewProductModal.variations.length} variações vinculadas` : ''}`;
+        })() : ''}
+        maxWidth="660px"
       >
         {previewProductModal && (() => {
+          const activeVar = (previewProductModal.variations && previewProductModal.variations.length > 0)
+            ? (previewProductModal.variations.find((v) => v.id === previewModalActiveVarId) || null)
+            : null;
+
           const rawPrimary =
+            (activeVar && activeVar.primary_image_url) ||
             previewProductModal.primary_image_url ||
             (previewProductModal.images && previewProductModal.images.length > 0
               ? previewProductModal.images.find((i) => i.is_primary)?.url ||
@@ -4502,10 +4940,19 @@ export const ProductsPage: React.FC = () => {
           const hasImage = !!rawPrimary;
           const imgUrl = getProductImageUrl(rawPrimary);
           const unitCode = previewProductModal.unit?.code || 'UN';
-          const currentStockNum = Number(previewProductModal.current_stock ?? 0);
+          const currentStockNum = activeVar
+            ? Number(activeVar.current_stock ?? 0)
+            : Number(previewProductModal.current_stock ?? 0);
           const isLowStock = currentStockNum <= 5;
-          const costVal = Number(previewProductModal.unit_cost) || 0;
-          const saleVal = Number(previewProductModal.sale_price) || 0;
+
+          const costVal = activeVar && activeVar.unit_cost !== null && activeVar.unit_cost !== undefined
+            ? Number(activeVar.unit_cost)
+            : (Number(previewProductModal.unit_cost) || 0);
+
+          const saleVal = activeVar && activeVar.sale_price !== null && activeVar.sale_price !== undefined
+            ? Number(activeVar.sale_price)
+            : (Number(previewProductModal.sale_price) || 0);
+
           const profitVal = saleVal > 0 ? saleVal - costVal : 0;
           const marginPct = saleVal > 0 ? ((profitVal / saleVal) * 100).toFixed(1) : '0.0';
           const links = parseSalesLinks(previewProductModal.sales_links);
@@ -4516,15 +4963,36 @@ export const ProductsPage: React.FC = () => {
             } catch {}
           }
 
+          const currentColor = activeVar
+            ? (activeVar.color || activeVar.variation_name)
+            : previewProductModal.color;
+
           return (
             <div>
               {/* Galeria de Fotos */}
               {hasImage ? (
                 <div style={{ marginBottom: '18px' }}>
-                  <div style={{ height: '220px', borderRadius: 'var(--radius-sm)', overflow: 'hidden', backgroundColor: 'var(--bg-sand-light)', border: '1px solid var(--border-subtle)' }}>
+                  <div style={{ height: '230px', borderRadius: 'var(--radius-sm)', overflow: 'hidden', backgroundColor: 'var(--bg-sand-light)', border: '1px solid var(--border-subtle)', position: 'relative' }}>
                     <img src={imgUrl} alt={previewProductModal.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={handleImageError} />
+                    {activeVar && (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          bottom: '8px',
+                          left: '8px',
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          backgroundColor: 'rgba(0,0,0,0.7)',
+                          color: '#fff',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                        }}
+                      >
+                        Exibindo foto da variação: {activeVar.variation_name || activeVar.color}
+                      </span>
+                    )}
                   </div>
-                  {previewProductModal.images.length > 1 && (
+                  {previewProductModal.images && previewProductModal.images.length > 1 && (
                     <div style={{ display: 'flex', gap: '8px', marginTop: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
                       {previewProductModal.images.map((im, idx) => (
                         <div
@@ -4558,26 +5026,131 @@ export const ProductsPage: React.FC = () => {
                     🧱 {previewProductModal.material}
                   </span>
                 )}
-                {previewProductModal.color && (
+                {currentColor && (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--brand-primary)', backgroundColor: '#fff', border: '1px solid var(--border-subtle)', padding: '2px 8px', borderRadius: '10px' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: getColorHex(previewProductModal.color), border: '1px solid rgba(0,0,0,0.2)' }} />
-                    {previewProductModal.color}
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: getColorHex(currentColor), border: '1px solid rgba(0,0,0,0.2)' }} />
+                    {currentColor}
                   </span>
                 )}
               </div>
+
+              {/* Seletor de Variações Estilo Shopee */}
+              {previewProductModal.variations && previewProductModal.variations.length > 0 && (
+                <div
+                  style={{
+                    marginBottom: '16px',
+                    padding: '12px 14px',
+                    borderRadius: 'var(--radius-sm)',
+                    backgroundColor: 'var(--bg-sand-light)',
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--brand-primary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      🛍️ Variações Disponíveis ({previewProductModal.variations.length}):
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const p = previewProductModal;
+                        setPreviewProductModal(null);
+                        setVariationManageModalProduct(p);
+                      }}
+                      className="btn-link"
+                      style={{ fontSize: '0.76rem', color: 'var(--brand-primary)', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none', cursor: 'pointer', fontWeight: 600 }}
+                    >
+                      <Layers size={13} /> Gerenciar Variações
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewModalActiveVarId(null)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        border: previewModalActiveVarId === null ? '2px solid var(--brand-primary)' : '1px solid var(--border-medium)',
+                        backgroundColor: previewModalActiveVarId === null ? 'rgba(163, 116, 87, 0.12)' : '#fff',
+                        color: previewModalActiveVarId === null ? 'var(--brand-primary)' : 'var(--text-primary)',
+                        boxShadow: previewModalActiveVarId === null ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                      }}
+                    >
+                      <span>Geral (Total)</span>
+                    </button>
+                    {previewProductModal.variations.map((v) => {
+                      const isSelected = previewModalActiveVarId === v.id;
+                      const vStock = Number(v.current_stock ?? 0);
+                      return (
+                        <button
+                          key={v.id}
+                          type="button"
+                          onClick={() => setPreviewModalActiveVarId(v.id)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            fontSize: '0.82rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            border: isSelected ? '2px solid var(--brand-primary)' : '1px solid var(--border-medium)',
+                            backgroundColor: isSelected ? 'rgba(163, 116, 87, 0.12)' : '#fff',
+                            color: isSelected ? 'var(--brand-primary)' : 'var(--text-primary)',
+                            opacity: vStock <= 0 ? 0.75 : 1,
+                            boxShadow: isSelected ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                          }}
+                        >
+                          {v.color && (
+                            <span
+                              style={{
+                                width: '10px',
+                                height: '10px',
+                                borderRadius: '50%',
+                                backgroundColor: getColorHex(v.color),
+                                border: '1px solid rgba(0,0,0,0.25)',
+                              }}
+                            />
+                          )}
+                          <span>{v.variation_name || v.color}</span>
+                          <span
+                            style={{
+                              fontSize: '0.74rem',
+                              padding: '1px 5px',
+                              borderRadius: '6px',
+                              backgroundColor: vStock <= 0 ? 'var(--status-danger-bg)' : '#fff',
+                              color: vStock <= 0 ? 'var(--status-danger-text)' : 'var(--text-secondary)',
+                              fontWeight: 700,
+                              border: '1px solid var(--border-subtle)',
+                            }}
+                          >
+                            {vStock <= 0 ? 'Esgotado' : `${vStock} un`}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Bloco de Estoque Total com Alerta */}
               <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-sm)', backgroundColor: isLowStock ? '#fffbeb' : 'var(--bg-sand-light)', border: isLowStock ? '1px solid #fde68a' : '1px solid var(--border-subtle)', marginBottom: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', fontWeight: 700, color: isLowStock ? '#92400e' : 'var(--text-secondary)', display: 'block' }}>
-                      Estoque Total Disponível
+                      {activeVar ? `Estoque da Variação (${activeVar.variation_name || activeVar.color})` : 'Estoque Total Disponível'}
                     </span>
                     <span style={{ fontSize: '1.15rem', fontWeight: 800, color: isLowStock ? '#b45309' : 'var(--brand-primary)' }}>
                       {currentStockNum} {unitCode}
                     </span>
                   </div>
-                  {renderStockDisplay(previewProductModal)}
+                  {activeVar ? renderStockDisplay(activeVar) : renderStockDisplay(previewProductModal)}
                 </div>
                 {isLowStock && (
                   <p style={{ margin: '6px 0 0', fontSize: '0.82rem', color: '#b45309', fontWeight: 600 }}>
@@ -4681,47 +5254,458 @@ export const ProductsPage: React.FC = () => {
               )}
 
               {/* Ações */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)', flexWrap: 'wrap', gap: '10px' }}>
                 <button
                   type="button"
                   onClick={() => {
                     const p = previewProductModal;
                     setPreviewProductModal(null);
-                    handleOpenWhatsAppModal(p);
-                  }}
-                  className="btn-secondary"
-                  style={{ color: '#15803d', backgroundColor: '#e8f9ee', borderColor: '#a3e9b9', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                >
-                  <WhatsAppIcon size={16} color="#25D366" /> WhatsApp
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const p = previewProductModal;
-                    setPreviewProductModal(null);
-                    handleOpenImageModal(p);
+                    setVariationManageModalProduct(p);
                   }}
                   className="btn-secondary"
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                 >
-                  <ImageIcon size={16} /> Fotos
+                  <Layers size={16} /> Gerenciar Variações
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const p = previewProductModal;
-                    setPreviewProductModal(null);
-                    handleOpenEditModal(p);
-                  }}
-                  className="btn-primary"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                >
-                  <Edit2 size={16} /> Editar Produto
-                </button>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const p = previewProductModal;
+                      setPreviewProductModal(null);
+                      handleOpenWhatsAppModal(p);
+                    }}
+                    className="btn-secondary"
+                    style={{ color: '#15803d', backgroundColor: '#e8f9ee', borderColor: '#a3e9b9', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <WhatsAppIcon size={16} color="#25D366" /> WhatsApp
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const p = previewProductModal;
+                      setPreviewProductModal(null);
+                      handleOpenImageModal(p);
+                    }}
+                    className="btn-secondary"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <ImageIcon size={16} /> Fotos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const p = previewProductModal;
+                      setPreviewProductModal(null);
+                      handleOpenEditModal(p);
+                    }}
+                    className="btn-primary"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <Edit2 size={16} /> Editar Produto
+                  </button>
+                </div>
               </div>
             </div>
           );
         })()}
+      </Modal>
+
+      {/* Modal de Gestão de Variações e Subprodutos (Estilo Shopee) */}
+      <Modal
+        isOpen={!!variationManageModalProduct}
+        onClose={() => {
+          setVariationManageModalProduct(null);
+          setVarFormError(null);
+          setNewVarName('');
+          setNewVarColor('');
+          setNewVarSku('');
+          setNewVarSalePrice('');
+          setNewVarUnitCost('');
+          setNewVarStock('0');
+          setLinkExistingChildId(null);
+          setLinkExistingVarName('');
+        }}
+        title="Gerenciar Variações (Cores e Modelos Estilo Shopee)"
+        subtitle={variationManageModalProduct ? `${variationManageModalProduct.name} • SKU Principal: ${variationManageModalProduct.sku}` : ''}
+        maxWidth="840px"
+      >
+        {variationManageModalProduct && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+            {/* Banner explicativo */}
+            <div
+              style={{
+                padding: '12px 16px',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'rgba(163, 116, 87, 0.08)',
+                border: '1px solid rgba(163, 116, 87, 0.25)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+              }}
+            >
+              <div style={{ fontSize: '1.4rem', lineHeight: 1 }}>🛍️</div>
+              <div style={{ fontSize: '0.86rem', color: 'var(--text-primary)', lineHeight: 1.45 }}>
+                <strong>Agrupamento estilo Shopee / Marketplaces:</strong> Ao agrupar variações (cores, tamanhos, modelos), seu catálogo exibe apenas <strong>um único produto principal</strong> com botões para alternar as opções, evitando poluir e alongar a grade de produtos.
+              </div>
+            </div>
+
+            {varFormError && (
+              <div
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'var(--status-danger-bg)',
+                  border: '1px solid var(--status-danger-border)',
+                  color: 'var(--status-danger-text)',
+                  fontSize: '0.85rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <AlertTriangle size={16} />
+                <span>{varFormError}</span>
+              </div>
+            )}
+
+            {/* Lista de Variações Atuais */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--brand-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Layers size={16} />
+                  Variações Cadastradas ({(variationManageModalProduct.variations || []).length})
+                </h4>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                  Total em estoque somado: <strong>{variationManageModalProduct.current_stock ?? 0} {variationManageModalProduct.unit?.code || 'UN'}</strong>
+                </span>
+              </div>
+
+              {(!variationManageModalProduct.variations || variationManageModalProduct.variations.length === 0) ? (
+                <div
+                  style={{
+                    padding: '24px',
+                    textAlign: 'center',
+                    borderRadius: 'var(--radius-sm)',
+                    backgroundColor: 'var(--bg-sand-light)',
+                    border: '1px dashed var(--border-medium)',
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.88rem',
+                  }}
+                >
+                  <p style={{ margin: '0 0 6px 0', fontWeight: 600 }}>Nenhuma variação vinculada ainda.</p>
+                  <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-tertiary)' }}>
+                    Use as opções abaixo para <strong>agrupar um produto já existente</strong> (ex: outra cor já cadastrada) ou <strong>cadastrar uma nova variação</strong>.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {variationManageModalProduct.variations.map((v) => {
+                    const vImg = v.primary_image_url ? getProductImageUrl(v.primary_image_url) : null;
+                    return (
+                      <div
+                        key={v.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '10px 14px',
+                          borderRadius: 'var(--radius-sm)',
+                          backgroundColor: '#fff',
+                          border: '1px solid var(--border-subtle)',
+                          gap: '12px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div
+                            style={{
+                              width: '42px',
+                              height: '42px',
+                              borderRadius: '6px',
+                              backgroundColor: 'var(--bg-sand-light)',
+                              border: '1px solid var(--border-subtle)',
+                              overflow: 'hidden',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {vImg ? (
+                              <img src={vImg} alt={v.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={handleImageError} />
+                            ) : (
+                              <ImageIcon size={18} color="var(--text-tertiary)" />
+                            )}
+                          </div>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                                {v.variation_name || v.name}
+                              </span>
+                              {v.color && (
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    padding: '1px 8px',
+                                    borderRadius: '10px',
+                                    fontSize: '0.74rem',
+                                    fontWeight: 600,
+                                    backgroundColor: 'var(--bg-sand-light)',
+                                    border: '1px solid var(--border-subtle)',
+                                  }}
+                                >
+                                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: getColorHex(v.color), border: '1px solid rgba(0,0,0,0.2)' }} />
+                                  {v.color}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '2px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                              <span>SKU: <code style={{ fontFamily: 'monospace', fontWeight: 600 }}>{v.sku}</code></span>
+                              {v.sale_price !== null && v.sale_price !== undefined && (
+                                <span>Venda: <strong style={{ color: 'var(--brand-accent)' }}>R$ {Number(v.sale_price).toFixed(2)}</strong></span>
+                              )}
+                              {v.unit_cost !== null && v.unit_cost !== undefined && (
+                                <span>Custo: R$ {Number(v.unit_cost).toFixed(2)}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div>
+                            {renderStockDisplay(v, true)}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleUnlinkVariation(v.id)}
+                            className="btn-secondary"
+                            style={{
+                              padding: '5px 10px',
+                              fontSize: '0.76rem',
+                              color: 'var(--status-danger-text)',
+                              borderColor: 'var(--status-danger-border)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                            title="Desvincular do produto principal (volta a ser produto avulso no catálogo)"
+                          >
+                            <Trash2 size={13} />
+                            Desvincular
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* SEÇÃO 1: Agrupar Produto Existente (Solução rápida para produtos duplicados já existentes) */}
+            <div
+              style={{
+                padding: '16px',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'var(--bg-sand-light)',
+                border: '1px solid var(--border-subtle)',
+              }}
+            >
+              <h4 style={{ margin: '0 0 4px 0', fontSize: '0.92rem', fontWeight: 700, color: 'var(--brand-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Link2 size={16} />
+                Agrupar Produto Já Existente no Catálogo
+              </h4>
+              <p style={{ margin: '0 0 12px 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                Se você já tinha cadastrado outra cor ou variação como produto separado (ex: Trio Budas Cinza), selecione-o abaixo para transformá-lo em variação deste produto num clique, mantendo fotos e estoque!
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px auto', gap: '10px', alignItems: 'flex-end' }}>
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.78rem', marginBottom: '4px' }}>
+                    Selecionar Produto Avulso para Agrupar
+                  </label>
+                  <select
+                    className="form-input"
+                    style={{ fontSize: '0.85rem' }}
+                    value={linkExistingChildId ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value ? Number(e.target.value) : null;
+                      setLinkExistingChildId(val);
+                      if (val) {
+                        const target = products.find((p) => p.id === val);
+                        if (target) {
+                          setLinkExistingVarName(target.color || target.name);
+                        }
+                      }
+                    }}
+                  >
+                    <option value="">-- Selecione um produto para agrupar --</option>
+                    {products
+                      .filter((p) => p.id !== variationManageModalProduct.id && (!p.variations || p.variations.length === 0))
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} {p.color ? `(${p.color})` : ''} - SKU: {p.sku} (Estoque: {p.current_stock ?? 0})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.78rem', marginBottom: '4px' }}>
+                    Nome do Subproduto / Cor
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    style={{ fontSize: '0.85rem' }}
+                    placeholder="Ex: Cinza, Branco"
+                    value={linkExistingVarName}
+                    onChange={(e) => setLinkExistingVarName(e.target.value)}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  className="btn-primary"
+                  disabled={!linkExistingChildId || linkingProduct}
+                  onClick={handleLinkExistingAsVariation}
+                  style={{
+                    height: '38px',
+                    padding: '0 16px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '0.84rem',
+                    fontWeight: 700,
+                  }}
+                >
+                  {linkingProduct ? (
+                    <>
+                      <Loader2 size={14} className="spinner" /> Agrupando...
+                    </>
+                  ) : (
+                    <>
+                      <Link2 size={14} /> Agrupar como Variação
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* SEÇÃO 2: Cadastrar Nova Variação do Zero */}
+            <form onSubmit={handleCreateVariation} style={{ padding: '16px', borderRadius: 'var(--radius-sm)', backgroundColor: '#fff', border: '1px solid var(--border-medium)' }}>
+              <h4 style={{ margin: '0 0 12px 0', fontSize: '0.92rem', fontWeight: 700, color: 'var(--brand-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Plus size={16} />
+                Cadastrar Nova Variação / Subproduto
+              </h4>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '14px' }}>
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.78rem' }}>
+                    Nome da Variação *
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Ex: Terracota, Mármore"
+                    value={newVarName}
+                    onChange={(e) => {
+                      setNewVarName(e.target.value);
+                      if (!newVarColor) setNewVarColor(e.target.value);
+                    }}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.78rem' }}>
+                    Cor (para bolinha visual)
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Ex: Cinza, Branco, Rosa"
+                    value={newVarColor}
+                    onChange={(e) => setNewVarColor(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.78rem' }}>
+                    SKU da Variação
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder={`${variationManageModalProduct.sku}-VAR`}
+                    value={newVarSku}
+                    onChange={(e) => setNewVarSku(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.78rem' }}>
+                    Preço de Venda (R$)
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder={variationManageModalProduct.sale_price ? `R$ ${Number(variationManageModalProduct.sale_price).toFixed(2)}` : 'R$ 0,00'}
+                    value={newVarSalePrice}
+                    onChange={(e) => setNewVarSalePrice(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.78rem' }}>
+                    Custo Estimado (R$)
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder={variationManageModalProduct.unit_cost ? `R$ ${Number(variationManageModalProduct.unit_cost).toFixed(2)}` : 'R$ 0,00'}
+                    value={newVarUnitCost}
+                    onChange={(e) => setNewVarUnitCost(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ fontSize: '0.78rem' }}>
+                    Estoque Inicial
+                  </label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    min="0"
+                    step="1"
+                    value={newVarStock}
+                    onChange={(e) => setNewVarStock(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={savingNewVar || !newVarName.trim()}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  {savingNewVar ? (
+                    <>
+                      <Loader2 size={14} className="spinner" /> Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={14} /> Salvar Nova Variação
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
       </Modal>
     </div>
   );

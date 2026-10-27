@@ -16,7 +16,7 @@ from app.schemas.unit import UnitCreate, UnitUpdate
 from app.schemas.color import ColorCreate, ColorUpdate
 from app.schemas.material import MaterialCreate, MaterialUpdate
 from app.schemas.supply import SupplyCreate, SupplyUpdate
-from app.schemas.product import ProductCreate, ProductUpdate, ImageReorderItem
+from app.schemas.product import ProductCreate, ProductUpdate, ImageReorderItem, VariationCreate
 from app.services.storage_service import storage_service
 
 
@@ -667,12 +667,16 @@ class ProductService:
         category_id: Optional[int] = None,
         search: Optional[str] = None,
         active_only: bool = True,
+        catalog_only: bool = True,
         skip: int = 0,
         limit: int = 100,
     ) -> List[Product]:
         stmt = select(Product)
         if active_only:
             stmt = stmt.where(Product.is_active.is_(True))
+        if catalog_only:
+            # Mostra apenas produtos pais no catálogo principal para não duplicar cards de variações
+            stmt = stmt.where(Product.parent_id.is_(None))
         if item_type:
             stmt = stmt.where(Product.item_type == item_type)
         if category_id:
@@ -728,6 +732,8 @@ class ProductService:
             sale_price=product_in.sale_price,
             min_stock=product_in.min_stock,
             is_active=product_in.is_active,
+            parent_id=product_in.parent_id if product_in.parent_id and product_in.parent_id > 0 else None,
+            variation_name=product_in.variation_name.strip() if product_in.variation_name else None,
         )
         db.add(product)
         db.commit()
@@ -787,10 +793,117 @@ class ProductService:
             product.min_stock = product_in.min_stock
         if product_in.is_active is not None:
             product.is_active = product_in.is_active
+        if product_in.parent_id is not None:
+            product.parent_id = product_in.parent_id if product_in.parent_id > 0 else None
+        if product_in.variation_name is not None:
+            product.variation_name = product_in.variation_name.strip() if product_in.variation_name else None
 
         db.commit()
         db.refresh(product)
         return product
+
+    @staticmethod
+    def create_variation(db: Session, parent_id: int, var_in: VariationCreate) -> Product:
+        """Cria uma nova variação / subproduto vinculada a um produto pai."""
+        parent = ProductService.get_product_by_id(db, parent_id)
+        if not parent:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Produto pai ID {parent_id} não encontrado.",
+            )
+
+        clean_sku = var_in.sku.strip().upper()
+        existing_sku = ProductService.get_product_by_sku(db, clean_sku)
+        if existing_sku:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"O SKU '{clean_sku}' já está em uso por outro produto ou variação.",
+            )
+
+        unit_cost = var_in.unit_cost if var_in.unit_cost is not None else parent.unit_cost
+        sale_price = var_in.sale_price if var_in.sale_price is not None else parent.sale_price
+
+        variation = Product(
+            sku=clean_sku,
+            name=parent.name,
+            description=parent.description,
+            item_type=parent.item_type,
+            category_id=parent.category_id,
+            unit_id=parent.unit_id,
+            unit_cost=unit_cost,
+            cost_breakdown=parent.cost_breakdown,
+            sales_links=parent.sales_links,
+            color=var_in.color.strip() if var_in.color else None,
+            material=var_in.material.strip() if var_in.material else parent.material,
+            sale_price=sale_price,
+            min_stock=var_in.min_stock if var_in.min_stock is not None else Decimal("0.000"),
+            is_active=True,
+            parent_id=parent.id,
+            variation_name=var_in.variation_name.strip(),
+        )
+        db.add(variation)
+        db.flush()
+
+        # Se houver estoque inicial informado, lança movimentação
+        if var_in.initial_stock and var_in.initial_stock > 0:
+            from app.models.stock import StockMovement, MovementType
+            initial_mov = StockMovement(
+                product_id=variation.id,
+                movement_type=MovementType.ENTRADA_INICIAL,
+                quantity=var_in.initial_stock,
+                unit_cost=variation.unit_cost,
+                total_cost=var_in.initial_stock * variation.unit_cost,
+                notes=f"Estoque inicial ao cadastrar variação '{variation.variation_name}'",
+            )
+            db.add(initial_mov)
+
+        db.commit()
+        db.refresh(variation)
+        return variation
+
+    @staticmethod
+    def link_existing_product_as_variation(
+        db: Session, parent_id: int, child_id: int, variation_name: Optional[str] = None
+    ) -> Product:
+        """Agrupa um produto existente como variação de outro produto pai."""
+        if parent_id == child_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Um produto não pode ser variação de si mesmo.",
+            )
+        parent = ProductService.get_product_by_id(db, parent_id)
+        if not parent:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Produto pai ID {parent_id} não encontrado.",
+            )
+        child = ProductService.get_product_by_id(db, child_id)
+        if not child:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Produto a agrupar ID {child_id} não encontrado.",
+            )
+
+        clean_var_name = variation_name.strip() if variation_name else (child.color or child.name)
+        child.parent_id = parent.id
+        child.variation_name = clean_var_name
+        db.commit()
+        db.refresh(parent)
+        return parent
+
+    @staticmethod
+    def unlink_variation(db: Session, child_id: int) -> Product:
+        """Desvincula uma variação, tornando-a novamente um produto independente no catálogo."""
+        child = ProductService.get_product_by_id(db, child_id)
+        if not child:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Variação ID {child_id} não encontrada.",
+            )
+        child.parent_id = None
+        db.commit()
+        db.refresh(child)
+        return child
 
     @staticmethod
     def delete_product(db: Session, product: Product) -> None:

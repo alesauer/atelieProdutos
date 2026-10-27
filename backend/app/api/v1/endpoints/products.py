@@ -14,6 +14,9 @@ from app.schemas.product import (
     ProductUpdate,
     ProductResponse,
     ProductImageResponse,
+    ProductVariationResponse,
+    VariationCreate,
+    LinkVariationRequest,
     ImageReorderRequest,
 )
 from app.services.product_service import product_service
@@ -23,11 +26,14 @@ from app.services.storage_service import storage_service
 router = APIRouter()
 
 
-def _enrich_product_response(product: Product, current_stock: Optional[Decimal] = None) -> ProductResponse:
-    """Calcula URLs de imagens e enriquece a resposta do schema com saldo de estoque real."""
+def _enrich_product_response(
+    product: Product,
+    stock_map: Optional[dict] = None,
+    current_stock: Optional[Decimal] = None,
+) -> ProductResponse:
+    """Calcula URLs de imagens e enriquece a resposta do schema com saldo de estoque real e variações."""
     resp = ProductResponse.model_validate(product)
-    if current_stock is not None:
-        resp.current_stock = current_stock
+
     enriched_images = []
     primary_url = None
 
@@ -43,6 +49,42 @@ def _enrich_product_response(product: Product, current_stock: Optional[Decimal] 
 
     resp.images = enriched_images
     resp.primary_image_url = primary_url
+
+    # Enriquecer variações estilo Shopee (se houver)
+    enriched_variations: List[ProductVariationResponse] = []
+    for var in product.variations:
+        var_resp = ProductVariationResponse.model_validate(var)
+        var_stock = stock_map.get(var.id, Decimal("0.000")) if stock_map is not None else Decimal("0.000")
+        var_resp.current_stock = var_stock
+
+        v_imgs = []
+        v_primary = None
+        for v_img in var.images:
+            v_url = f"{settings.API_V1_PREFIX}/media/{v_img.file_path}"
+            img_r = ProductImageResponse.model_validate(v_img)
+            img_r.url = v_url
+            v_imgs.append(img_r)
+            if v_img.is_primary:
+                v_primary = v_url
+        if not v_primary and v_imgs:
+            v_primary = v_imgs[0].url
+        elif not v_primary and primary_url:
+            v_primary = primary_url
+
+        var_resp.images = v_imgs
+        var_resp.primary_image_url = v_primary
+        enriched_variations.append(var_resp)
+
+    resp.variations = enriched_variations
+
+    # Saldo de estoque consolidado
+    if enriched_variations:
+        resp.current_stock = sum((v.current_stock for v in enriched_variations), Decimal("0.000"))
+    elif current_stock is not None:
+        resp.current_stock = current_stock
+    elif stock_map is not None:
+        resp.current_stock = stock_map.get(product.id, Decimal("0.000"))
+
     return resp
 
 
@@ -52,35 +94,42 @@ def list_products(
     category_id: Optional[int] = None,
     search: Optional[str] = None,
     active_only: bool = True,
+    catalog_only: bool = Query(True, description="Se True, traz apenas produtos principais para evitar repetição no catálogo"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    """Lista itens cadastrados (produtos acabados, insumos, etc.) com filtros e saldo de estoque real."""
+    """Lista itens cadastrados com filtros e saldo de estoque real consolidado por variações."""
     products = product_service.list_products(
         db,
         item_type=item_type,
         category_id=category_id,
         search=search,
         active_only=active_only,
+        catalog_only=catalog_only,
         skip=skip,
         limit=limit,
     )
-    product_ids = [p.id for p in products]
+    all_ids = []
+    for p in products:
+        all_ids.append(p.id)
+        for v in p.variations:
+            all_ids.append(v.id)
+
     stock_map = {}
-    if product_ids:
+    if all_ids:
         stock_rows = db.execute(
             select(
                 StockMovement.product_id,
                 func.coalesce(func.sum(StockMovement.quantity), Decimal("0.000")),
             )
-            .where(StockMovement.product_id.in_(product_ids))
+            .where(StockMovement.product_id.in_(all_ids))
             .group_by(StockMovement.product_id)
         ).all()
         stock_map = {row[0]: Decimal(str(row[1])) for row in stock_rows}
 
-    return [_enrich_product_response(p, current_stock=stock_map.get(p.id, Decimal("0.000"))) for p in products]
+    return [_enrich_product_response(p, stock_map=stock_map) for p in products]
 
 
 @router.post("", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
@@ -100,15 +149,24 @@ def get_product(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    """Retorna detalhes de um item por ID com saldo atual de estoque."""
+    """Retorna detalhes de um item por ID com saldo atual de estoque e suas variações."""
     product = product_service.get_product_by_id(db, product_id)
     if not product:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Item não encontrado.",
         )
-    current_stock = stock_service.get_product_balance(db, product.id)
-    return _enrich_product_response(product, current_stock=current_stock)
+    all_ids = [product.id] + [v.id for v in product.variations]
+    stock_rows = db.execute(
+        select(
+            StockMovement.product_id,
+            func.coalesce(func.sum(StockMovement.quantity), Decimal("0.000")),
+        )
+        .where(StockMovement.product_id.in_(all_ids))
+        .group_by(StockMovement.product_id)
+    ).all()
+    stock_map = {row[0]: Decimal(str(row[1])) for row in stock_rows}
+    return _enrich_product_response(product, stock_map=stock_map)
 
 
 @router.put("/{product_id}", response_model=ProductResponse)
@@ -315,3 +373,55 @@ def delete_product_image(
         )
     product_service.delete_product_image(db, product, image_id)
     return None
+
+
+# --- Variações / Subprodutos (Estilo Shopee) ---
+@router.post("/{product_id}/variations", response_model=ProductVariationResponse, status_code=status.HTTP_201_CREATED)
+def create_product_variation(
+    product_id: int,
+    var_in: VariationCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Cria uma nova variação (subproduto) vinculada a este produto."""
+    child = product_service.create_variation(db, parent_id=product_id, var_in=var_in)
+    child_stock = stock_service.get_product_balance(db, child.id)
+    resp = ProductVariationResponse.model_validate(child)
+    resp.current_stock = child_stock
+    return resp
+
+
+@router.post("/{product_id}/link-variation", response_model=ProductResponse)
+def link_existing_product_as_variation(
+    product_id: int,
+    link_in: LinkVariationRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Agrupa um produto já cadastrado como variação deste produto."""
+    parent = product_service.link_existing_product_as_variation(
+        db, parent_id=product_id, child_id=link_in.child_id, variation_name=link_in.variation_name
+    )
+    all_ids = [parent.id] + [v.id for v in parent.variations]
+    stock_rows = db.execute(
+        select(
+            StockMovement.product_id,
+            func.coalesce(func.sum(StockMovement.quantity), Decimal("0.000")),
+        )
+        .where(StockMovement.product_id.in_(all_ids))
+        .group_by(StockMovement.product_id)
+    ).all()
+    stock_map = {row[0]: Decimal(str(row[1])) for row in stock_rows}
+    return _enrich_product_response(parent, stock_map=stock_map)
+
+
+@router.delete("/{product_id}/variations/{variation_id}", status_code=status.HTTP_200_OK)
+def unlink_product_variation(
+    product_id: int,
+    variation_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Desvincula a variação, tornando-a novamente um produto independente no catálogo."""
+    product_service.unlink_variation(db, variation_id)
+    return {"message": "Variação desvinculada com sucesso."}
