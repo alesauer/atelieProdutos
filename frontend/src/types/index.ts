@@ -420,3 +420,87 @@ export interface NotificationLogItem {
   error_message?: string | null;
   sent_at: string;
 }
+
+// --- Módulo Financeiro ---
+export type FinancialType = 'RECEITA' | 'DESPESA';
+export type FinancialStatus = 'PENDENTE' | 'PAGO' | 'CANCELADO';
+
+export interface FinancialCategory {
+  id: number;
+  name: string;
+  type: FinancialType;
+  color?: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface FinancialTransaction {
+  id: number;
+  description: string;
+  type: FinancialType;
+  category_id?: number | null;
+  category_name?: string | null;
+  category_color?: string | null;
+  amount: number | string;
+  due_date: string;
+  payment_date?: string | null;
+  status: FinancialStatus;
+  payment_method?: string | null;
+  reference_type?: string | null;
+  reference_id?: number | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FinancialPaymentMethodStat {
+  method: string;
+  amount: number | string;
+  count: number;
+  percentage: number;
+}
+
+export interface FinancialCategoryStat {
+  category_name: string;
+  color?: string | null;
+  amount: number | string;
+  percentage: number;
+}
+
+export interface FinancialCashFlowPoint {
+  date: string;
+  income: number | string;
+  expense: number | string;
+  net: number | string;
+}
+
+export interface FinancialDREItem {
+  code: string;
+  label: string;
+  amount: number | string;
+  percentage: number;
+  is_total?: boolean;
+  is_negative?: boolean;
+}
+
+export interface FinancialSummary {
+  start_date: string;
+  end_date: string;
+  sales_revenue: number | string;
+  manual_revenue: number | string;
+  total_revenue: number | string;
+  total_cpv: number | string;
+  gross_profit: number | string;
+  gross_margin_pct: number;
+  paid_expenses: number | string;
+  pending_expenses: number | string;
+  overdue_expenses: number | string;
+  net_profit: number | string;
+  net_margin_pct: number;
+  sales_count: number;
+  expenses_count: number;
+  by_payment_method: FinancialPaymentMethodStat[];
+  top_expense_categories: FinancialCategoryStat[];
+  daily_cash_flow: FinancialCashFlowPoint[];
+  dre_items: FinancialDREItem[];
+}

@@ -22,6 +22,11 @@ import type {
   StockReportItem,
   UnitOfMeasure,
   User,
+  FinancialCategory,
+  FinancialTransaction,
+  FinancialSummary,
+  FinancialType,
+  FinancialStatus,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
@@ -639,6 +644,90 @@ class ApiClient {
 
   async getNotificationLogs(limit: number = 50): Promise<NotificationLogItem[]> {
     return this.request<NotificationLogItem[]>(`/reports/notifications-log?limit=${limit}`);
+  }
+
+  // --- Módulo Financeiro & DRE ---
+  async getFinancialSummary(params?: { start_date?: string; end_date?: string }): Promise<FinancialSummary> {
+    const query = new URLSearchParams();
+    if (params?.start_date) query.append('start_date', params.start_date);
+    if (params?.end_date) query.append('end_date', params.end_date);
+    const qs = query.toString() ? `?${query.toString()}` : '';
+    return this.request<FinancialSummary>(`/financial/summary${qs}`);
+  }
+
+  async getFinancialCategories(type?: FinancialType): Promise<FinancialCategory[]> {
+    const qs = type ? `?type=${type}` : '';
+    return this.request<FinancialCategory[]>(`/financial/categories${qs}`);
+  }
+
+  async createFinancialCategory(data: Partial<FinancialCategory>): Promise<FinancialCategory> {
+    return this.request<FinancialCategory>('/financial/categories', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateFinancialCategory(id: number, data: Partial<FinancialCategory>): Promise<FinancialCategory> {
+    return this.request<FinancialCategory>(`/financial/categories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getFinancialTransactions(params?: {
+    type?: FinancialType;
+    status?: FinancialStatus;
+    category_id?: number;
+    start_date?: string;
+    end_date?: string;
+    search?: string;
+    skip?: number;
+    limit?: number;
+  }): Promise<FinancialTransaction[]> {
+    const query = new URLSearchParams();
+    if (params?.type) query.append('type', params.type);
+    if (params?.status) query.append('status', params.status);
+    if (params?.category_id) query.append('category_id', String(params.category_id));
+    if (params?.start_date) query.append('start_date', params.start_date);
+    if (params?.end_date) query.append('end_date', params.end_date);
+    if (params?.search) query.append('search', params.search);
+    if (params?.skip !== undefined) query.append('skip', String(params.skip));
+    if (params?.limit !== undefined) query.append('limit', String(params.limit));
+    const qs = query.toString() ? `?${query.toString()}` : '';
+    return this.request<FinancialTransaction[]>(`/financial/transactions${qs}`);
+  }
+
+  async createFinancialTransaction(data: Partial<FinancialTransaction>): Promise<FinancialTransaction> {
+    return this.request<FinancialTransaction>('/financial/transactions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateFinancialTransaction(id: number, data: Partial<FinancialTransaction>): Promise<FinancialTransaction> {
+    return this.request<FinancialTransaction>(`/financial/transactions/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async toggleFinancialTransactionStatus(
+    id: number,
+    status: FinancialStatus,
+    paymentDate?: string
+  ): Promise<FinancialTransaction> {
+    const query = new URLSearchParams();
+    query.append('status', status);
+    if (paymentDate) query.append('payment_date', paymentDate);
+    return this.request<FinancialTransaction>(`/financial/transactions/${id}/status?${query.toString()}`, {
+      method: 'PATCH',
+    });
+  }
+
+  async deleteFinancialTransaction(id: number): Promise<void> {
+    return this.request<void>(`/financial/transactions/${id}`, {
+      method: 'DELETE',
+    });
   }
 }
 

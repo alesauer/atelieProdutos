@@ -6,9 +6,10 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from sqlalchemy import text
-from app.core.database import engine
+from app.core.database import engine, SessionLocal
 from app.models import Base
 from app.api.v1.api_router import api_router
+from app.services.financial_service import financial_service
 
 
 @asynccontextmanager
@@ -46,6 +47,12 @@ async def lifespan(app: FastAPI):
                 conn.commit()
             except Exception:
                 pass
+        # Popula categorias financeiras padrão se vazio
+        try:
+            with SessionLocal() as db:
+                financial_service.seed_default_categories(db)
+        except Exception as seed_err:
+            print(f"[!] Aviso no seed de categorias financeiras: {seed_err}")
     except Exception as e:
         print(f"[!] Aviso durante criacao das tabelas no startup: {e}")
     yield

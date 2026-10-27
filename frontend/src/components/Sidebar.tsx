@@ -4,6 +4,7 @@ import {
   Boxes,
   Hammer,
   ShoppingBag,
+  CircleDollarSign,
   BarChart3,
   LayoutDashboard,
   LogOut,
@@ -54,6 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'estoque', label: 'Estoque & Saldos', icon: Boxes },
     { id: 'producao', label: 'Produção Artesanal', icon: Hammer },
     { id: 'vendas', label: 'Vendas & Pedidos', icon: ShoppingBag },
+    { id: 'financeiro', label: 'Financeiro', icon: CircleDollarSign },
     { id: 'relatorios', label: 'Relatórios', icon: BarChart3 },
     { id: 'configuracao', label: 'Configurações', icon: Settings },
   ];

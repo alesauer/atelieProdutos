@@ -15,6 +15,7 @@ from app.api.v1.endpoints import (
     sales,
     dashboard,
     reports,
+    financial,
 )
 
 api_router = APIRouter()
@@ -31,6 +32,7 @@ api_router.include_router(products.router, prefix="/products", tags=["Produtos &
 api_router.include_router(stock.router, prefix="/stock", tags=["Estoque & Movimentações"])
 api_router.include_router(production.router, prefix="/production", tags=["Produção Artesanal"])
 api_router.include_router(sales.router, prefix="/sales", tags=["Vendas & Pedidos"])
+api_router.include_router(financial.router, prefix="/financial", tags=["Financeiro & DRE"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
 api_router.include_router(reports.router, prefix="/reports", tags=["Relatórios & Notificações"])
 

@@ -18,6 +18,12 @@ from app.models.production import (
 )
 from app.models.sale import Customer, Sale, SaleItem, SaleStatus
 from app.models.notification import EmailNotificationLog, NotificationStatus
+from app.models.financial import (
+    FinancialCategory,
+    FinancialTransaction,
+    TransactionType,
+    TransactionStatus,
+)
 
 __all__ = [
     "Base",
@@ -46,4 +52,8 @@ __all__ = [
     "SaleStatus",
     "EmailNotificationLog",
     "NotificationStatus",
+    "FinancialCategory",
+    "FinancialTransaction",
+    "TransactionType",
+    "TransactionStatus",
 ]
