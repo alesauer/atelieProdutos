@@ -1733,7 +1733,20 @@ export const ProductsPage: React.FC = () => {
                   {(prod.category || prod.material || displayColor) && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
                       {prod.category && (
-                        <span style={{ fontSize: '0.73rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '1px 7px',
+                            borderRadius: '10px',
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                            backgroundColor: 'var(--bg-sand-light)',
+                            color: 'var(--brand-primary)',
+                            border: '1px solid var(--border-subtle)',
+                          }}
+                        >
                           {prod.category.name}
                         </span>
                       )}
@@ -1996,18 +2009,29 @@ export const ProductsPage: React.FC = () => {
 
                   <div
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
                       paddingTop: '10px',
                       borderTop: '1px solid var(--border-subtle)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                        Estoque:
-                      </span>
-                      {renderStockDisplay(displayStockItem, true)}
+                    {/* Linha 1: Estoque e Status do Produto perfeitamente alinhados */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                          Estoque:
+                        </span>
+                        {renderStockDisplay(displayStockItem, true)}
+                      </div>
+
                       <button
                         type="button"
                         onClick={(e) => {
@@ -2015,13 +2039,21 @@ export const ProductsPage: React.FC = () => {
                           handleToggleStatus(prod);
                         }}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                        title="Alternar status"
+                        title="Alternar status (Ativo / Inativo)"
                       >
                         <Badge status={prod.is_active ? 'active' : 'inactive'} />
                       </button>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '6px' }}>
+                    {/* Linha 2: Barra de Ações em Grid de 6 colunas, sem corte ou overflow */}
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(6, 1fr)',
+                        gap: '6px',
+                        width: '100%',
+                      }}
+                    >
                       <button
                         type="button"
                         onClick={(e) => {
@@ -2029,6 +2061,7 @@ export const ProductsPage: React.FC = () => {
                           handleOpenPreviewModal(prod);
                         }}
                         className="btn-icon"
+                        style={{ width: '100%', height: '34px' }}
                         title="Visualizar Informações Rápidas"
                       >
                         <Eye size={15} />
@@ -2042,6 +2075,8 @@ export const ProductsPage: React.FC = () => {
                         className="btn-icon"
                         title="Variações e Subprodutos estilo Shopee (Cores, Modelos)"
                         style={{
+                          width: '100%',
+                          height: '34px',
                           position: 'relative',
                           color: prod.variations && prod.variations.length > 0 ? '#ee4d2d' : undefined,
                           backgroundColor: prod.variations && prod.variations.length > 0 ? '#fff5f0' : undefined,
@@ -2080,6 +2115,8 @@ export const ProductsPage: React.FC = () => {
                         className="btn-icon"
                         title="Encaminhar produto / link de loja via WhatsApp"
                         style={{
+                          width: '100%',
+                          height: '34px',
                           color: '#15803d',
                           backgroundColor: '#e8f9ee',
                           borderColor: '#a3e9b9',
@@ -2095,7 +2132,7 @@ export const ProductsPage: React.FC = () => {
                         }}
                         className="btn-icon"
                         title="Gerenciar Fotos"
-                        style={{ position: 'relative' }}
+                        style={{ width: '100%', height: '34px', position: 'relative' }}
                       >
                         <ImageIcon size={15} />
                         {prod.images.length > 0 && (
@@ -2127,6 +2164,7 @@ export const ProductsPage: React.FC = () => {
                           handleOpenEditModal(prod);
                         }}
                         className="btn-icon"
+                        style={{ width: '100%', height: '34px' }}
                         title="Editar Item"
                       >
                         <Edit2 size={15} />
@@ -2139,7 +2177,7 @@ export const ProductsPage: React.FC = () => {
                         }}
                         className="btn-icon"
                         title="Excluir Item"
-                        style={{ color: 'var(--status-danger-text)' }}
+                        style={{ width: '100%', height: '34px', color: 'var(--status-danger-text)' }}
                       >
                         <Trash2 size={15} />
                       </button>
