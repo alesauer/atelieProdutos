@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Plus,
   Search,
@@ -197,34 +197,8 @@ export const ProductsPage: React.FC = () => {
   const [whatsAppMessage, setWhatsAppMessage] = useState('');
   const [copiedMessage, setCopiedMessage] = useState(false);
 
-  // Pop-up ao Passar o Mouse (Hovercard) e Modal de Pré-visualização
-  const [hoveredProduct, setHoveredProduct] = useState<Product | null>(null);
-  const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  // Modal de Detalhes do Produto (abre somente ao clicar)
   const [previewProductModal, setPreviewProductModal] = useState<Product | null>(null);
-  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleProductMouseEnter = (prod: Product, e: React.MouseEvent) => {
-    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-    const rect = e.currentTarget.getBoundingClientRect();
-    const popupWidth = 380;
-    let x = rect.right + 14;
-    if (x + popupWidth > window.innerWidth - 20) {
-      x = Math.max(16, rect.left - popupWidth - 14);
-    }
-    let y = Math.max(20, Math.min(rect.top - 10, window.innerHeight - 560));
-
-    hoverTimeoutRef.current = setTimeout(() => {
-      setHoveredProduct(prod);
-      setHoverPosition({ x, y });
-    }, 160);
-  };
-
-  const handleProductMouseLeave = () => {
-    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-    hoverTimeoutRef.current = setTimeout(() => {
-      setHoveredProduct(null);
-    }, 240);
-  };
 
   const renderStockDisplay = (prod: Product, isCompact = false) => {
     const stockNum = Number(prod.current_stock ?? 0);
@@ -1374,9 +1348,10 @@ export const ProductsPage: React.FC = () => {
                   flexDirection: 'column',
                   transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                   border: '1px solid var(--border-subtle)',
+                  cursor: 'pointer',
                 }}
-                onMouseEnter={(e) => handleProductMouseEnter(prod, e)}
-                onMouseLeave={handleProductMouseLeave}
+                onClick={() => setPreviewProductModal(prod)}
+                title="Clique para visualizar detalhes do produto"
               >
                 {/* Imagem de Capa do Produto */}
                 <div
@@ -1384,15 +1359,10 @@ export const ProductsPage: React.FC = () => {
                     position: 'relative',
                     height: '210px',
                     backgroundColor: 'var(--bg-sand-light)',
-                    cursor: hasImage ? 'pointer' : 'default',
+                    cursor: 'pointer',
                     overflow: 'hidden',
                   }}
-                  onClick={() => {
-                    if (hasImage) {
-                      setLightboxProduct(prod);
-                      setLightboxIndex(0);
-                    }
-                  }}
+                  onClick={() => setPreviewProductModal(prod)}
                 >
                   {hasImage ? (
                     <img
@@ -1765,7 +1735,10 @@ export const ProductsPage: React.FC = () => {
                       {renderStockDisplay(prod, true)}
                       <button
                         type="button"
-                        onClick={() => handleToggleStatus(prod)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleStatus(prod);
+                        }}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                         title="Alternar status"
                       >
@@ -1776,7 +1749,10 @@ export const ProductsPage: React.FC = () => {
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <button
                         type="button"
-                        onClick={() => setPreviewProductModal(prod)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPreviewProductModal(prod);
+                        }}
                         className="btn-icon"
                         title="Visualizar Informações Rápidas"
                       >
@@ -1784,7 +1760,10 @@ export const ProductsPage: React.FC = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleOpenWhatsAppModal(prod)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenWhatsAppModal(prod);
+                        }}
                         className="btn-icon"
                         title="Encaminhar produto / link de loja via WhatsApp"
                         style={{
@@ -1797,7 +1776,10 @@ export const ProductsPage: React.FC = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleOpenImageModal(prod)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenImageModal(prod);
+                        }}
                         className="btn-icon"
                         title="Gerenciar Fotos"
                         style={{ position: 'relative' }}
@@ -1827,7 +1809,10 @@ export const ProductsPage: React.FC = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleOpenEditModal(prod)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEditModal(prod);
+                        }}
                         className="btn-icon"
                         title="Editar Item"
                       >
@@ -1835,7 +1820,10 @@ export const ProductsPage: React.FC = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDeleteProduct(prod)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteProduct(prod);
+                        }}
                         className="btn-icon"
                         title="Excluir Item"
                         style={{ color: 'var(--status-danger-text)' }}
@@ -1885,11 +1873,9 @@ export const ProductsPage: React.FC = () => {
                       }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.backgroundColor = 'var(--bg-surface-hover)';
-                        handleProductMouseEnter(prod, e);
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.backgroundColor = 'transparent';
-                        handleProductMouseLeave();
                       }}
                     >
                       {/* Miniatura e Grupo de Fotos */}
@@ -1967,7 +1953,11 @@ export const ProductsPage: React.FC = () => {
 
                       {/* Nome, SKU e Links de Marketplaces */}
                       <td style={{ padding: '12px 20px' }}>
-                        <div style={{ fontWeight: 600, color: 'var(--brand-primary)', fontSize: '0.95rem' }}>
+                        <div
+                          style={{ fontWeight: 600, color: 'var(--brand-primary)', fontSize: '0.95rem', cursor: 'pointer' }}
+                          onClick={() => setPreviewProductModal(prod)}
+                          title="Clique para visualizar detalhes do produto"
+                        >
                           {prod.name}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', marginTop: '3px' }}>
@@ -4492,282 +4482,6 @@ export const ProductsPage: React.FC = () => {
           </div>
         </form>
       </Modal>
-
-      {/* Pop-up Flutuante ao Passar o Mouse (Hovercard) */}
-      {hoveredProduct && (
-        <div
-          style={{
-            position: 'fixed',
-            left: `${hoverPosition.x}px`,
-            top: `${hoverPosition.y}px`,
-            width: '380px',
-            maxHeight: '88vh',
-            overflowY: 'auto',
-            backgroundColor: '#ffffff',
-            borderRadius: 'var(--radius-md)',
-            boxShadow: '0 24px 60px rgba(44, 40, 36, 0.28), 0 8px 24px rgba(44, 40, 36, 0.12)',
-            border: '1px solid var(--border-medium)',
-            zIndex: 9999,
-            pointerEvents: 'auto',
-            animation: 'fadeInScale 0.15s ease-out',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-          onMouseEnter={() => {
-            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-          }}
-          onMouseLeave={handleProductMouseLeave}
-        >
-          {(() => {
-            const rawPrimary =
-              hoveredProduct.primary_image_url ||
-              (hoveredProduct.images && hoveredProduct.images.length > 0
-                ? hoveredProduct.images.find((i) => i.is_primary)?.url ||
-                  hoveredProduct.images[0].url ||
-                  hoveredProduct.images[0].file_path
-                : null);
-            const hasImage = !!rawPrimary;
-            const imgUrl = getProductImageUrl(rawPrimary);
-            const unitCode = hoveredProduct.unit?.code || 'UN';
-            const currentStockNum = Number(hoveredProduct.current_stock ?? 0);
-            const isLowStock = currentStockNum <= 5;
-            const costVal = Number(hoveredProduct.unit_cost) || 0;
-            const saleVal = Number(hoveredProduct.sale_price) || 0;
-            const profitVal = saleVal > 0 ? saleVal - costVal : 0;
-            const marginPct = saleVal > 0 ? ((profitVal / saleVal) * 100).toFixed(1) : '0.0';
-            const links = parseSalesLinks(hoveredProduct.sales_links);
-            let costItemsParsed: CostComponentItem[] = [];
-            if (hoveredProduct.cost_breakdown) {
-              try {
-                costItemsParsed = JSON.parse(hoveredProduct.cost_breakdown);
-              } catch {}
-            }
-
-            return (
-              <>
-                <div style={{ position: 'relative', height: '170px', backgroundColor: 'var(--bg-sand-light)', overflow: 'hidden', borderTopLeftRadius: 'var(--radius-md)', borderTopRightRadius: 'var(--radius-md)' }}>
-                  {hasImage ? (
-                    <img
-                      src={imgUrl}
-                      alt={hoveredProduct.name}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      onError={handleImageError}
-                    />
-                  ) : (
-                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', flexDirection: 'column', gap: '6px' }}>
-                      <ImageIcon size={36} opacity={0.4} />
-                      <span style={{ fontSize: '0.78rem' }}>Sem foto cadastrada</span>
-                    </div>
-                  )}
-
-                  {/* Badges Flutuantes */}
-                  <div style={{ position: 'absolute', top: '10px', left: '10px', display: 'flex', gap: '6px', flexWrap: 'wrap', zIndex: 2 }}>
-                    <Badge type={hoveredProduct.item_type} />
-                    {hoveredProduct.category && (
-                      <span style={{ backgroundColor: 'rgba(255,255,255,0.92)', color: 'var(--brand-primary)', fontSize: '0.72rem', fontWeight: 600, padding: '2px 7px', borderRadius: 'var(--radius-xs)', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-                        {hoveredProduct.category.name}
-                      </span>
-                    )}
-                  </div>
-
-                  <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 2 }}>
-                    <span style={{ fontFamily: 'monospace', fontSize: '0.72rem', fontWeight: 700, backgroundColor: 'rgba(0,0,0,0.7)', color: '#fff', padding: '2px 7px', borderRadius: 'var(--radius-xs)' }}>
-                      {hoveredProduct.sku}
-                    </span>
-                  </div>
-
-                  {hoveredProduct.images.length > 1 && (
-                    <span style={{ position: 'absolute', bottom: '8px', right: '8px', backgroundColor: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '0.7rem', fontWeight: 600, padding: '2px 6px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <ImageIcon size={11} /> {hoveredProduct.images.length} fotos
-                    </span>
-                  )}
-                </div>
-
-                {/* Corpo das Informações */}
-                <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  {/* Nome e Tags */}
-                  <div>
-                    <h3 style={{ margin: '0 0 6px', fontSize: '1.15rem', color: 'var(--brand-primary)', fontFamily: 'var(--font-heading)', fontWeight: 700, lineHeight: 1.3 }}>
-                      {hoveredProduct.name}
-                    </h3>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                      {hoveredProduct.material && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 600, backgroundColor: 'var(--bg-sand-light)', color: 'var(--text-primary)', padding: '2px 7px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
-                          🧱 {hoveredProduct.material}
-                        </span>
-                      )}
-                      {hoveredProduct.color && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 600, backgroundColor: '#fff', color: 'var(--brand-primary)', padding: '2px 7px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
-                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: getColorHex(hoveredProduct.color), border: '1px solid rgba(0,0,0,0.2)' }} />
-                          {hoveredProduct.color}
-                        </span>
-                      )}
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                        Unidade: <strong>{unitCode}</strong>
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Card de Estoque com Alerta */}
-                  <div style={{ padding: '10px 12px', borderRadius: 'var(--radius-sm)', backgroundColor: isLowStock ? '#fffbeb' : 'var(--bg-sand-light)', border: isLowStock ? '1px solid #fde68a' : '1px solid var(--border-subtle)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                      <span style={{ fontSize: '0.74rem', textTransform: 'uppercase', fontWeight: 700, color: isLowStock ? '#92400e' : 'var(--text-secondary)' }}>
-                        Estoque Total Disponível
-                      </span>
-                      {renderStockDisplay(hoveredProduct, true)}
-                    </div>
-                    {isLowStock && (
-                      <p style={{ margin: '4px 0 0', fontSize: '0.76rem', color: '#b45309', fontWeight: 600 }}>
-                        ⚠️ {currentStockNum <= 0 ? 'Item esgotado no depósito!' : `Atenção: Apenas ${currentStockNum} ${unitCode} restantes no estoque.`}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Card de Preços e Margens */}
-                  <div style={{ padding: '10px 12px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-surface-hover)', border: '1px solid var(--border-subtle)' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: saleVal > 0 ? '8px' : 0 }}>
-                      <div>
-                        <span style={{ fontSize: '0.68rem', textTransform: 'uppercase', color: 'var(--text-tertiary)', fontWeight: 700, display: 'block' }}>
-                          Custo Estimado
-                        </span>
-                        <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--brand-primary)' }}>
-                          R$ {costVal.toFixed(2)}
-                        </span>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '0.68rem', textTransform: 'uppercase', color: 'var(--text-tertiary)', fontWeight: 700, display: 'block' }}>
-                          Preço de Venda
-                        </span>
-                        <span style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--brand-accent)' }}>
-                          {saleVal > 0 ? `R$ ${saleVal.toFixed(2)}` : 'Não definido'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {saleVal > 0 && (
-                      <div style={{ paddingTop: '6px', borderTop: '1px dashed var(--border-medium)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Lucro Bruto Est.:</span>
-                        <span style={{ fontWeight: 700, color: profitVal >= 0 ? '#15803d' : 'var(--status-danger-text)' }}>
-                          R$ {profitVal.toFixed(2)} ({marginPct}%)
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Resumo de Composição de Insumos se houver */}
-                    {costItemsParsed.length > 0 && (
-                      <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px solid var(--border-subtle)' }}>
-                        <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--brand-primary)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
-                          Composição de Insumos ({costItemsParsed.length}):
-                        </span>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                          {costItemsParsed.slice(0, 4).map((it, idx) => (
-                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                              <span>• {it.name} ({it.quantity}{it.unit ? ` ${it.unit}` : ''})</span>
-                              <span style={{ fontWeight: 600 }}>R$ {Number(it.total).toFixed(2)}</span>
-                            </div>
-                          ))}
-                          {costItemsParsed.length > 4 && (
-                            <span style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
-                              + {costItemsParsed.length - 4} outros insumos...
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Links de Vendas em Marketplaces */}
-                  {links.length > 0 && (
-                    <div>
-                      <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-                        Links de Venda
-                      </span>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                        {links.map((link) => {
-                          const style = getMarketplaceStyle(link.platform);
-                          return (
-                            <a
-                              key={link.id}
-                              href={link.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                padding: '4px 9px',
-                                borderRadius: '4px',
-                                backgroundColor: style.bg,
-                                color: style.color,
-                                border: `1px solid ${style.border}`,
-                                fontSize: '0.74rem',
-                                fontWeight: 700,
-                                textDecoration: 'none',
-                              }}
-                            >
-                              <span>{link.platform}</span>
-                              <ExternalLink size={10} />
-                            </a>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Descrição / Notas */}
-                  {hoveredProduct.description && (
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-sand-light)', padding: '8px 10px', borderRadius: 'var(--radius-xs)', fontStyle: 'italic' }}>
-                      "{hoveredProduct.description}"
-                    </div>
-                  )}
-
-                  {/* Ações Rápidas no Rodapé do Pop-up */}
-                  <div style={{ display: 'flex', gap: '8px', paddingTop: '8px', borderTop: '1px solid var(--border-subtle)' }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const p = hoveredProduct;
-                        setHoveredProduct(null);
-                        handleOpenEditModal(p);
-                      }}
-                      className="btn-primary"
-                      style={{ flex: 1, padding: '7px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                    >
-                      <Edit2 size={13} /> Editar Produto
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const p = hoveredProduct;
-                        setHoveredProduct(null);
-                        handleOpenImageModal(p);
-                      }}
-                      className="btn-secondary"
-                      style={{ padding: '7px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                      title="Gerenciar fotos"
-                    >
-                      <ImageIcon size={13} /> Fotos
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const p = hoveredProduct;
-                        setHoveredProduct(null);
-                        handleOpenWhatsAppModal(p);
-                      }}
-                      className="btn-secondary"
-                      style={{ padding: '7px 10px', color: '#15803d', backgroundColor: '#e8f9ee', borderColor: '#a3e9b9' }}
-                      title="Compartilhar via WhatsApp"
-                    >
-                      <WhatsAppIcon size={14} color="#25D366" />
-                    </button>
-                  </div>
-                </div>
-              </>
-            );
-          })()}
-        </div>
-      )}
 
       {/* Modal de Detalhes Completos do Produto (Visualização Pura / Sem Editar) */}
       <Modal
