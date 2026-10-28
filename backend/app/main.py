@@ -59,6 +59,11 @@ async def lifespan(app: FastAPI):
             except Exception:
                 pass
             try:
+                conn.execute(text("ALTER TABLE products ADD COLUMN weight DECIMAL(10, 3) NULL;"))
+                conn.commit()
+            except Exception:
+                pass
+            try:
                 conn.execute(text("ALTER TABLE products ADD CONSTRAINT fk_products_parent FOREIGN KEY (parent_id) REFERENCES products(id) ON DELETE CASCADE;"))
                 conn.commit()
             except Exception:
