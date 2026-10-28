@@ -14,6 +14,7 @@ import {
   Search,
   RotateCcw,
   RefreshCw,
+  MessageCircle,
 } from 'lucide-react';
 
 import { api } from '../api/client';
@@ -45,7 +46,11 @@ const formatQuantity = (val: string | number | undefined | null): string => {
   return num.toFixed(2);
 };
 
-export const SalesPage: React.FC = () => {
+interface SalesPageProps {
+  onNavigate?: (tab: string) => void;
+}
+
+export const SalesPage: React.FC<SalesPageProps> = ({ onNavigate }) => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -78,6 +83,7 @@ export const SalesPage: React.FC = () => {
   const [newCustName, setNewCustName] = useState('');
   const [newCustEmail, setNewCustEmail] = useState('');
   const [newCustPhone, setNewCustPhone] = useState('');
+  const [newCustOrigin, setNewCustOrigin] = useState('WhatsApp');
 
   // Modal Detalhes
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
@@ -446,6 +452,7 @@ export const SalesPage: React.FC = () => {
         name: newCustName,
         email: newCustEmail ? newCustEmail : undefined,
         phone: newCustPhone ? newCustPhone : undefined,
+        origin_channel: newCustOrigin,
       });
       setCustomers([...customers, created]);
       setSelectedCustomerId(created.id);
@@ -453,6 +460,7 @@ export const SalesPage: React.FC = () => {
       setNewCustName('');
       setNewCustEmail('');
       setNewCustPhone('');
+      setNewCustOrigin('WhatsApp');
     } catch (err: any) {
       alert(err.message || 'Erro ao cadastrar cliente.');
     }
@@ -870,7 +878,56 @@ export const SalesPage: React.FC = () => {
                       {s.sale_number}
                     </td>
                     <td style={{ padding: '14px 20px', fontWeight: 500, color: 'var(--text-primary)' }}>
-                      {s.customer_name || <span style={{ color: 'var(--text-tertiary)', fontStyle: 'italic' }}>Consumidor Final</span>}
+                      {(() => {
+                        const customer = s.customer_id ? customers.find((c) => c.id === s.customer_id) : null;
+                        const phoneDigits = customer?.phone ? customer.phone.replace(/\D/g, '') : null;
+                        const waDigits = phoneDigits ? (phoneDigits.length === 10 || phoneDigits.length === 11 ? `55${phoneDigits}` : phoneDigits) : null;
+                        const waLink = waDigits ? `https://wa.me/${waDigits}?text=${encodeURIComponent(`Olá ${customer?.name}! Tudo bem? Entrando em contato sobre seu pedido #${s.sale_number} no Ateliê Casa Luma 🕯️`)}` : null;
+
+                        if (!s.customer_name) {
+                          return <span style={{ color: 'var(--text-tertiary)', fontStyle: 'italic' }}>Consumidor Final</span>;
+                        }
+
+                        return (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span
+                              onClick={() => onNavigate && onNavigate('clientes')}
+                              style={{
+                                cursor: onNavigate ? 'pointer' : 'default',
+                                color: onNavigate ? 'var(--brand-primary)' : 'inherit',
+                                fontWeight: 600,
+                              }}
+                              title={onNavigate ? 'Ver ficha no CRM (Clientes)' : undefined}
+                            >
+                              {s.customer_name}
+                            </span>
+                            {waLink && (
+                              <a
+                                href={waLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={`Conversar com ${s.customer_name} no WhatsApp`}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  backgroundColor: '#e8f7ee',
+                                  color: '#107c41',
+                                  border: '1px solid #b7ebc6',
+                                  borderRadius: '6px',
+                                  padding: '2px 6px',
+                                  fontSize: '0.72rem',
+                                  textDecoration: 'none',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                <MessageCircle size={12} />
+                                Whats
+                              </a>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td style={{ padding: '14px 20px', fontWeight: 700, color: 'var(--brand-accent)', fontSize: '0.98rem' }}>
                       R$ {Number(s.total_amount).toFixed(2)}
@@ -1209,6 +1266,23 @@ export const SalesPage: React.FC = () => {
               onChange={(e) => setNewCustEmail(e.target.value)}
               placeholder="maria@exemplo.com"
             />
+          </div>
+          <div style={{ marginBottom: '14px' }}>
+            <label htmlFor="cust-origin">Canal de Origem</label>
+            <select
+              id="cust-origin"
+              value={newCustOrigin}
+              onChange={(e) => setNewCustOrigin(e.target.value)}
+            >
+              <option value="WhatsApp">WhatsApp</option>
+              <option value="Instagram">Instagram</option>
+              <option value="Shopee">Shopee</option>
+              <option value="Loja Física">Loja Física</option>
+              <option value="Feira / Evento">Feira / Evento</option>
+              <option value="Indicação">Indicação</option>
+              <option value="Site / E-commerce">Site / E-commerce</option>
+              <option value="Outro">Outro</option>
+            </select>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
             <button type="button" onClick={() => setIsCustomerModalOpen(false)} className="btn-secondary">

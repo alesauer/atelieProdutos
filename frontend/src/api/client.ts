@@ -2,6 +2,9 @@ import type {
   AuthResponse,
   Category,
   Customer,
+  CustomerDetail,
+  CustomerFormData,
+  CustomerStats,
   DashboardMetrics,
   ItemTypeDefinition,
   MovementReportItem,
@@ -491,24 +494,51 @@ class ApiClient {
     });
   }
 
-  // --- Vendas & Clientes ---
-  async listCustomers(search?: string): Promise<Customer[]> {
-    const qs = search ? `?search=${encodeURIComponent(search)}` : '';
-    return this.request<Customer[]>(`/sales/customers${qs}`);
+  // --- Clientes & CRM ---
+  async listCustomers(params?: {
+    search?: string;
+    origin_channel?: string;
+    tag?: string;
+    active_only?: boolean;
+    order_by?: string;
+  } | string): Promise<Customer[]> {
+    const qp = new URLSearchParams();
+    if (typeof params === 'string') {
+      if (params) qp.append('search', params);
+    } else if (params) {
+      if (params.search) qp.append('search', params.search);
+      if (params.origin_channel) qp.append('origin_channel', params.origin_channel);
+      if (params.tag) qp.append('tag', params.tag);
+      if (params.active_only) qp.append('active_only', 'true');
+      if (params.order_by) qp.append('order_by', params.order_by);
+    }
+    const qs = qp.toString();
+    return this.request<Customer[]>(`/customers${qs ? `?${qs}` : ''}`);
   }
 
-  async createCustomer(data: {
-    name: string;
-    email?: string;
-    phone?: string;
-    document?: string;
-    notes?: string;
-  }): Promise<Customer> {
-    return this.request<Customer>('/sales/customers', {
+  async getCustomerStats(): Promise<CustomerStats> {
+    return this.request<CustomerStats>('/customers/stats');
+  }
+
+  async getCustomer(customerId: number): Promise<CustomerDetail> {
+    return this.request<CustomerDetail>(`/customers/${customerId}`);
+  }
+
+  async createCustomer(data: CustomerFormData): Promise<Customer> {
+    return this.request<Customer>('/customers', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
+
+  async updateCustomer(customerId: number, data: Partial<CustomerFormData>): Promise<Customer> {
+    return this.request<Customer>(`/customers/${customerId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // --- Vendas ---
 
   async listSales(params?: {
     start_date?: string;
@@ -562,7 +592,7 @@ class ApiClient {
   }
 
   async deleteCustomer(customerId: number): Promise<void> {
-    return this.request<void>(`/sales/customers/${customerId}`, {
+    return this.request<void>(`/customers/${customerId}`, {
       method: 'DELETE',
     });
   }

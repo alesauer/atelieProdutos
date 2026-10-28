@@ -20,13 +20,25 @@ class Customer(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(120), index=True, nullable=False)
+    nickname: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
     email: Mapped[Optional[str]] = mapped_column(String(191), nullable=True)
     phone: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     document: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    state: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)
+    zip_code: Mapped[Optional[str]] = mapped_column(String(15), nullable=True)
+    address_line: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    neighborhood: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    birth_date: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    origin_channel: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
+    tags: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=True
     )
 
     sales = relationship("Sale", back_populates="customer")

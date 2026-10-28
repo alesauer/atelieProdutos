@@ -19,10 +19,19 @@ class SaleService:
     def create_customer(db: Session, customer_in: CustomerCreate) -> Customer:
         customer = Customer(
             name=customer_in.name.strip(),
+            nickname=customer_in.nickname.strip() if customer_in.nickname else None,
             email=customer_in.email,
-            phone=customer_in.phone,
-            document=customer_in.document,
-            notes=customer_in.notes,
+            phone=customer_in.phone.strip() if customer_in.phone else None,
+            document=customer_in.document.strip() if customer_in.document else None,
+            city=customer_in.city.strip() if customer_in.city else None,
+            state=customer_in.state.strip().upper() if customer_in.state else None,
+            zip_code=customer_in.zip_code.strip() if customer_in.zip_code else None,
+            address_line=customer_in.address_line.strip() if customer_in.address_line else None,
+            neighborhood=customer_in.neighborhood.strip() if customer_in.neighborhood else None,
+            birth_date=customer_in.birth_date.strip() if customer_in.birth_date else None,
+            origin_channel=customer_in.origin_channel.strip() if customer_in.origin_channel else None,
+            tags=customer_in.tags.strip() if customer_in.tags else None,
+            notes=customer_in.notes.strip() if customer_in.notes else None,
             is_active=customer_in.is_active,
         )
         db.add(customer)

@@ -11,6 +11,7 @@ import {
   Sparkles,
   Download,
   Settings,
+  Users,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -55,6 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'estoque', label: 'Estoque & Saldos', icon: Boxes },
     { id: 'producao', label: 'Produção Artesanal', icon: Hammer },
     { id: 'vendas', label: 'Vendas & Pedidos', icon: ShoppingBag },
+    { id: 'clientes', label: 'Clientes & CRM', icon: Users },
     { id: 'financeiro', label: 'Financeiro', icon: CircleDollarSign },
     { id: 'relatorios', label: 'Relatórios', icon: BarChart3 },
     { id: 'configuracao', label: 'Configurações', icon: Settings },

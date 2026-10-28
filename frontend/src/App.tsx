@@ -9,6 +9,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { StockPage } from './pages/StockPage';
 import { ProductionPage } from './pages/ProductionPage';
 import { SalesPage } from './pages/SalesPage';
+import { CustomersPage } from './pages/CustomersPage';
 import { FinancialPage } from './pages/FinancialPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -58,6 +59,8 @@ export function App() {
         return { title: 'Produção Artesanal', subtitle: 'Ordens de fabricação e fichas técnicas (BOM)' };
       case 'vendas':
         return { title: 'Vendas & Pedidos', subtitle: 'Registro e baixa de estoque de pedidos' };
+      case 'clientes':
+        return { title: 'Clientes & CRM', subtitle: 'Ficha 360°, histórico de compras, métricas de LTV e relacionamento' };
       case 'financeiro':
         return { title: 'Controle Financeiro', subtitle: 'DRE, fluxo de caixa, receitas e contas a pagar' };
       case 'relatorios':
@@ -96,7 +99,8 @@ export function App() {
           {currentTab === 'produtos' && <ProductsPage />}
           {currentTab === 'estoque' && <StockPage />}
           {currentTab === 'producao' && <ProductionPage />}
-          {currentTab === 'vendas' && <SalesPage />}
+          {currentTab === 'vendas' && <SalesPage onNavigate={setCurrentTab} />}
+          {currentTab === 'clientes' && <CustomersPage onNavigate={setCurrentTab} />}
           {currentTab === 'financeiro' && <FinancialPage />}
           {currentTab === 'relatorios' && <ReportsPage />}
           {currentTab === 'configuracao' && <SettingsPage />}

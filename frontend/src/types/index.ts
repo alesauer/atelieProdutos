@@ -281,16 +281,70 @@ export interface ProductionOrder {
   items: ProductionOrderItem[];
 }
 
-// --- Vendas ---
+// --- Clientes & CRM ---
 export interface Customer {
   id: number;
   name: string;
+  nickname?: string | null;
   email?: string | null;
   phone?: string | null;
   document?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip_code?: string | null;
+  address_line?: string | null;
+  neighborhood?: string | null;
+  birth_date?: string | null;
+  origin_channel?: string | null;
+  tags?: string | null;
   notes?: string | null;
   is_active: boolean;
   created_at: string;
+  updated_at?: string | null;
+  total_spent?: string | number;
+  sales_count?: number;
+  last_purchase_date?: string | null;
+}
+
+export interface CustomerFormData {
+  name: string;
+  nickname?: string;
+  email?: string;
+  phone?: string;
+  document?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  address_line?: string;
+  neighborhood?: string;
+  birth_date?: string;
+  origin_channel?: string;
+  tags?: string;
+  notes?: string;
+  is_active?: boolean;
+}
+
+export interface CustomerSaleSummary {
+  id: number;
+  sale_number: string;
+  status: string;
+  total_amount: string | number;
+  payment_method?: string | null;
+  created_at: string;
+  items_count: number;
+  items_preview?: string | null;
+}
+
+export interface CustomerDetail extends Customer {
+  recent_sales: CustomerSaleSummary[];
+}
+
+export interface CustomerStats {
+  total_customers: number;
+  active_customers: number;
+  recurring_customers: number;
+  total_revenue_from_customers: string | number;
+  average_ticket: string | number;
 }
 
 export interface SaleItem {

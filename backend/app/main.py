@@ -63,6 +63,24 @@ async def lifespan(app: FastAPI):
                 conn.commit()
             except Exception:
                 pass
+            # Migrações seguras da tabela customers para CRM e Gestão de Clientes
+            for col_sql in [
+                "ALTER TABLE customers ADD COLUMN nickname VARCHAR(80) NULL;",
+                "ALTER TABLE customers ADD COLUMN city VARCHAR(100) NULL;",
+                "ALTER TABLE customers ADD COLUMN state VARCHAR(2) NULL;",
+                "ALTER TABLE customers ADD COLUMN zip_code VARCHAR(15) NULL;",
+                "ALTER TABLE customers ADD COLUMN address_line VARCHAR(255) NULL;",
+                "ALTER TABLE customers ADD COLUMN neighborhood VARCHAR(100) NULL;",
+                "ALTER TABLE customers ADD COLUMN birth_date VARCHAR(20) NULL;",
+                "ALTER TABLE customers ADD COLUMN origin_channel VARCHAR(60) NULL;",
+                "ALTER TABLE customers ADD COLUMN tags VARCHAR(255) NULL;",
+                "ALTER TABLE customers ADD COLUMN updated_at DATETIME NULL;",
+            ]:
+                try:
+                    conn.execute(text(col_sql))
+                    conn.commit()
+                except Exception:
+                    pass
         # Popula categorias financeiras padrão se vazio
         try:
             with SessionLocal() as db:
