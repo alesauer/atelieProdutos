@@ -45,6 +45,9 @@ from app.schemas.product import (
     ProductImageResponse,
     ImageReorderItem,
     ImageReorderRequest,
+    KitItemBase,
+    KitItemCreate,
+    KitItemResponse,
 )
 
 __all__ = [
@@ -82,4 +85,7 @@ __all__ = [
     "ProductImageResponse",
     "ImageReorderItem",
     "ImageReorderRequest",
+    "KitItemBase",
+    "KitItemCreate",
+    "KitItemResponse",
 ]

@@ -23,6 +23,37 @@ class ProductImageResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class KitItemBase(BaseModel):
+    component_product_id: int
+    quantity: Decimal = Field(default=Decimal("1.000"), gt=0)
+
+
+class KitItemCreate(KitItemBase):
+    pass
+
+
+class KitComponentProductInfo(BaseModel):
+    id: int
+    sku: str
+    name: str
+    unit_cost: Decimal
+    sale_price: Optional[Decimal] = None
+    weight: Optional[Decimal] = None
+    color: Optional[str] = None
+    material: Optional[str] = None
+    is_active: bool = True
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class KitItemResponse(KitItemBase):
+    id: int
+    kit_product_id: int
+    component_product: Optional[KitComponentProductInfo] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ProductBase(BaseModel):
     sku: str = Field(..., min_length=2, max_length=50)
     name: str = Field(..., min_length=2, max_length=150)
@@ -39,12 +70,13 @@ class ProductBase(BaseModel):
     weight: Optional[Decimal] = Field(default=None, ge=0)
     min_stock: Decimal = Field(default=Decimal("0.000"), ge=0)
     is_active: bool = True
+    is_kit: bool = False
     parent_id: Optional[int] = None
     variation_name: Optional[str] = Field(None, max_length=100)
 
 
 class ProductCreate(ProductBase):
-    pass
+    kit_items: Optional[List[KitItemCreate]] = None
 
 
 class ProductUpdate(BaseModel):
@@ -63,8 +95,10 @@ class ProductUpdate(BaseModel):
     weight: Optional[Decimal] = Field(None, ge=0)
     min_stock: Optional[Decimal] = Field(None, ge=0)
     is_active: Optional[bool] = None
+    is_kit: Optional[bool] = None
     parent_id: Optional[int] = None
     variation_name: Optional[str] = Field(None, max_length=100)
+    kit_items: Optional[List[KitItemCreate]] = None
 
 
 class ProductVariationResponse(ProductBase):
@@ -88,6 +122,7 @@ class ProductResponse(ProductBase):
     primary_image_url: Optional[str] = None
     current_stock: Decimal = Field(default=Decimal("0.000"))
     variations: List[ProductVariationResponse] = []
+    kit_items: List[KitItemResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
 

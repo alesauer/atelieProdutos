@@ -132,23 +132,49 @@ class SaleService:
 
         # 1. Validação de saldos
         for it in sale.items:
-            stock_service.validate_available_stock(
-                db, it.product_id, it.quantity, it.product.name if it.product else None
-            )
+            prod = it.product
+            if prod and prod.is_kit and prod.kit_items and len(prod.kit_items) > 0:
+                for ki in prod.kit_items:
+                    needed_qty = ki.quantity * it.quantity
+                    comp_name = ki.component_product.name if ki.component_product else f"Item #{ki.component_product_id}"
+                    stock_service.validate_available_stock(
+                        db, ki.component_product_id, needed_qty, f"{comp_name} (Componente do Kit {prod.name})"
+                    )
+            else:
+                stock_service.validate_available_stock(
+                    db, it.product_id, it.quantity, prod.name if prod else None
+                )
 
         # 2. Baixa de estoque
         for it in sale.items:
-            stock_service.create_movement(
-                db,
-                product_id=it.product_id,
-                movement_type=MovementType.VENDA,
-                quantity=-it.quantity,
-                unit_cost_at_moment=it.unit_cost_snapshot,
-                user_id=user_id,
-                justification=f"Baixa por venda confirmada {sale.sale_number}",
-                reference_type="SALE",
-                reference_id=sale.id,
-            )
+            prod = it.product
+            if prod and prod.is_kit and prod.kit_items and len(prod.kit_items) > 0:
+                for ki in prod.kit_items:
+                    needed_qty = ki.quantity * it.quantity
+                    comp_cost = ki.component_product.unit_cost if ki.component_product else Decimal("0.00")
+                    stock_service.create_movement(
+                        db,
+                        product_id=ki.component_product_id,
+                        movement_type=MovementType.VENDA,
+                        quantity=-needed_qty,
+                        unit_cost_at_moment=comp_cost,
+                        user_id=user_id,
+                        justification=f"Baixa de componente ({ki.quantity} un) por venda de Kit {sale.sale_number} ({prod.name})",
+                        reference_type="SALE",
+                        reference_id=sale.id,
+                    )
+            else:
+                stock_service.create_movement(
+                    db,
+                    product_id=it.product_id,
+                    movement_type=MovementType.VENDA,
+                    quantity=-it.quantity,
+                    unit_cost_at_moment=it.unit_cost_snapshot,
+                    user_id=user_id,
+                    justification=f"Baixa por venda confirmada {sale.sale_number}",
+                    reference_type="SALE",
+                    reference_id=sale.id,
+                )
 
         sale.status = SaleStatus.CONFIRMADA
         sale.confirmed_at = datetime.now(timezone.utc)
@@ -187,17 +213,34 @@ class SaleService:
         if sale.status == SaleStatus.CONFIRMADA:
             # Estorna cada item devolvendo ao estoque
             for it in sale.items:
-                stock_service.create_movement(
-                    db,
-                    product_id=it.product_id,
-                    movement_type=MovementType.REVERSAO_CANCELAMENTO,
-                    quantity=it.quantity,
-                    unit_cost_at_moment=it.unit_cost_snapshot,
-                    user_id=user_id,
-                    justification=f"Estorno por cancelamento da venda {sale.sale_number}",
-                    reference_type="SALE_CANCEL",
-                    reference_id=sale.id,
-                )
+                prod = it.product
+                if prod and prod.is_kit and prod.kit_items and len(prod.kit_items) > 0:
+                    for ki in prod.kit_items:
+                        needed_qty = ki.quantity * it.quantity
+                        comp_cost = ki.component_product.unit_cost if ki.component_product else Decimal("0.00")
+                        stock_service.create_movement(
+                            db,
+                            product_id=ki.component_product_id,
+                            movement_type=MovementType.REVERSAO_CANCELAMENTO,
+                            quantity=needed_qty,
+                            unit_cost_at_moment=comp_cost,
+                            user_id=user_id,
+                            justification=f"Estorno de componente ({ki.quantity} un) por cancelamento do Kit {sale.sale_number} ({prod.name})",
+                            reference_type="SALE_CANCEL",
+                            reference_id=sale.id,
+                        )
+                else:
+                    stock_service.create_movement(
+                        db,
+                        product_id=it.product_id,
+                        movement_type=MovementType.REVERSAO_CANCELAMENTO,
+                        quantity=it.quantity,
+                        unit_cost_at_moment=it.unit_cost_snapshot,
+                        user_id=user_id,
+                        justification=f"Estorno por cancelamento da venda {sale.sale_number}",
+                        reference_type="SALE_CANCEL",
+                        reference_id=sale.id,
+                    )
 
         sale.status = SaleStatus.CANCELADA
         sale.cancelled_at = datetime.now(timezone.utc)

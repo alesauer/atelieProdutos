@@ -51,6 +51,7 @@ class Product(Base, TimestampMixin):
         Numeric(10, 3), default=Decimal("0.000"), nullable=False
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_kit: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Subprodutos e Variações estilo Shopee
     parent_id: Mapped[Optional[int]] = mapped_column(
@@ -74,6 +75,12 @@ class Product(Base, TimestampMixin):
         cascade="all, delete-orphan",
         order_by="Product.id",
     )
+    kit_items = relationship(
+        "ProductKitItem",
+        foreign_keys="[ProductKitItem.kit_product_id]",
+        back_populates="kit_product",
+        cascade="all, delete-orphan",
+    )
 
 
 class ProductImage(Base):
@@ -94,3 +101,21 @@ class ProductImage(Base):
     )
 
     product = relationship("Product", back_populates="images")
+
+
+class ProductKitItem(Base, TimestampMixin):
+    __tablename__ = "product_kit_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    kit_product_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    component_product_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("products.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    quantity: Mapped[Decimal] = mapped_column(
+        Numeric(10, 3), default=Decimal("1.000"), nullable=False
+    )
+
+    kit_product = relationship("Product", foreign_keys=[kit_product_id], back_populates="kit_items")
+    component_product = relationship("Product", foreign_keys=[component_product_id])

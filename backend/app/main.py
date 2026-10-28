@@ -64,6 +64,11 @@ async def lifespan(app: FastAPI):
             except Exception:
                 pass
             try:
+                conn.execute(text("ALTER TABLE products ADD COLUMN is_kit BOOLEAN NOT NULL DEFAULT FALSE;"))
+                conn.commit()
+            except Exception:
+                pass
+            try:
                 conn.execute(text("ALTER TABLE products ADD CONSTRAINT fk_products_parent FOREIGN KEY (parent_id) REFERENCES products(id) ON DELETE CASCADE;"))
                 conn.commit()
             except Exception:

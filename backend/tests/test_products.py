@@ -1,4 +1,5 @@
 import pytest
+from decimal import Decimal
 from fastapi.testclient import TestClient
 from app.models.category import Category
 from app.models.unit import UnitOfMeasure
@@ -309,3 +310,90 @@ def test_delete_unit_of_measure(client: TestClient, admin_token: str, sample_uni
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert del_ok.status_code == 204
+
+
+def test_create_and_update_product_kit(client: TestClient, admin_token: str, sample_category, sample_unit):
+    # 1. Criar dois produtos componentes avulsos
+    p1_resp = client.post(
+        "/api/v1/products",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "sku": "ITEM-KIT-A",
+            "name": "Vela Canela 150g",
+            "item_type": "PRODUTO_ACABADO",
+            "category_id": sample_category.id,
+            "unit_id": sample_unit.id,
+            "unit_cost": "15.00",
+            "sale_price": "40.00",
+            "min_stock": "2.000",
+        },
+    )
+    assert p1_resp.status_code == 201
+    p1 = p1_resp.json()
+
+    p2_resp = client.post(
+        "/api/v1/products",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "sku": "ITEM-KIT-B",
+            "name": "Home Spray Alecrim 200ml",
+            "item_type": "PRODUTO_ACABADO",
+            "category_id": sample_category.id,
+            "unit_id": sample_unit.id,
+            "unit_cost": "20.00",
+            "sale_price": "50.00",
+            "min_stock": "2.000",
+        },
+    )
+    assert p2_resp.status_code == 201
+    p2 = p2_resp.json()
+
+    # 2. Criar Produto que É Kit composto por 2 Velas e 1 Spray
+    kit_resp = client.post(
+        "/api/v1/products",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "sku": "KIT-PRESENTE-LUXO",
+            "name": "Kit Presente Aromas de Luxo",
+            "item_type": "PRODUTO_ACABADO",
+            "category_id": sample_category.id,
+            "unit_id": sample_unit.id,
+            "unit_cost": "50.00",
+            "sale_price": "119.90",
+            "min_stock": "0.000",
+            "is_kit": True,
+            "kit_items": [
+                {"component_product_id": p1["id"], "quantity": "2.000"},
+                {"component_product_id": p2["id"], "quantity": "1.000"},
+            ],
+        },
+    )
+    assert kit_resp.status_code == 201
+    kit_data = kit_resp.json()
+    assert kit_data["is_kit"] is True
+    assert len(kit_data["kit_items"]) == 2
+    comp_ids = [ki["component_product_id"] for ki in kit_data["kit_items"]]
+    assert p1["id"] in comp_ids
+    assert p2["id"] in comp_ids
+
+    # 3. Atualizar o Kit (mudar para apenas 1 Vela e 2 Sprays)
+    kit_id = kit_data["id"]
+    upd_resp = client.put(
+        f"/api/v1/products/{kit_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "sale_price": "129.90",
+            "kit_items": [
+                {"component_product_id": p1["id"], "quantity": "1.000"},
+                {"component_product_id": p2["id"], "quantity": "2.000"},
+            ],
+        },
+    )
+    assert upd_resp.status_code == 200
+    upd_data = upd_resp.json()
+    assert len(upd_data["kit_items"]) == 2
+    for ki in upd_data["kit_items"]:
+        if ki["component_product_id"] == p1["id"]:
+            assert Decimal(str(ki["quantity"])) == Decimal("1.000")
+        if ki["component_product_id"] == p2["id"]:
+            assert Decimal(str(ki["quantity"])) == Decimal("2.000")

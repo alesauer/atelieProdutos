@@ -32,7 +32,7 @@ import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import { ProductCatalogModal } from '../components/ProductCatalogModal';
 import { getProductImageUrl, handleImageError } from '../utils/imageUrl';
-import type { Category, CostComponentItem, ItemType, ItemTypeDefinition, Product, ProductVariation, ProductColor, ProductMaterial, ProductSupply, ProductFormData, SalesLinkItem, UnitOfMeasure } from '../types';
+import type { Category, CostComponentItem, ItemType, ItemTypeDefinition, Product, ProductKitItem, ProductVariation, ProductColor, ProductMaterial, ProductSupply, ProductFormData, SalesLinkItem, UnitOfMeasure } from '../types';
 
 const WhatsAppIcon: React.FC<{ size?: number; color?: string; style?: React.CSSProperties }> = ({
   size = 16,
@@ -146,6 +146,7 @@ export const ProductsPage: React.FC = () => {
     weight: '',
     min_stock: '0',
     is_active: true,
+    is_kit: false,
   });
 
   // Modais rápidos de Nova Cor e Novo Material
@@ -165,6 +166,11 @@ export const ProductsPage: React.FC = () => {
   const [salesLinks, setSalesLinks] = useState<SalesLinkItem[]>([]);
   const [newLinkPlatform, setNewLinkPlatform] = useState('Shopee');
   const [newLinkUrl, setNewLinkUrl] = useState('');
+
+  // Composição de Kit de Produtos
+  const [kitItems, setKitItems] = useState<ProductKitItem[]>([]);
+  const [selectedKitProductId, setSelectedKitProductId] = useState<string>('');
+  const [selectedKitQuantity, setSelectedKitQuantity] = useState<string>('1');
 
   // Insumos de Produção e Calculadora de Composição de Custo Estimado
   const [supplies, setSupplies] = useState<ProductSupply[]>([]);
@@ -486,15 +492,14 @@ export const ProductsPage: React.FC = () => {
     setSalesLinks([]);
     setNewLinkPlatform('Shopee');
     setNewLinkUrl('');
+    setKitItems([]);
+    setSelectedKitProductId('');
+    setSelectedKitQuantity('1');
     setEditingProduct(null);
 
     const defaultUnit = units.find(
       (u) => u.code.toUpperCase() === 'UN' || u.name.toLowerCase().includes('unidade')
     ) || (units.length > 0 ? units[0] : null);
-
-    const defaultKitCategory = categories.find(
-      (c) => c.name.trim().toLowerCase() === 'kit'
-    ) || (categories.length > 0 ? categories[0] : null);
 
     setFormData({
       sku: '',
@@ -503,7 +508,7 @@ export const ProductsPage: React.FC = () => {
       color: '',
       material: '',
       item_type: 'PRODUTO_ACABADO',
-      category_id: defaultKitCategory ? defaultKitCategory.id : null,
+      category_id: null,
       unit_id: defaultUnit ? defaultUnit.id : 1,
       unit_cost: '0,00',
       cost_breakdown: '',
@@ -512,11 +517,12 @@ export const ProductsPage: React.FC = () => {
       weight: '',
       min_stock: '0',
       is_active: true,
+      is_kit: false,
     });
     setIsFormModalOpen(true);
   };
 
-  const handleOpenEditModal = (prod: Product) => {
+  const handleOpenEditModal = async (prod: Product) => {
     pendingImages.forEach((p) => URL.revokeObjectURL(p.previewUrl));
     setPendingImages([]);
     setFormError(null);
@@ -538,6 +544,22 @@ export const ProductsPage: React.FC = () => {
     setNewLinkPlatform('Shopee');
     setNewLinkUrl('');
 
+    // Itens do Kit
+    let initialKitItems: ProductKitItem[] = prod.kit_items || [];
+    if (prod.is_kit && (!prod.kit_items || prod.kit_items.length === 0)) {
+      try {
+        const fullProd = await api.getProduct(prod.id);
+        if (fullProd.kit_items && fullProd.kit_items.length > 0) {
+          initialKitItems = fullProd.kit_items;
+        }
+      } catch (err) {
+        console.warn('Erro ao obter detalhes dos componentes do kit:', err);
+      }
+    }
+    setKitItems(initialKitItems);
+    setSelectedKitProductId('');
+    setSelectedKitQuantity('1');
+
     setEditingProduct(prod);
     setFormData({
       sku: prod.sku,
@@ -555,6 +577,7 @@ export const ProductsPage: React.FC = () => {
       weight: prod.weight != null && prod.weight !== '' ? String(prod.weight) : '',
       min_stock: cleanStockValue(prod.min_stock),
       is_active: prod.is_active,
+      is_kit: !!prod.is_kit,
     });
     setIsFormModalOpen(true);
   };
@@ -1118,10 +1141,112 @@ export const ProductsPage: React.FC = () => {
     }
   };
 
+  // Manipulação e cálculos de Kit de Produtos
+  const handleAddKitItem = () => {
+    if (!selectedKitProductId) return;
+    const prodId = Number(selectedKitProductId);
+    const compProduct = products.find((p) => p.id === prodId);
+    if (!compProduct) return;
+
+    const qty = Math.max(1, parseFloat(selectedKitQuantity.replace(',', '.')) || 1);
+
+    setKitItems((prev) => {
+      const existingIndex = prev.findIndex((item) => item.component_product_id === prodId);
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        const currentQty = typeof updated[existingIndex].quantity === 'string'
+          ? parseFloat(updated[existingIndex].quantity as string) || 0
+          : (updated[existingIndex].quantity as number) || 0;
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          quantity: currentQty + qty,
+        };
+        return updated;
+      }
+
+      return [
+        ...prev,
+        {
+          component_product_id: prodId,
+          quantity: qty,
+          component_product: {
+            id: compProduct.id,
+            sku: compProduct.sku,
+            name: compProduct.name,
+            unit_cost: compProduct.unit_cost,
+            sale_price: compProduct.sale_price,
+            weight: compProduct.weight,
+            color: compProduct.color,
+            material: compProduct.material,
+            is_active: compProduct.is_active,
+          },
+        },
+      ];
+    });
+
+    setSelectedKitProductId('');
+    setSelectedKitQuantity('1');
+  };
+
+  const handleRemoveKitItem = (index: number) => {
+    setKitItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleUpdateKitItemQuantity = (index: number, newQty: number) => {
+    if (newQty <= 0) {
+      handleRemoveKitItem(index);
+      return;
+    }
+    setKitItems((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], quantity: newQty };
+      return updated;
+    });
+  };
+
+  const totalKitPieces = kitItems.reduce((acc, it) => acc + (parseFloat(String(it.quantity)) || 0), 0);
+
+  const totalKitCost = kitItems.reduce((acc, it) => {
+    const cost = typeof it.component_product?.unit_cost === 'number'
+      ? it.component_product.unit_cost
+      : parseFloat(String(it.component_product?.unit_cost || '0')) || 0;
+    const qty = parseFloat(String(it.quantity)) || 0;
+    return acc + (cost * qty);
+  }, 0);
+
+  const totalKitAvulsoPrice = kitItems.reduce((acc, it) => {
+    const price = typeof it.component_product?.sale_price === 'number'
+      ? it.component_product.sale_price
+      : parseFloat(String(it.component_product?.sale_price || '0')) || 0;
+    const qty = parseFloat(String(it.quantity)) || 0;
+    return acc + (price * qty);
+  }, 0);
+
+  const totalKitWeight = kitItems.reduce((acc, it) => {
+    const w = typeof it.component_product?.weight === 'number'
+      ? it.component_product.weight
+      : parseFloat(String(it.component_product?.weight || '0')) || 0;
+    const qty = parseFloat(String(it.quantity)) || 0;
+    return acc + (w * qty);
+  }, 0);
+
+  const kitSalePriceNum = parseOptionalCurrencyValue(formData.sale_price) || 0;
+  const kitEconomyDiff = totalKitAvulsoPrice > 0 && kitSalePriceNum > 0 ? totalKitAvulsoPrice - kitSalePriceNum : 0;
+  const kitDiscountPct = totalKitAvulsoPrice > 0 && kitSalePriceNum > 0 && kitEconomyDiff > 0
+    ? (kitEconomyDiff / totalKitAvulsoPrice) * 100
+    : 0;
+
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingProduct(true);
     setFormError(null);
+
+    // Validação de Kit
+    if (formData.is_kit && kitItems.length === 0) {
+      setFormError('Por favor, adicione pelo menos um produto componente ao kit antes de salvar.');
+      setSavingProduct(false);
+      return;
+    }
 
     try {
       // Auto-commit de link de marketplace digitado caso o usuário não tenha clicado no botão "+ Adicionar Canal"
@@ -1143,6 +1268,13 @@ export const ProductsPage: React.FC = () => {
 
       const productPayload: ProductFormData = {
         ...formData,
+        is_kit: !!formData.is_kit,
+        kit_items: formData.is_kit
+          ? kitItems.map((item) => ({
+              component_product_id: item.component_product_id,
+              quantity: typeof item.quantity === 'string' ? parseFloat(item.quantity.replace(',', '.')) || 1 : item.quantity,
+            }))
+          : [],
         unit_cost: parseCurrencyValue(formData.unit_cost),
         sale_price: parseOptionalCurrencyValue(formData.sale_price),
         weight: formData.weight ? parseFloat(String(formData.weight).replace(',', '.')) : null,
@@ -1649,6 +1781,24 @@ export const ProductsPage: React.FC = () => {
                     }}
                   >
                     <Badge type={prod.item_type} />
+                    {prod.is_kit && (
+                      <span
+                        style={{
+                          backgroundColor: '#f59e0b',
+                          color: '#ffffff',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          borderRadius: 'var(--radius-xs)',
+                          boxShadow: '0 1px 3px rgba(245, 158, 11, 0.35)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                        }}
+                      >
+                        🎁 KIT {prod.kit_items && prod.kit_items.length > 0 ? `(${prod.kit_items.length})` : ''}
+                      </span>
+                    )}
                     {prod.category && (
                       <span
                         style={{
@@ -2541,7 +2691,27 @@ export const ProductsPage: React.FC = () => {
 
                       {/* Tipo */}
                       <td style={{ padding: '12px 20px' }}>
-                        <Badge type={prod.item_type} />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                          <Badge type={prod.item_type} />
+                          {prod.is_kit && (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                backgroundColor: '#fef3c7',
+                                color: '#b45309',
+                                border: '1px solid #fde68a',
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                              }}
+                            >
+                              🎁 KIT {prod.kit_items && prod.kit_items.length > 0 ? `(${prod.kit_items.length})` : ''}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Categoria */}
@@ -2834,6 +3004,443 @@ export const ProductsPage: React.FC = () => {
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="Ex.: Vela Aromática Lavanda Francesa 180g"
             />
+          </div>
+
+          {/* Campo É Kit? e Painel de Composição */}
+          <div
+            style={{
+              marginBottom: '18px',
+              padding: '14px 16px',
+              backgroundColor: formData.is_kit ? 'rgba(217, 119, 6, 0.05)' : 'var(--bg-sand-light, #fbf9f6)',
+              border: formData.is_kit ? '1.5px solid #d97706' : '1px solid var(--border-color, #e5e7eb)',
+              borderRadius: '10px',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <label style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem', display: 'inline-flex', alignItems: 'center', gap: '7px', color: 'var(--text-primary)' }}>
+                <Package size={17} color={formData.is_kit ? '#d97706' : 'var(--brand-accent)'} />
+                É Kit?
+              </label>
+              {formData.is_kit && (
+                <span
+                  style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    backgroundColor: '#fef3c7',
+                    color: '#b45309',
+                    padding: '3px 10px',
+                    borderRadius: '12px',
+                    border: '1px solid #fde68a',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  🎁 Kit Ativado ({kitItems.length} {kitItems.length === 1 ? 'item' : 'itens'})
+                </span>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+              <label
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  fontSize: '0.88rem',
+                  fontWeight: !formData.is_kit ? 700 : 500,
+                  color: !formData.is_kit ? 'var(--text-primary)' : 'var(--text-secondary)',
+                }}
+              >
+                <input
+                  type="radio"
+                  name="product_is_kit"
+                  value="nao"
+                  checked={!formData.is_kit}
+                  onChange={() => {
+                    setFormData((prev) => ({ ...prev, is_kit: false }));
+                  }}
+                  style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--brand-primary, #6b4c35)' }}
+                />
+                <span>Não <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>(Produto Individual)</span></span>
+              </label>
+
+              <label
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  fontSize: '0.88rem',
+                  fontWeight: formData.is_kit ? 700 : 500,
+                  color: formData.is_kit ? '#b45309' : 'var(--text-secondary)',
+                }}
+              >
+                <input
+                  type="radio"
+                  name="product_is_kit"
+                  value="sim"
+                  checked={!!formData.is_kit}
+                  onChange={() => {
+                    const kitCat = categories.find((c) => c.name.trim().toLowerCase() === 'kit');
+                    setFormData((prev) => ({
+                      ...prev,
+                      is_kit: true,
+                      ...(kitCat && !prev.category_id ? { category_id: kitCat.id } : {}),
+                    }));
+                  }}
+                  style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#d97706' }}
+                />
+                <span>Sim <span style={{ fontSize: '0.78rem', color: formData.is_kit ? '#b45309' : 'var(--text-secondary)' }}>(Kit / Conjunto de Produtos)</span></span>
+              </label>
+            </div>
+
+            {/* Painel de seleção de produtos individuais para formar o kit */}
+            {formData.is_kit && (
+              <div
+                style={{
+                  marginTop: '16px',
+                  paddingTop: '16px',
+                  borderTop: '1px dashed #fcd34d',
+                }}
+              >
+                <div style={{ marginBottom: '12px' }}>
+                  <span style={{ fontSize: '0.84rem', fontWeight: 700, color: '#92400e', display: 'block' }}>
+                    📦 Selecione os produtos individuais que compõem este Kit
+                  </span>
+                  <span style={{ fontSize: '0.76rem', color: '#78350f' }}>
+                    Ao vender este kit, o estoque de cada produto individual abaixo será reduzido automaticamente.
+                  </span>
+                </div>
+
+                {/* Linha de Seleção e Quantidade */}
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '16px' }}>
+                  <div style={{ flex: '1 1 280px' }}>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>
+                      Produto do Ateliê:
+                    </label>
+                    <select
+                      value={selectedKitProductId}
+                      onChange={(e) => setSelectedKitProductId(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        fontSize: '0.85rem',
+                        borderRadius: '6px',
+                        border: '1px solid #d1d5db',
+                        backgroundColor: '#fff',
+                      }}
+                    >
+                      <option value="">-- Selecione um produto para o kit --</option>
+                      {products
+                        .filter((p) => (!editingProduct || p.id !== editingProduct.id) && p.is_active && !p.is_kit)
+                        .map((p) => {
+                          const stockNum = parseFloat(String(p.current_stock || '0')) || 0;
+                          const priceNum = p.sale_price ? Number(p.sale_price).toFixed(2) : null;
+                          return (
+                            <option key={p.id} value={p.id}>
+                              [{p.sku}] {p.name} {p.color ? `(${p.color})` : ''} — {priceNum ? `R$ ${priceNum}` : 'Sem preço'} | Est: {stockNum.toFixed(0)} un
+                            </option>
+                          );
+                        })}
+                    </select>
+                  </div>
+
+                  <div style={{ width: '100px' }}>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>
+                      Qtd no Kit:
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={selectedKitQuantity}
+                      onChange={(e) => setSelectedKitQuantity(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        fontSize: '0.85rem',
+                        borderRadius: '6px',
+                        border: '1px solid #d1d5db',
+                        textAlign: 'center',
+                      }}
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAddKitItem}
+                    disabled={!selectedKitProductId}
+                    className="btn btn-primary"
+                    style={{
+                      padding: '8px 16px',
+                      fontSize: '0.84rem',
+                      fontWeight: 700,
+                      backgroundColor: selectedKitProductId ? '#d97706' : '#d1d5db',
+                      borderColor: selectedKitProductId ? '#d97706' : '#d1d5db',
+                      color: '#fff',
+                      cursor: selectedKitProductId ? 'pointer' : 'not-allowed',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      height: '38px',
+                    }}
+                  >
+                    <Plus size={15} /> Adicionar ao Kit
+                  </button>
+                </div>
+
+                {/* Tabela de Produtos Adicionados ao Kit */}
+                {kitItems.length === 0 ? (
+                  <div
+                    style={{
+                      padding: '24px 16px',
+                      textAlign: 'center',
+                      border: '1.5px dashed #fde68a',
+                      borderRadius: '8px',
+                      backgroundColor: '#fffdfa',
+                      color: '#92400e',
+                      fontSize: '0.84rem',
+                    }}
+                  >
+                    <Package size={28} style={{ margin: '0 auto 8px', color: '#d97706', opacity: 0.6, display: 'block' }} />
+                    Nenhum produto individual adicionado ao kit ainda.
+                    <div style={{ fontSize: '0.76rem', color: '#b45309', marginTop: '4px' }}>
+                      Selecione um produto acima e clique em <b>"+ Adicionar ao Kit"</b>.
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ border: '1px solid #fde68a', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#fff' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#fef3c7', color: '#92400e', textAlign: 'left', borderBottom: '1px solid #fde68a' }}>
+                          <th style={{ padding: '8px 12px', fontWeight: 700 }}>Produto Componente</th>
+                          <th style={{ padding: '8px 12px', fontWeight: 700, textAlign: 'center', width: '120px' }}>Qtd no Kit</th>
+                          <th style={{ padding: '8px 12px', fontWeight: 700, textAlign: 'right' }}>Preço Avulso</th>
+                          <th style={{ padding: '8px 12px', fontWeight: 700, textAlign: 'right' }}>Custo Un.</th>
+                          <th style={{ padding: '8px 12px', fontWeight: 700, textAlign: 'right' }}>Subtotal Avulso</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'center', width: '50px' }}>Ação</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {kitItems.map((item, idx) => {
+                          const prod = item.component_product;
+                          const qty = typeof item.quantity === 'string' ? parseFloat(item.quantity) || 1 : (item.quantity as number) || 1;
+                          const salePrice = typeof prod?.sale_price === 'number' ? prod.sale_price : parseFloat(String(prod?.sale_price || '0')) || 0;
+                          const unitCost = typeof prod?.unit_cost === 'number' ? prod.unit_cost : parseFloat(String(prod?.unit_cost || '0')) || 0;
+                          const subtotal = salePrice * qty;
+
+                          return (
+                            <tr key={idx} style={{ borderBottom: idx < kitItems.length - 1 ? '1px solid #f3f4f6' : 'none' }}>
+                              <td style={{ padding: '8px 12px' }}>
+                                <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                                  {prod?.name || `Produto #${item.component_product_id}`}
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'flex', gap: '8px', alignItems: 'center', marginTop: '2px' }}>
+                                  <span>SKU: {prod?.sku || '—'}</span>
+                                  {prod?.color && <span>• Cor: {prod.color}</span>}
+                                  {prod?.material && <span>• Mat.: {prod.material}</span>}
+                                  {prod?.weight && <span>• Peso: {prod.weight}g</span>}
+                                </div>
+                              </td>
+
+                              <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '2px 4px' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateKitItemQuantity(idx, qty - 1)}
+                                    style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontWeight: 700, padding: '0 4px', color: '#6b7280' }}
+                                  >
+                                    -
+                                  </button>
+                                  <span style={{ minWidth: '24px', textAlign: 'center', fontWeight: 700, fontSize: '0.85rem' }}>
+                                    {qty}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateKitItemQuantity(idx, qty + 1)}
+                                    style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontWeight: 700, padding: '0 4px', color: '#6b7280' }}
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </td>
+
+                              <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--text-secondary)' }}>
+                                {salePrice > 0 ? `R$ ${salePrice.toFixed(2)}` : '—'}
+                              </td>
+
+                              <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--text-secondary)' }}>
+                                R$ {unitCost.toFixed(2)}
+                              </td>
+
+                              <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#b45309' }}>
+                                {subtotal > 0 ? `R$ ${subtotal.toFixed(2)}` : '—'}
+                              </td>
+
+                              <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveKitItem(idx)}
+                                  title="Remover produto do kit"
+                                  style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: '#ef4444',
+                                    cursor: 'pointer',
+                                    padding: '4px',
+                                    borderRadius: '4px',
+                                  }}
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+
+                    {/* Resumo Inteligente do Kit com Ações Rápidas */}
+                    <div
+                      style={{
+                        backgroundColor: '#fffdfa',
+                        borderTop: '1px solid #fde68a',
+                        padding: '12px 14px',
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                        gap: '12px',
+                        fontSize: '0.78rem',
+                      }}
+                    >
+                      {/* Total de Peças */}
+                      <div>
+                        <span style={{ color: '#92400e', fontWeight: 600, display: 'block' }}>Total de Peças no Kit:</span>
+                        <span style={{ fontSize: '1rem', fontWeight: 800, color: '#78350f' }}>
+                          {totalKitPieces} {totalKitPieces === 1 ? 'peça' : 'peças'}
+                        </span>
+                        <span style={{ fontSize: '0.7rem', color: '#92400e', display: 'block' }}>
+                          ({kitItems.length} {kitItems.length === 1 ? 'produto diferente' : 'produtos diferentes'})
+                        </span>
+                      </div>
+
+                      {/* Soma dos Custos */}
+                      <div>
+                        <span style={{ color: '#92400e', fontWeight: 600, display: 'block' }}>Custo Total Componentes:</span>
+                        <span style={{ fontSize: '1rem', fontWeight: 800, color: '#78350f' }}>
+                          R$ {totalKitCost.toFixed(2)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData((prev) => ({
+                              ...prev,
+                              unit_cost: (totalKitCost).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                            }));
+                          }}
+                          style={{
+                            marginTop: '2px',
+                            border: '1px solid #fcd34d',
+                            backgroundColor: '#fff',
+                            borderRadius: '4px',
+                            padding: '2px 6px',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            color: '#b45309',
+                            cursor: 'pointer',
+                            display: 'block',
+                          }}
+                        >
+                          ⚡ Aplicar Custo ao Kit
+                        </button>
+                      </div>
+
+                      {/* Soma Preços Avulsos vs Preço Kit */}
+                      <div>
+                        <span style={{ color: '#92400e', fontWeight: 600, display: 'block' }}>Soma dos Preços Avulsos:</span>
+                        <span style={{ fontSize: '1rem', fontWeight: 800, color: '#78350f' }}>
+                          R$ {totalKitAvulsoPrice.toFixed(2)}
+                        </span>
+                        {kitDiscountPct > 0 && (
+                          <span
+                            style={{
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              backgroundColor: '#dcfce7',
+                              color: '#15803d',
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              display: 'inline-block',
+                              marginTop: '2px',
+                            }}
+                          >
+                            Economia: -{kitDiscountPct.toFixed(0)}% (R$ {kitEconomyDiff.toFixed(2)})
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData((prev) => ({
+                              ...prev,
+                              sale_price: (totalKitAvulsoPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                            }));
+                          }}
+                          style={{
+                            marginTop: '2px',
+                            border: '1px solid #fcd34d',
+                            backgroundColor: '#fff',
+                            borderRadius: '4px',
+                            padding: '2px 6px',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            color: '#b45309',
+                            cursor: 'pointer',
+                            display: 'block',
+                          }}
+                        >
+                          ⚡ Usar Preço Avulso
+                        </button>
+                      </div>
+
+                      {/* Peso Total dos Componentes */}
+                      <div>
+                        <span style={{ color: '#92400e', fontWeight: 600, display: 'block' }}>Peso Total Componentes:</span>
+                        <span style={{ fontSize: '1rem', fontWeight: 800, color: '#78350f' }}>
+                          {totalKitWeight > 0 ? (totalKitWeight >= 1000 ? `${(totalKitWeight / 1000).toFixed(2)} kg` : `${totalKitWeight} g`) : '0 g'}
+                        </span>
+                        {totalKitWeight > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData((prev) => ({
+                                ...prev,
+                                weight: String(totalKitWeight),
+                              }));
+                            }}
+                            style={{
+                              marginTop: '2px',
+                              border: '1px solid #fcd34d',
+                              backgroundColor: '#fff',
+                              borderRadius: '4px',
+                              padding: '2px 6px',
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              color: '#b45309',
+                              cursor: 'pointer',
+                              display: 'block',
+                            }}
+                          >
+                            ⚡ Aplicar Peso ao Kit
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
@@ -5341,6 +5948,11 @@ export const ProductsPage: React.FC = () => {
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px', alignItems: 'center' }}>
                 <Badge type={previewProductModal.item_type} />
                 <Badge status={previewProductModal.is_active ? 'active' : 'inactive'} />
+                {previewProductModal.is_kit && (
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#b45309', backgroundColor: '#fef3c7', border: '1px solid #fde68a', padding: '2px 8px', borderRadius: '10px' }}>
+                    🎁 Kit de Produtos
+                  </span>
+                )}
                 {previewProductModal.category && (
                   <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--brand-primary)', backgroundColor: 'var(--bg-sand-light)', padding: '2px 8px', borderRadius: '10px' }}>
                     📁 {previewProductModal.category.name}
@@ -5541,6 +6153,59 @@ export const ProductsPage: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              {/* Composição de Itens do Kit no Modal de Detalhes */}
+              {previewProductModal.is_kit && previewProductModal.kit_items && previewProductModal.kit_items.length > 0 && (
+                <div
+                  style={{
+                    marginBottom: '16px',
+                    padding: '12px 14px',
+                    borderRadius: 'var(--radius-sm)',
+                    backgroundColor: '#fffbeb',
+                    border: '1px solid #fde68a',
+                  }}
+                >
+                  <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#92400e', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
+                    🎁 Produtos Componentes deste Kit ({previewProductModal.kit_items.length}):
+                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {previewProductModal.kit_items.map((item, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          fontSize: '0.82rem',
+                          backgroundColor: '#fff',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid #fef3c7',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontWeight: 700, color: '#b45309', minWidth: '24px' }}>
+                            {Number(item.quantity)}x
+                          </span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {item.component_product?.name || `Produto #${item.component_product_id}`}
+                          </span>
+                          {item.component_product?.sku && (
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
+                              ({item.component_product.sku})
+                            </span>
+                          )}
+                        </div>
+                        {item.component_product?.sale_price && (
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                            R$ {(Number(item.component_product.sale_price) * Number(item.quantity)).toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Links de Venda em Marketplaces */}
               {links.length > 0 && (

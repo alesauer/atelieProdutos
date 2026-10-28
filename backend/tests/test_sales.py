@@ -133,3 +133,106 @@ def test_delete_confirmed_sale_forbidden(
     )
     assert del_fail.status_code == 400
 
+
+def test_sale_kit_deducts_component_stock(client: TestClient, admin_token: str, sample_category, sample_unit):
+    # 1. Criar componente A e B
+    p_vela = client.post(
+        "/api/v1/products",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "sku": "VELA-COMP-1",
+            "name": "Vela Lavanda 100g",
+            "item_type": "PRODUTO_ACABADO",
+            "category_id": sample_category.id,
+            "unit_id": sample_unit.id,
+            "unit_cost": "10.00",
+            "sale_price": "25.00",
+            "min_stock": "1.000",
+        },
+    ).json()
+
+    p_spray = client.post(
+        "/api/v1/products",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "sku": "SPRAY-COMP-1",
+            "name": "Home Spray 100ml",
+            "item_type": "PRODUTO_ACABADO",
+            "category_id": sample_category.id,
+            "unit_id": sample_unit.id,
+            "unit_cost": "12.00",
+            "sale_price": "30.00",
+            "min_stock": "1.000",
+        },
+    ).json()
+
+    # 2. Criar Kit com 2 Velas e 1 Spray
+    kit = client.post(
+        "/api/v1/products",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "sku": "KIT-DUO-AROMAS",
+            "name": "Kit Duo Aromas",
+            "item_type": "PRODUTO_ACABADO",
+            "category_id": sample_category.id,
+            "unit_id": sample_unit.id,
+            "unit_cost": "32.00",
+            "sale_price": "70.00",
+            "min_stock": "0.000",
+            "is_kit": True,
+            "kit_items": [
+                {"component_product_id": p_vela["id"], "quantity": "2.000"},
+                {"component_product_id": p_spray["id"], "quantity": "1.000"},
+            ],
+        },
+    ).json()
+
+    # 3. Dar estoque apenas para os componentes individuais: 10 velas e 5 sprays
+    client.post(
+        "/api/v1/stock/entries",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"product_id": p_vela["id"], "quantity": "10.000", "justification": "Entrada Velas"},
+    )
+    client.post(
+        "/api/v1/stock/entries",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"product_id": p_spray["id"], "quantity": "5.000", "justification": "Entrada Sprays"},
+    )
+
+    # 4. Criar venda de 2 Kits
+    sale_resp = client.post(
+        "/api/v1/sales",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "items": [
+                {"product_id": kit["id"], "quantity": "2.000", "unit_price": "70.00"}
+            ]
+        },
+    )
+    assert sale_resp.status_code == 201
+    sale_id = sale_resp.json()["id"]
+
+    # 5. Confirmar a venda -> deve baixar automaticamente 4 Velas (2*2) e 2 Sprays (2*1)
+    conf_resp = client.post(
+        f"/api/v1/sales/{sale_id}/confirm",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert conf_resp.status_code == 200
+
+    bal_after = client.get("/api/v1/stock/balance", headers={"Authorization": f"Bearer {admin_token}"})
+    b_map = {b["product_id"]: Decimal(str(b["current_stock"])) for b in bal_after.json()}
+    # 10 - 4 = 6 velas
+    assert b_map[p_vela["id"]] == Decimal("6.000")
+    # 5 - 2 = 3 sprays
+    assert b_map[p_spray["id"]] == Decimal("3.000")
+
+    # 6. Cancelar a venda -> deve estornar as 4 velas e 2 sprays
+    client.post(
+        f"/api/v1/sales/{sale_id}/cancel",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    bal_restored = client.get("/api/v1/stock/balance", headers={"Authorization": f"Bearer {admin_token}"})
+    r_map = {b["product_id"]: Decimal(str(b["current_stock"])) for b in bal_restored.json()}
+    assert r_map[p_vela["id"]] == Decimal("10.000")
+    assert r_map[p_spray["id"]] == Decimal("5.000")
+

@@ -6,7 +6,7 @@ from app.models.unit import UnitOfMeasure
 from app.models.color import ProductColor
 from app.models.material import ProductMaterial
 from app.models.supply import ProductSupply
-from app.models.product import Product, ProductImage, ItemType
+from app.models.product import Product, ProductImage, ItemType, ProductKitItem
 from app.models.item_type import ItemTypeModel
 from app.models.stock import StockMovement, MovementType
 from app.models.production import (
@@ -37,6 +37,7 @@ __all__ = [
     "ProductSupply",
     "Product",
     "ProductImage",
+    "ProductKitItem",
     "ItemType",
     "ItemTypeModel",
     "StockMovement",

@@ -146,6 +146,24 @@ export interface ProductVariation {
   current_stock?: string | number;
 }
 
+export interface ProductKitItem {
+  id?: number;
+  kit_product_id?: number;
+  component_product_id: number;
+  quantity: number | string;
+  component_product?: {
+    id: number;
+    sku: string;
+    name: string;
+    unit_cost: number | string;
+    sale_price?: number | string | null;
+    weight?: number | string | null;
+    color?: string | null;
+    material?: string | null;
+    is_active: boolean;
+  };
+}
+
 export interface Product {
   id: number;
   sku: string;
@@ -163,6 +181,8 @@ export interface Product {
   weight?: string | number | null;
   min_stock: string | number;
   is_active: boolean;
+  is_kit?: boolean;
+  kit_items?: ProductKitItem[];
   parent_id?: number | null;
   variation_name?: string | null;
   created_at: string;
@@ -191,6 +211,8 @@ export interface ProductFormData {
   weight?: number | string | null;
   min_stock: number | string;
   is_active: boolean;
+  is_kit?: boolean;
+  kit_items?: ProductKitItem[];
   parent_id?: number | null;
   variation_name?: string | null;
 }

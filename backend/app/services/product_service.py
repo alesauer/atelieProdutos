@@ -1,6 +1,6 @@
 from typing import List, Optional
 from sqlalchemy import select, func, delete, case
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from fastapi import HTTPException, status
 
 from decimal import Decimal
@@ -10,7 +10,7 @@ from app.models.unit import UnitOfMeasure
 from app.models.color import ProductColor
 from app.models.material import ProductMaterial
 from app.models.supply import ProductSupply
-from app.models.product import Product, ProductImage, ItemType
+from app.models.product import Product, ProductImage, ItemType, ProductKitItem
 from app.schemas.category import CategoryCreate, CategoryUpdate
 from app.schemas.unit import UnitCreate, UnitUpdate
 from app.schemas.color import ColorCreate, ColorUpdate
@@ -656,11 +656,28 @@ class ProductService:
     # --- Produtos ---
     @staticmethod
     def get_product_by_id(db: Session, product_id: int) -> Optional[Product]:
-        return db.get(Product, product_id)
+        stmt = (
+            select(Product)
+            .where(Product.id == product_id)
+            .options(
+                selectinload(Product.kit_items).selectinload(ProductKitItem.component_product),
+                selectinload(Product.variations),
+                selectinload(Product.images),
+            )
+        )
+        return db.execute(stmt).scalars().first()
 
     @staticmethod
     def get_product_by_sku(db: Session, sku: str) -> Optional[Product]:
-        stmt = select(Product).where(func.lower(Product.sku) == sku.lower().strip())
+        stmt = (
+            select(Product)
+            .where(func.lower(Product.sku) == sku.lower().strip())
+            .options(
+                selectinload(Product.kit_items).selectinload(ProductKitItem.component_product),
+                selectinload(Product.variations),
+                selectinload(Product.images),
+            )
+        )
         return db.execute(stmt).scalars().first()
 
     @staticmethod
@@ -674,7 +691,11 @@ class ProductService:
         skip: int = 0,
         limit: int = 100,
     ) -> List[Product]:
-        stmt = select(Product)
+        stmt = select(Product).options(
+            selectinload(Product.kit_items).selectinload(ProductKitItem.component_product),
+            selectinload(Product.variations),
+            selectinload(Product.images),
+        )
         if active_only:
             stmt = stmt.where(Product.is_active.is_(True))
         if catalog_only:
@@ -736,10 +757,26 @@ class ProductService:
             weight=product_in.weight,
             min_stock=product_in.min_stock,
             is_active=product_in.is_active,
+            is_kit=product_in.is_kit,
             parent_id=product_in.parent_id if product_in.parent_id and product_in.parent_id > 0 else None,
             variation_name=product_in.variation_name.strip() if product_in.variation_name else None,
         )
         db.add(product)
+        db.flush()
+
+        if product.is_kit and product_in.kit_items:
+            for item in product_in.kit_items:
+                if item.component_product_id == product.id:
+                    continue
+                comp = db.get(Product, item.component_product_id)
+                if comp:
+                    kit_item = ProductKitItem(
+                        kit_product_id=product.id,
+                        component_product_id=item.component_product_id,
+                        quantity=item.quantity,
+                    )
+                    db.add(kit_item)
+
         db.commit()
         db.refresh(product)
         return product
@@ -799,10 +836,27 @@ class ProductService:
             product.min_stock = product_in.min_stock
         if product_in.is_active is not None:
             product.is_active = product_in.is_active
+        if product_in.is_kit is not None:
+            product.is_kit = product_in.is_kit
         if product_in.parent_id is not None:
             product.parent_id = product_in.parent_id if product_in.parent_id > 0 else None
         if product_in.variation_name is not None:
             product.variation_name = product_in.variation_name.strip() if product_in.variation_name else None
+
+        if product_in.kit_items is not None:
+            db.execute(delete(ProductKitItem).where(ProductKitItem.kit_product_id == product.id))
+            if product.is_kit:
+                for item in product_in.kit_items:
+                    if item.component_product_id == product.id:
+                        continue
+                    comp = db.get(Product, item.component_product_id)
+                    if comp:
+                        kit_item = ProductKitItem(
+                            kit_product_id=product.id,
+                            component_product_id=item.component_product_id,
+                            quantity=item.quantity,
+                        )
+                        db.add(kit_item)
 
         db.commit()
         db.refresh(product)
