@@ -111,6 +111,7 @@ export interface CostComponentItem {
   unit?: string;
   unit_cost: number;
   total: number;
+  weight?: number; // peso estimado em gramas
 }
 
 export interface SalesLinkItem {
@@ -133,6 +134,7 @@ export interface ProductVariation {
   cost_breakdown?: string | null;
   sales_links?: string | null;
   sale_price?: string | number | null;
+  weight?: string | number | null;
   min_stock: string | number;
   is_active: boolean;
   parent_id?: number | null;
@@ -158,6 +160,7 @@ export interface Product {
   cost_breakdown?: string | null;
   sales_links?: string | null;
   sale_price?: string | number | null;
+  weight?: string | number | null;
   min_stock: string | number;
   is_active: boolean;
   parent_id?: number | null;
@@ -185,6 +188,7 @@ export interface ProductFormData {
   cost_breakdown?: string | null;
   sales_links?: string | null;
   sale_price?: number | string | null;
+  weight?: number | string | null;
   min_stock: number | string;
   is_active: boolean;
   parent_id?: number | null;
@@ -198,6 +202,7 @@ export interface VariationFormData {
   material?: string;
   sale_price?: number | string | null;
   unit_cost?: number | string | null;
+  weight?: number | string | null;
   min_stock?: number | string;
   initial_stock?: number | string;
 }

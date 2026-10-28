@@ -733,6 +733,7 @@ class ProductService:
             color=product_in.color.strip() if product_in.color else None,
             material=product_in.material.strip() if product_in.material else None,
             sale_price=product_in.sale_price,
+            weight=product_in.weight,
             min_stock=product_in.min_stock,
             is_active=product_in.is_active,
             parent_id=product_in.parent_id if product_in.parent_id and product_in.parent_id > 0 else None,
@@ -792,6 +793,8 @@ class ProductService:
             product.material = product_in.material.strip() if product_in.material else None
         if product_in.sale_price is not None:
             product.sale_price = product_in.sale_price
+        if "weight" in product_in.model_fields_set:
+            product.weight = product_in.weight
         if product_in.min_stock is not None:
             product.min_stock = product_in.min_stock
         if product_in.is_active is not None:
@@ -825,6 +828,7 @@ class ProductService:
 
         unit_cost = var_in.unit_cost if var_in.unit_cost is not None else parent.unit_cost
         sale_price = var_in.sale_price if var_in.sale_price is not None else parent.sale_price
+        weight = var_in.weight if var_in.weight is not None else parent.weight
 
         variation = Product(
             sku=clean_sku,
@@ -839,6 +843,7 @@ class ProductService:
             color=var_in.color.strip() if var_in.color else None,
             material=var_in.material.strip() if var_in.material else parent.material,
             sale_price=sale_price,
+            weight=weight,
             min_stock=var_in.min_stock if var_in.min_stock is not None else Decimal("0.000"),
             is_active=True,
             parent_id=parent.id,

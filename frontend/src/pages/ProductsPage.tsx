@@ -25,6 +25,7 @@ import {
   AlertTriangle,
   Link2,
   FileText,
+  Scale,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { Badge } from '../components/Badge';
@@ -100,6 +101,16 @@ const parseStockValue = (val: string | number | null | undefined): number => {
   return isNaN(num) ? 0 : num;
 };
 
+const formatWeight = (val?: number | string | null): string => {
+  if (val == null || val === '') return '';
+  const num = typeof val === 'number' ? val : parseFloat(String(val).replace(',', '.'));
+  if (!num || isNaN(num) || num <= 0) return '';
+  if (num >= 1000) {
+    return `${(num / 1000).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 3 })} kg`;
+  }
+  return `${Math.round(num)} g`;
+};
+
 export const ProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -132,6 +143,7 @@ export const ProductsPage: React.FC = () => {
     cost_breakdown: '',
     sales_links: '',
     sale_price: '',
+    weight: '',
     min_stock: '0',
     is_active: true,
   });
@@ -162,6 +174,7 @@ export const ProductsPage: React.FC = () => {
   const [newCostItemName, setNewCostItemName] = useState('');
   const [newCostItemUnit, setNewCostItemUnit] = useState<string>('unid');
   const [newCostItemQuantity, setNewCostItemQuantity] = useState('1');
+  const [newCostItemWeight, setNewCostItemWeight] = useState<string>('');
   const [newCostItemUnitCost, setNewCostItemUnitCost] = useState('');
   const [newCostItemBaseQuantity, setNewCostItemBaseQuantity] = useState<number>(1);
   const [newCostItemBaseCost, setNewCostItemBaseCost] = useState<number>(0);
@@ -496,6 +509,7 @@ export const ProductsPage: React.FC = () => {
       cost_breakdown: '',
       sales_links: '',
       sale_price: '',
+      weight: '',
       min_stock: '0',
       is_active: true,
     });
@@ -538,6 +552,7 @@ export const ProductsPage: React.FC = () => {
       cost_breakdown: prod.cost_breakdown || '',
       sales_links: prod.sales_links || '',
       sale_price: prod.sale_price != null && prod.sale_price !== '' ? Number(prod.sale_price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '',
+      weight: prod.weight != null && prod.weight !== '' ? String(prod.weight) : '',
       min_stock: cleanStockValue(prod.min_stock),
       is_active: prod.is_active,
     });
@@ -812,6 +827,26 @@ export const ProductsPage: React.FC = () => {
     return (qty / bQty) * baseCostNum;
   };
 
+  const handleCostItemQuantityChange = (val: string) => {
+    setNewCostItemQuantity(val);
+    const qty = parseFloat(val.replace(',', '.')) || 0;
+    if (newCostItemUnit === 'gr') {
+      setNewCostItemWeight(qty > 0 ? String(qty) : '');
+    } else if (newCostItemUnit === 'kg') {
+      setNewCostItemWeight(qty > 0 ? String(qty * 1000) : '');
+    }
+  };
+
+  const handleCostItemUnitChange = (u: string) => {
+    setNewCostItemUnit(u);
+    const qty = parseFloat(newCostItemQuantity.replace(',', '.')) || 0;
+    if (u === 'gr') {
+      setNewCostItemWeight(qty > 0 ? String(qty) : '');
+    } else if (u === 'kg') {
+      setNewCostItemWeight(qty > 0 ? String(qty * 1000) : '');
+    }
+  };
+
   const handleSelectSupply = (supplyId: string) => {
     setSelectedSupplyId(supplyId);
     if (supplyId === 'new') {
@@ -829,11 +864,31 @@ export const ProductsPage: React.FC = () => {
       setNewCostItemName('');
       setNewCostItemUnit('unid');
       setNewCostItemQuantity('1');
+      setNewCostItemWeight('');
       setNewCostItemUnitCost('');
       setNewCostItemBaseCost(0);
       setNewCostItemBaseQuantity(1);
       return;
     }
+
+    // Se selecionou um produto acabado já existente no ateliê (composição de Kits)
+    if (supplyId.startsWith('prod-')) {
+      const pId = Number(supplyId.replace('prod-', ''));
+      const prod = products.find((p) => p.id === pId);
+      if (prod) {
+        setNewCostItemName(prod.name);
+        setNewCostItemUnit('unid');
+        const uCost = Number(prod.unit_cost) || 0;
+        setNewCostItemUnitCost(uCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }));
+        setNewCostItemBaseCost(uCost);
+        setNewCostItemBaseQuantity(1);
+        setNewCostItemQuantity('1');
+        const prodW = prod.weight ? Number(prod.weight) : 0;
+        setNewCostItemWeight(prodW > 0 ? String(prodW) : '');
+      }
+      return;
+    }
+
     const sup = supplies.find((s) => s.id === Number(supplyId));
     if (sup) {
       setNewCostItemName(sup.name);
@@ -843,8 +898,16 @@ export const ProductsPage: React.FC = () => {
       const uCost = Number(sup.unit_cost) || (bQty > 0 ? bCost / bQty : 0);
       setNewCostItemBaseQuantity(bQty);
       setNewCostItemBaseCost(bCost);
-      setNewCostItemQuantity(sup.unit === 'gr' ? String(bQty) : (sup.unit === '%' ? String(bQty) : '1'));
+      const qVal = sup.unit === 'gr' ? String(bQty) : (sup.unit === '%' ? String(bQty) : '1');
+      setNewCostItemQuantity(qVal);
       setNewCostItemUnitCost(uCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }));
+      if (sup.unit === 'gr') {
+        setNewCostItemWeight(String(bQty));
+      } else if (sup.unit === 'kg') {
+        setNewCostItemWeight(String(bQty * 1000));
+      } else {
+        setNewCostItemWeight('');
+      }
     }
   };
 
@@ -873,6 +936,7 @@ export const ProductsPage: React.FC = () => {
       setNewCostItemBaseQuantity(baseQtyNum);
       setNewCostItemBaseCost(baseCostNum);
       setNewCostItemQuantity(created.unit === 'gr' ? String(baseQtyNum) : '1');
+      setNewCostItemWeight(created.unit === 'gr' ? String(baseQtyNum) : (created.unit === 'kg' ? String(baseQtyNum * 1000) : ''));
       setNewCostItemUnitCost(unitCostNum.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }));
       setIsQuickSupplyModalOpen(false);
     } catch (err: any) {
@@ -888,6 +952,7 @@ export const ProductsPage: React.FC = () => {
     if (!newCostItemName.trim()) return;
     const qty = parseFloat(newCostItemQuantity.replace(',', '.')) || 1;
     const unitPrice = parseCurrencyValue(newCostItemUnitCost);
+    const itemWeight = parseFloat(newCostItemWeight.replace(',', '.')) || 0;
     const subtotal = calculateItemSubtotal(
       newCostItemQuantity,
       newCostItemUnit,
@@ -903,6 +968,7 @@ export const ProductsPage: React.FC = () => {
       unit: newCostItemUnit,
       unit_cost: unitPrice,
       total: Number(subtotal.toFixed(2)),
+      weight: itemWeight > 0 ? itemWeight : undefined,
     };
 
     const updated = [...costItems, newItem];
@@ -911,15 +977,18 @@ export const ProductsPage: React.FC = () => {
     setNewCostItemName('');
     setNewCostItemQuantity('1');
     setNewCostItemUnit('unid');
+    setNewCostItemWeight('');
     setNewCostItemUnitCost('');
     setNewCostItemBaseCost(0);
     setNewCostItemBaseQuantity(1);
 
-    // Atualiza automaticamente o custo estimado com a soma de todos os itens
+    // Atualiza automaticamente o custo estimado e peso com a soma de todos os itens
     const totalSum = updated.reduce((acc, item) => acc + item.total, 0);
+    const totalWeight = updated.reduce((acc, item) => acc + (item.weight || 0), 0);
     setFormData((prev) => ({
       ...prev,
       unit_cost: totalSum.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      ...(totalWeight > 0 ? { weight: String(totalWeight) } : {}),
       cost_breakdown: JSON.stringify(updated),
     }));
   };
@@ -928,18 +997,22 @@ export const ProductsPage: React.FC = () => {
     const updated = costItems.filter((item) => item.id !== id);
     setCostItems(updated);
     const totalSum = updated.reduce((acc, item) => acc + item.total, 0);
+    const totalWeight = updated.reduce((acc, item) => acc + (item.weight || 0), 0);
     setFormData((prev) => ({
       ...prev,
       unit_cost: totalSum.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      ...(totalWeight > 0 ? { weight: String(totalWeight) } : (prev.weight ? { weight: prev.weight } : {})),
       cost_breakdown: JSON.stringify(updated),
     }));
   };
 
   const handleApplyCalculatedCost = () => {
     const totalSum = costItems.reduce((acc, item) => acc + item.total, 0);
+    const totalWeight = costItems.reduce((acc, item) => acc + (item.weight || 0), 0);
     setFormData((prev) => ({
       ...prev,
       unit_cost: totalSum.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      ...(totalWeight > 0 ? { weight: String(totalWeight) } : {}),
       cost_breakdown: JSON.stringify(costItems),
     }));
     setIsCostCalculatorOpen(false);
@@ -1072,6 +1145,7 @@ export const ProductsPage: React.FC = () => {
         ...formData,
         unit_cost: parseCurrencyValue(formData.unit_cost),
         sale_price: parseOptionalCurrencyValue(formData.sale_price),
+        weight: formData.weight ? parseFloat(String(formData.weight).replace(',', '.')) : null,
         min_stock: parseStockValue(formData.min_stock),
         color: formData.color?.trim() || undefined,
         material: formData.material?.trim() || undefined,
@@ -1916,8 +1990,8 @@ export const ProductsPage: React.FC = () => {
                   <div
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: '1fr 1fr',
-                      gap: '10px',
+                      gridTemplateColumns: displayStockItem.weight && Number(displayStockItem.weight) > 0 ? '1fr 1fr 1fr' : '1fr 1fr',
+                      gap: '8px',
                       padding: '10px 12px',
                       backgroundColor: 'var(--bg-sand-light)',
                       borderRadius: 'var(--radius-sm)',
@@ -1941,6 +2015,16 @@ export const ProductsPage: React.FC = () => {
                         {displayPrice ? `R$ ${Number(displayPrice).toFixed(2)}` : '—'}
                       </span>
                     </div>
+                    {displayStockItem.weight && Number(displayStockItem.weight) > 0 && (
+                      <div>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', display: 'block', fontWeight: 600 }}>
+                          Peso
+                        </span>
+                        <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#0d9488' }}>
+                          {formatWeight(displayStockItem.weight)}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Badges de Links de Vendas nos Marketplaces no Card */}
@@ -2465,9 +2549,14 @@ export const ProductsPage: React.FC = () => {
                         {prod.category?.name || '—'}
                       </td>
 
-                      {/* Custo */}
+                      {/* Custo e Peso */}
                       <td style={{ padding: '12px 20px', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-                        R$ {Number(prod.unit_cost).toFixed(2)}
+                        <div>R$ {Number(prod.unit_cost).toFixed(2)}</div>
+                        {prod.weight && Number(prod.weight) > 0 && (
+                          <div style={{ fontSize: '0.74rem', color: '#0d9488', fontWeight: 600, marginTop: '2px' }}>
+                            ⚖️ {formatWeight(prod.weight)}
+                          </div>
+                        )}
                       </td>
 
                       {/* Preço de Venda */}
@@ -2981,7 +3070,7 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 0.9fr', gap: '14px', marginBottom: '16px' }}>
             <div>
               <label htmlFor="prod-price" style={{ marginBottom: '6px', display: 'block' }}>Preço Venda (R$)</label>
               <input
@@ -3051,6 +3140,56 @@ export const ProductsPage: React.FC = () => {
                     title="Clique para ver ou editar a composição de custos"
                   >
                     Σ {costItems.length} {costItems.length === 1 ? 'item somado' : 'itens somados'} (editar)
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Campo Peso Total do Produto / Kit */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label htmlFor="prod-weight" style={{ margin: 0, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <Scale size={14} color="var(--brand-accent)" />
+                  Peso (g)
+                </label>
+                {costItems.reduce((acc, item) => acc + (item.weight || 0), 0) > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const totalW = costItems.reduce((acc, item) => acc + (item.weight || 0), 0);
+                      setFormData((prev) => ({ ...prev, weight: String(totalW) }));
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--brand-accent)',
+                      fontSize: '0.73rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: '2px 4px',
+                      borderRadius: 'var(--radius-sm)',
+                    }}
+                    title="Copiar a soma do peso dos insumos calculados na composição"
+                  >
+                    Σ {costItems.reduce((acc, item) => acc + (item.weight || 0), 0)}g
+                  </button>
+                )}
+              </div>
+              <input
+                id="prod-weight"
+                type="text"
+                value={formData.weight || ''}
+                onChange={(e) => setFormData({ ...formData, weight: e.target.value.replace(/\D/g, '') })}
+                placeholder="0"
+                style={{ textAlign: 'right' }}
+                title="Peso estimado em gramas para cálculo de frete e kits"
+              />
+              {formData.weight && Number(formData.weight) > 0 && (
+                <div style={{ marginTop: '4px', textAlign: 'right' }}>
+                  <span style={{ fontSize: '0.73rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>
+                    {Number(formData.weight) >= 1000
+                      ? `${(Number(formData.weight) / 1000).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 3 })} kg`
+                      : `${formData.weight} g`}
                   </span>
                 </div>
               )}
@@ -4053,7 +4192,23 @@ export const ProductsPage: React.FC = () => {
                 onChange={(e) => handleSelectSupply(e.target.value)}
                 style={{ width: '100%', fontSize: '0.86rem', padding: '8px 10px' }}
               >
-                <option value="">-- Selecione um insumo cadastrado ou digite avulso --</option>
+                <option value="">-- Selecione um insumo ou produto para kit --</option>
+                {/* Produtos Acabados do Ateliê para Composição de Kits */}
+                {products.filter((p) => !p.parent_id && p.id !== editingProduct?.id).length > 0 && (
+                  <optgroup label="🎁 Produtos do Ateliê (para Kits e Conjuntos)">
+                    {products
+                      .filter((p) => !p.parent_id && p.id !== editingProduct?.id)
+                      .map((p) => {
+                        const cost = Number(p.unit_cost) || 0;
+                        const weightInfo = p.weight ? ` | ⚖️ ${formatWeight(p.weight)}` : '';
+                        return (
+                          <option key={`prod-${p.id}`} value={`prod-${p.id}`}>
+                            {p.name} (R$ {cost.toFixed(2)} custo{weightInfo})
+                          </option>
+                        );
+                      })}
+                  </optgroup>
+                )}
                 {['Matéria-Prima', 'Embalagem', 'Material Auxiliar', 'Taxas e Marketplaces', 'Outros'].map((cat) => {
                   const groupSupplies = supplies.filter((s) => (s.category || 'Outros') === cat);
                   if (groupSupplies.length === 0) return null;
@@ -4098,8 +4253,8 @@ export const ProductsPage: React.FC = () => {
               </div>
             )}
 
-            {/* Linha 3: Quantidade gasta, Unidade, Custo Unitário e Botão Adicionar */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.3fr 1.3fr auto', gap: '10px', alignItems: 'flex-end' }}>
+            {/* Linha 3: Quantidade gasta, Unidade, Peso, Custo Unitário e Botão Adicionar */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.1fr 1fr 1.1fr auto', gap: '10px', alignItems: 'flex-end' }}>
               <div>
                 <label htmlFor="cost-item-qty" style={{ fontSize: '0.75rem', marginBottom: '4px' }}>
                   {newCostItemUnit === '%' ? 'Porcentagem (%)' : newCostItemUnit === 'fixo' ? 'Qtd Fixa' : `Qtd Gasta (${newCostItemUnit})`}
@@ -4109,7 +4264,7 @@ export const ProductsPage: React.FC = () => {
                   type="text"
                   placeholder="1"
                   value={newCostItemQuantity}
-                  onChange={(e) => setNewCostItemQuantity(e.target.value)}
+                  onChange={(e) => handleCostItemQuantityChange(e.target.value)}
                   style={{ textAlign: 'right' }}
                 />
               </div>
@@ -4121,7 +4276,7 @@ export const ProductsPage: React.FC = () => {
                 <select
                   id="cost-item-unit"
                   value={newCostItemUnit}
-                  onChange={(e) => setNewCostItemUnit(e.target.value)}
+                  onChange={(e) => handleCostItemUnitChange(e.target.value)}
                   style={{ fontSize: '0.85rem', padding: '8px 6px', width: '100%' }}
                 >
                   <option value="unid">unid (Unidade / Cada)</option>
@@ -4133,6 +4288,22 @@ export const ProductsPage: React.FC = () => {
                   <option value="%">% (s/ Preço Venda)</option>
                   <option value="fixo">fixo (Taxa Fixa R$)</option>
                 </select>
+              </div>
+
+              <div>
+                <label htmlFor="cost-item-weight" style={{ fontSize: '0.75rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                  <span>Peso (g)</span>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)' }}>(opcional)</span>
+                </label>
+                <input
+                  id="cost-item-weight"
+                  type="text"
+                  placeholder="0"
+                  value={newCostItemWeight}
+                  onChange={(e) => setNewCostItemWeight(e.target.value.replace(/\D/g, ''))}
+                  style={{ textAlign: 'right' }}
+                  title="Peso deste componente em gramas para soma do produto/kit"
+                />
               </div>
 
               <div>
@@ -4163,10 +4334,11 @@ export const ProductsPage: React.FC = () => {
               </button>
             </div>
 
-            {/* Prévia ao vivo do cálculo do subtotal */}
+            {/* Prévia ao vivo do cálculo do subtotal e peso */}
             {(() => {
               const qtyNum = parseFloat(newCostItemQuantity.replace(',', '.')) || 0;
               const unitCostNum = parseCurrencyValue(newCostItemUnitCost);
+              const weightVal = parseFloat(newCostItemWeight.replace(',', '.')) || 0;
               const subtotal = calculateItemSubtotal(
                 newCostItemQuantity,
                 newCostItemUnit,
@@ -4200,9 +4372,16 @@ export const ProductsPage: React.FC = () => {
                       <>Cálculo: {qtyNum} {newCostItemUnit} × R$ {unitCostNum.toFixed(2)}/{newCostItemUnit}</>
                     )}
                   </span>
-                  <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--brand-primary)' }}>
-                    Subtotal: R$ {subtotal.toFixed(2)}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    {weightVal > 0 && (
+                      <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#0d9488' }}>
+                        ⚖️ {formatWeight(weightVal)}
+                      </span>
+                    )}
+                    <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--brand-primary)' }}>
+                      Subtotal: R$ {subtotal.toFixed(2)}
+                    </span>
+                  </div>
                 </div>
               );
             })()}
@@ -4249,7 +4428,7 @@ export const ProductsPage: React.FC = () => {
                 <Calculator size={28} color="var(--brand-accent)" style={{ margin: '0 auto 8px', opacity: 0.6 }} />
                 <p style={{ margin: 0, fontWeight: 500 }}>Nenhum insumo ou matéria-prima adicionada ainda.</p>
                 <span style={{ fontSize: '0.78rem' }}>
-                  Selecione um insumo no combo box acima e informe a quantidade para calcular o custo estimado do produto.
+                  Selecione um insumo no combo box acima e informe a quantidade para calcular o custo e peso estimado do produto / kit.
                 </span>
               </div>
             ) : (
@@ -4267,6 +4446,7 @@ export const ProductsPage: React.FC = () => {
                     <tr style={{ backgroundColor: 'var(--bg-sand-light)', borderBottom: '1px solid var(--border-subtle)', textAlign: 'left' }}>
                       <th style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-secondary)' }}>Item</th>
                       <th style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center' }}>Qtd / Medida</th>
+                      <th style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center' }}>Peso (g)</th>
                       <th style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'right' }}>Unit. (R$)</th>
                       <th style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'right' }}>Total (R$)</th>
                       <th style={{ padding: '8px 12px', textAlign: 'center', width: '40px' }}></th>
@@ -4280,6 +4460,9 @@ export const ProductsPage: React.FC = () => {
                         </td>
                         <td style={{ padding: '8px 12px', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600 }}>
                           {item.quantity} {item.unit || ''}
+                        </td>
+                        <td style={{ padding: '8px 12px', textAlign: 'center', color: '#0d9488', fontWeight: 600 }}>
+                          {item.weight ? `${item.weight} g` : '—'}
                         </td>
                         <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--text-secondary)' }}>
                           {item.unit === '%' ? `${item.quantity}%` : `R$ ${item.unit_cost.toFixed(4)}`}
@@ -4311,7 +4494,7 @@ export const ProductsPage: React.FC = () => {
             )}
           </div>
 
-          {/* Card Resumo do Custo Total Somado */}
+          {/* Card Resumo do Custo Total e Peso Total Somado */}
           <div
             style={{
               padding: '16px 20px',
@@ -4326,16 +4509,34 @@ export const ProductsPage: React.FC = () => {
           >
             <div>
               <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--brand-accent)', textTransform: 'uppercase' }}>
-                Custo Estimado Total Calculado
+                Resumo da Composição
               </span>
               <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                Soma de todos os {costItems.length} insumos e componentes
+                Soma de todos os {costItems.length} insumos e componentes do produto / kit
               </p>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <span style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--brand-primary)' }}>
-                R$ {costItems.reduce((acc, item) => acc + item.total, 0).toFixed(2)}
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+              <div style={{ textAlign: 'right', borderRight: '1px solid #ecd6c5', paddingRight: '20px' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block' }}>
+                  Peso Somado
+                </span>
+                <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0d9488' }}>
+                  {costItems.reduce((acc, item) => acc + (item.weight || 0), 0)} g
+                  {costItems.reduce((acc, item) => acc + (item.weight || 0), 0) >= 1000 && (
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-tertiary)', marginLeft: '4px' }}>
+                      ({(costItems.reduce((acc, item) => acc + (item.weight || 0), 0) / 1000).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 3 })} kg)
+                    </span>
+                  )}
+                </span>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block' }}>
+                  Custo Total
+                </span>
+                <span style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--brand-primary)' }}>
+                  R$ {costItems.reduce((acc, item) => acc + item.total, 0).toFixed(2)}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -4352,7 +4553,7 @@ export const ProductsPage: React.FC = () => {
               onClick={handleApplyCalculatedCost}
               className="btn-primary"
             >
-              Aplicar Custo Estimado ao Produto
+              Aplicar Custo e Peso ao Produto
             </button>
           </div>
         </div>
@@ -5316,13 +5517,23 @@ export const ProductsPage: React.FC = () => {
                 {/* Lista de Insumos da Composição */}
                 {costItemsParsed.length > 0 && (
                   <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)' }}>
-                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--brand-primary)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-                      Composição de Custo Estimado ({costItemsParsed.length} insumos):
-                    </span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--brand-primary)', textTransform: 'uppercase' }}>
+                        Composição ({costItemsParsed.length} itens):
+                      </span>
+                      {costItemsParsed.some((it) => it.weight) && (
+                        <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#0d9488' }}>
+                          ⚖️ {formatWeight(costItemsParsed.reduce((acc, it) => acc + (it.weight || 0), 0))}
+                        </span>
+                      )}
+                    </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       {costItemsParsed.map((it, idx) => (
                         <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                          <span>• {it.name} ({Number(it.quantity || 0).toFixed(2)}{it.unit ? ` ${it.unit}` : ''})</span>
+                          <span>
+                            • {it.name} ({Number(it.quantity || 0).toFixed(2)}{it.unit ? ` ${it.unit}` : ''}
+                            {it.weight ? ` | ${it.weight}g` : ''})
+                          </span>
                           <span style={{ fontWeight: 600 }}>R$ {Number(it.total).toFixed(2)}</span>
                         </div>
                       ))}

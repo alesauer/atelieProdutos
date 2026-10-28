@@ -44,6 +44,9 @@ class Product(Base, TimestampMixin):
     sale_price: Mapped[Optional[Decimal]] = mapped_column(
         Numeric(10, 2), nullable=True
     )
+    weight: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(10, 3), nullable=True
+    )
     min_stock: Mapped[Decimal] = mapped_column(
         Numeric(10, 3), default=Decimal("0.000"), nullable=False
     )
