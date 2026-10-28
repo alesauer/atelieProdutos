@@ -4125,6 +4125,7 @@ export const ProductsPage: React.FC = () => {
                   style={{ fontSize: '0.85rem', padding: '8px 6px', width: '100%' }}
                 >
                   <option value="unid">unid (Unidade / Cada)</option>
+                  <option value="mt">mt (Metros)</option>
                   <option value="gr">gr (Gramas)</option>
                   <option value="kg">kg (Quilogramas)</option>
                   <option value="ml">ml (Mililitros)</option>
@@ -4418,6 +4419,7 @@ export const ProductsPage: React.FC = () => {
                 onChange={(e) => setQuickSupplyUnit(e.target.value)}
               >
                 <option value="unid">unid (Unidade / Cada)</option>
+                <option value="mt">mt (Metros)</option>
                 <option value="gr">gr (Gramas)</option>
                 <option value="kg">kg (Quilogramas)</option>
                 <option value="ml">ml (Mililitros)</option>

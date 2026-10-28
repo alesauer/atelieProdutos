@@ -1799,6 +1799,7 @@ export const SettingsPage: React.FC = () => {
                 onChange={(e) => setSupplyUnit(e.target.value)}
               >
                 <option value="unid">unid (Unidade / Cada)</option>
+                <option value="mt">mt (Metros)</option>
                 <option value="gr">gr (Gramas)</option>
                 <option value="kg">kg (Quilogramas)</option>
                 <option value="ml">ml (Mililitros)</option>
