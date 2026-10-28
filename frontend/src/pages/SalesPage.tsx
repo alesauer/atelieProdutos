@@ -1277,8 +1277,9 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onNavigate }) => {
               <option value="WhatsApp">WhatsApp</option>
               <option value="Instagram">Instagram</option>
               <option value="Shopee">Shopee</option>
+              <option value="Mercado Livre">Mercado Livre</option>
               <option value="Loja Física">Loja Física</option>
-              <option value="Feira / Evento">Feira / Evento</option>
+              <option value="Feira de Artesanato">Feira de Artesanato</option>
               <option value="Indicação">Indicação</option>
               <option value="Site / E-commerce">Site / E-commerce</option>
               <option value="Outro">Outro</option>

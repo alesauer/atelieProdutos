@@ -46,8 +46,9 @@ const ORIGIN_CHANNELS = [
   'WhatsApp',
   'Instagram',
   'Shopee',
+  'Mercado Livre',
   'Loja Física',
-  'Feira / Evento',
+  'Feira de Artesanato',
   'Indicação',
   'Site / E-commerce',
   'Outro',
@@ -337,8 +338,11 @@ export const CustomersPage: React.FC<CustomersPageProps> = ({ onNavigate }) => {
         return { bg: '#fdf0f4', color: '#c13584', border: '#f7c3d7' };
       case 'shopee':
         return { bg: '#fff2eb', color: '#ee4d2d', border: '#ffd2bd' };
+      case 'mercado livre':
+        return { bg: '#fffbe6', color: '#2d3277', border: '#ffe58f' };
       case 'loja física':
         return { bg: '#f0f4ff', color: '#3b82f6', border: '#c7d7fe' };
+      case 'feira de artesanato':
       case 'feira / evento':
         return { bg: '#fbf4ea', color: '#b45309', border: '#fcd9a8' };
       case 'indicação':
@@ -1826,20 +1830,13 @@ export const CustomersPage: React.FC<CustomersPageProps> = ({ onNavigate }) => {
                       {selectedCustomerDetail.birth_date ? formatDateOnly(selectedCustomerDetail.birth_date) : 'Não informada'}
                     </strong>
                   </div>
-                  <div style={{ borderTop: '1px dashed var(--border-subtle)', paddingTop: '8px', marginTop: '4px' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Endereço: </span>
-                    <span style={{ color: 'var(--text-primary)' }}>
-                      {selectedCustomerDetail.address_line
-                        ? `${selectedCustomerDetail.address_line}${selectedCustomerDetail.neighborhood ? `, ${selectedCustomerDetail.neighborhood}` : ''}`
-                        : 'Não informado'}
-                    </span>
-                  </div>
                   <div>
-                    <span style={{ color: 'var(--text-muted)' }}>Cidade / UF: </span>
-                    <span style={{ color: 'var(--text-primary)' }}>
-                      {selectedCustomerDetail.city ? `${selectedCustomerDetail.city}${selectedCustomerDetail.state ? `/${selectedCustomerDetail.state}` : ''}` : 'Não informado'}
-                      {selectedCustomerDetail.zip_code ? ` (CEP: ${selectedCustomerDetail.zip_code})` : ''}
-                    </span>
+                    <span style={{ color: 'var(--text-muted)' }}>Localidade: </span>
+                    <strong style={{ color: 'var(--text-primary)' }}>
+                      {selectedCustomerDetail.city
+                        ? `${selectedCustomerDetail.city}${selectedCustomerDetail.state ? ` / ${selectedCustomerDetail.state}` : ''}`
+                        : 'Não informada'}
+                    </strong>
                   </div>
                 </div>
               </div>
@@ -2280,7 +2277,7 @@ export const CustomersPage: React.FC<CustomersPageProps> = ({ onNavigate }) => {
             </div>
           </div>
 
-          {/* Seção 3: Endereço para Envio / Entrega */}
+          {/* Seção 3: Localidade (Mais Enxuto: Cidade e UF) */}
           <div>
             <div
               style={{
@@ -2292,79 +2289,17 @@ export const CustomersPage: React.FC<CustomersPageProps> = ({ onNavigate }) => {
                 marginBottom: '10px',
               }}
             >
-              3. Endereço de Entrega
+              3. Localidade
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '4px' }}>
-                  CEP
-                </label>
-                <input
-                  type="text"
-                  placeholder="00000-000"
-                  value={formData.zip_code || ''}
-                  onChange={(e) => setFormData({ ...formData, zip_code: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border-subtle)',
-                    fontSize: '0.9rem',
-                    outline: 'none',
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '4px' }}>
-                  Logradouro e Número
-                </label>
-                <input
-                  type="text"
-                  placeholder="Rua das Flores, 123 - Apto 4"
-                  value={formData.address_line || ''}
-                  onChange={(e) => setFormData({ ...formData, address_line: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border-subtle)',
-                    fontSize: '0.9rem',
-                    outline: 'none',
-                  }}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 60px', gap: '12px', marginTop: '12px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '4px' }}>
-                  Bairro
-                </label>
-                <input
-                  type="text"
-                  placeholder="Jardim Primavera"
-                  value={formData.neighborhood || ''}
-                  onChange={(e) => setFormData({ ...formData, neighborhood: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border-subtle)',
-                    fontSize: '0.9rem',
-                    outline: 'none',
-                  }}
-                />
-              </div>
-
+            <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: '12px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '4px' }}>
                   Cidade
                 </label>
                 <input
                   type="text"
-                  placeholder="São Paulo"
+                  placeholder="Ex: São Paulo"
                   value={formData.city || ''}
                   onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                   style={{
@@ -2380,7 +2315,7 @@ export const CustomersPage: React.FC<CustomersPageProps> = ({ onNavigate }) => {
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '4px' }}>
-                  UF
+                  UF (Estado)
                 </label>
                 <input
                   type="text"
