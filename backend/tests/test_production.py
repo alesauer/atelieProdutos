@@ -155,6 +155,12 @@ def test_production_flow_draft_and_atomic_confirmation(
     )
     assert del_order_resp.status_code == 204
 
+    # Limpar quaisquer ordens em rascunho criadas automaticamente pelo alerta de estoque
+    orders_resp = client.get("/api/v1/production/orders", headers={"Authorization": f"Bearer {admin_token}"})
+    for o in orders_resp.json():
+        if o["recipe_id"] == recipe_id:
+            client.delete(f"/api/v1/production/orders/{o['id']}", headers={"Authorization": f"Bearer {admin_token}"})
+
     # 10. E agora podemos excluir a receita sem erros
     del_recipe_resp = client.delete(
         f"/api/v1/production/recipes/{recipe_id}",
