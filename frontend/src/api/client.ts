@@ -140,7 +140,7 @@ class ApiClient {
     });
   }
 
-  async updateCategory(categoryId: number, data: { name?: string; description?: string; is_active?: boolean }): Promise<Category> {
+  async updateCategory(categoryId: number, data: { name?: string; description?: string | null; is_active?: boolean }): Promise<Category> {
     return this.request<Category>(`/categories/${categoryId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -189,7 +189,7 @@ class ApiClient {
     });
   }
 
-  async updateColor(colorId: number, data: { name?: string; hex_code?: string; is_active?: boolean }): Promise<ProductColor> {
+  async updateColor(colorId: number, data: { name?: string; hex_code?: string | null; is_active?: boolean }): Promise<ProductColor> {
     return this.request<ProductColor>(`/colors/${colorId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -214,7 +214,7 @@ class ApiClient {
     });
   }
 
-  async updateMaterial(materialId: number, data: { name?: string; description?: string; is_active?: boolean }): Promise<ProductMaterial> {
+  async updateMaterial(materialId: number, data: { name?: string; description?: string | null; is_active?: boolean }): Promise<ProductMaterial> {
     return this.request<ProductMaterial>(`/materials/${materialId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -250,12 +250,12 @@ class ApiClient {
 
   async updateSupply(supplyId: number, data: {
     name?: string;
-    category?: string;
+    category?: string | null;
     unit?: string;
     base_quantity?: number;
     base_cost?: number;
     unit_cost?: number;
-    notes?: string;
+    notes?: string | null;
     is_active?: boolean;
   }): Promise<ProductSupply> {
     return this.request<ProductSupply>(`/supplies/${supplyId}`, {

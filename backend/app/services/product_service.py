@@ -262,8 +262,8 @@ class ProductService:
                     detail=f"Já existe outra categoria com o nome '{new_name}'.",
                 )
             category.name = new_name
-        if category_in.description is not None:
-            category.description = category_in.description
+        if "description" in category_in.model_fields_set:
+            category.description = category_in.description.strip() if category_in.description else None
         if category_in.is_active is not None:
             category.is_active = category_in.is_active
         db.commit()
@@ -433,7 +433,7 @@ class ProductService:
                     detail=f"Já existe outra cor com o nome '{clean_name}'.",
                 )
             color.name = clean_name
-        if color_in.hex_code is not None:
+        if "hex_code" in color_in.model_fields_set:
             color.hex_code = color_in.hex_code.strip() if color_in.hex_code else None
         if color_in.is_active is not None:
             color.is_active = color_in.is_active
@@ -516,7 +516,7 @@ class ProductService:
                     detail=f"Já existe outro material com o nome '{clean_name}'.",
                 )
             mat.name = clean_name
-        if material_in.description is not None:
+        if "description" in material_in.model_fields_set:
             mat.description = material_in.description.strip() if material_in.description else None
         if material_in.is_active is not None:
             mat.is_active = material_in.is_active
@@ -621,9 +621,9 @@ class ProductService:
                     detail=f"Já existe outro insumo com o nome '{clean_name}'.",
                 )
             sup.name = clean_name
-        if supply_in.category is not None:
+        if "category" in supply_in.model_fields_set:
             sup.category = supply_in.category.strip() if supply_in.category else None
-        if supply_in.unit is not None:
+        if "unit" in supply_in.model_fields_set and supply_in.unit is not None:
             sup.unit = supply_in.unit.strip() if supply_in.unit else "unid"
         if supply_in.base_quantity is not None:
             sup.base_quantity = supply_in.base_quantity
@@ -634,7 +634,7 @@ class ProductService:
         elif supply_in.base_cost is not None or supply_in.base_quantity is not None:
             base_qty = sup.base_quantity if sup.base_quantity > 0 else Decimal("1.000")
             sup.unit_cost = sup.base_cost / base_qty
-        if supply_in.notes is not None:
+        if "notes" in supply_in.model_fields_set:
             sup.notes = supply_in.notes.strip() if supply_in.notes else None
         if supply_in.is_active is not None:
             sup.is_active = supply_in.is_active

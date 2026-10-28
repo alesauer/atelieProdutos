@@ -140,7 +140,7 @@ export const SettingsPage: React.FC = () => {
       if (editingCategory) {
         const updated = await api.updateCategory(editingCategory.id, {
           name: categoryName.trim(),
-          description: categoryDesc.trim() || undefined,
+          description: categoryDesc.trim() ? categoryDesc.trim() : null,
         });
         setCategories((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
       } else {
@@ -295,7 +295,7 @@ export const SettingsPage: React.FC = () => {
       if (editingColor) {
         const updated = await api.updateColor(editingColor.id, {
           name: colorName.trim(),
-          hex_code: colorHex.trim() || undefined,
+          hex_code: colorHex.trim() ? colorHex.trim() : null,
         });
         setColors((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
       } else {
@@ -349,7 +349,7 @@ export const SettingsPage: React.FC = () => {
       if (editingMaterial) {
         const updated = await api.updateMaterial(editingMaterial.id, {
           name: materialName.trim(),
-          description: materialDesc.trim() || undefined,
+          description: materialDesc.trim() ? materialDesc.trim() : null,
         });
         setMaterials((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
       } else {
@@ -413,12 +413,12 @@ export const SettingsPage: React.FC = () => {
       if (editingSupply) {
         const updated = await api.updateSupply(editingSupply.id, {
           name: supplyName.trim(),
-          category: supplyCategory.trim() || undefined,
+          category: supplyCategory.trim() ? supplyCategory.trim() : null,
           unit: supplyUnit.trim() || 'unid',
           base_quantity: baseQtyNum,
           base_cost: baseCostNum,
           unit_cost: unitCostNum,
-          notes: supplyNotes.trim() || undefined,
+          notes: supplyNotes.trim() ? supplyNotes.trim() : null,
         });
         setSupplies((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
       } else {

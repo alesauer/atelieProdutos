@@ -140,8 +140,8 @@ class ItemTypeService:
                 )
             item_type.name = name_clean
 
-        if item_type_in.description is not None:
-            item_type.description = item_type_in.description.strip() or None
+        if "description" in item_type_in.model_fields_set:
+            item_type.description = item_type_in.description.strip() if item_type_in.description else None
 
         if item_type_in.is_active is not None:
             if item_type.is_system and not item_type_in.is_active:
