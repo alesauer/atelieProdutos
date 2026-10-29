@@ -41,8 +41,10 @@ export const StockPage: React.FC = () => {
   const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingItem, setDeletingItem] = useState<StockBalanceItem | null>(null);
+  const [deleteKeepVariations, setDeleteKeepVariations] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
 
   // Form de Ajuste
   const [adjProductId, setAdjProductId] = useState<number>(0);
@@ -176,6 +178,7 @@ export const StockPage: React.FC = () => {
 
   const handleOpenDeleteModal = (item: StockBalanceItem) => {
     setDeletingItem(item);
+    setDeleteKeepVariations(true);
     setIsDeleteModalOpen(true);
   };
 
@@ -183,8 +186,17 @@ export const StockPage: React.FC = () => {
     if (!deletingItem) return;
     setDeleting(true);
     try {
-      await api.deleteProduct(deletingItem.product_id);
-      setBalances((prev) => prev.filter((b) => b.product_id !== deletingItem.product_id));
+      const keepVars = deletingItem.has_variations ? deleteKeepVariations : false;
+      await api.deleteProduct(deletingItem.product_id, keepVars);
+      
+      if (deletingItem.has_variations && !keepVars) {
+        // Recarregar tudo pois as variações também foram excluídas
+        const bData = await api.getStockBalances();
+        setBalances(bData);
+      } else {
+        setBalances((prev) => prev.filter((b) => b.product_id !== deletingItem.product_id));
+      }
+      
       setMovements((prev) => prev.filter((m) => m.product_id !== deletingItem.product_id));
       setProducts((prev) => prev.filter((p) => p.id !== deletingItem.product_id));
       setIsDeleteModalOpen(false);
@@ -418,13 +430,48 @@ export const StockPage: React.FC = () => {
                     onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                   >
                     <td style={{ padding: '14px 20px' }}>
-                      <div style={{ fontWeight: 600, color: 'var(--brand-primary)', fontSize: '0.95rem' }}>
-                        {b.name}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 600, color: 'var(--brand-primary)', fontSize: '0.95rem' }}>
+                          {b.name}
+                        </span>
+                        {b.has_variations && (
+                          <span
+                            style={{
+                              fontSize: '0.70rem',
+                              fontWeight: 600,
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              backgroundColor: '#f1f5f9',
+                              color: '#475569',
+                              border: '1px solid #cbd5e1',
+                            }}
+                            title={`Produto principal com ${b.variations_count} variações`}
+                          >
+                            Pai ({b.variations_count} variações)
+                          </span>
+                        )}
+                        {b.parent_id && (
+                          <span
+                            style={{
+                              fontSize: '0.70rem',
+                              fontWeight: 600,
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              backgroundColor: '#fdf2f8',
+                              color: '#9d174d',
+                              border: '1px solid #fbcfe8',
+                            }}
+                            title="Variação vinculada ao produto principal"
+                          >
+                            ↳ Variação {b.variation_name ? `(${b.variation_name})` : ''}
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>
                         {b.sku}
                       </div>
                     </td>
+
                     <td style={{ padding: '14px 20px' }}>
                       <Badge type={b.item_type} />
                     </td>
@@ -779,6 +826,56 @@ export const StockPage: React.FC = () => {
                 </p>
               </div>
             </div>
+
+            {deletingItem.has_variations && (
+              <div
+                style={{
+                  padding: '14px 16px',
+                  backgroundColor: '#fffbeb',
+                  border: '1px solid #fde68a',
+                  borderRadius: 'var(--radius-sm)',
+                  marginBottom: '16px',
+                  color: '#92400e',
+                  fontSize: '0.84rem',
+                }}
+              >
+                <strong style={{ display: 'block', marginBottom: '8px' }}>
+                  Este produto possui {deletingItem.variations_count} variações vinculadas no estoque:
+                </strong>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer', fontSize: '0.84rem' }}>
+                    <input
+                      type="radio"
+                      name="del_var_choice"
+                      checked={deleteKeepVariations}
+                      onChange={() => setDeleteKeepVariations(true)}
+                      style={{ marginTop: '3px' }}
+                    />
+                    <span>
+                      <strong>Manter variações no estoque (Recomendado)</strong>
+                      <div style={{ fontSize: '0.78rem', color: '#78350f', marginTop: '2px' }}>
+                        Desvincula as variações tornando-as itens individuais. Apenas o produto principal ({deletingItem.sku}) será excluído.
+                      </div>
+                    </span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer', fontSize: '0.84rem' }}>
+                    <input
+                      type="radio"
+                      name="del_var_choice"
+                      checked={!deleteKeepVariations}
+                      onChange={() => setDeleteKeepVariations(false)}
+                      style={{ marginTop: '3px' }}
+                    />
+                    <span>
+                      <strong style={{ color: '#b91c1c' }}>Excluir produto pai E todas as {deletingItem.variations_count} variações</strong>
+                      <div style={{ fontSize: '0.78rem', color: '#78350f', marginTop: '2px' }}>
+                        O produto principal e todas as suas variações filhas serão apagados permanentemente.
+                      </div>
+                    </span>
+                  </label>
+                </div>
+              </div>
+            )}
 
             <div
               style={{

@@ -3,6 +3,11 @@ import pytest
 from PIL import Image
 from fastapi.testclient import TestClient
 from app.models.product import Product
+from app.models.category import Category
+from app.models.unit import UnitOfMeasure
+
+
+
 
 
 def _create_test_image_bytes(format="PNG", size=(100, 100), color=(200, 150, 100)) -> bytes:
@@ -125,33 +130,54 @@ def test_upload_product_images_batch(client: TestClient, admin_token: str, sampl
     assert data[1]["original_filename"] == "foto_batch_2.png"
 
 
-def test_max_images_limit_per_product(client: TestClient, admin_token: str, sample_product: Product):
-    # Upload 10 imagens com sucesso
-    for i in range(10):
+from app.core.config import settings
+
+
+def test_max_images_limit_per_product(client: TestClient, admin_token: str, sample_category: Category, sample_unit: UnitOfMeasure):
+    # Criar produto exclusivo para isolar teste de limite
+    prod_resp = client.post(
+        "/api/v1/products",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "sku": "LIMIT-IMG-001",
+            "name": "Produto Teste Limite Fotos",
+            "item_type": "PRODUTO_ACABADO",
+            "category_id": sample_category.id,
+            "unit_id": sample_unit.id,
+            "unit_cost": "10.00",
+        },
+    )
+    assert prod_resp.status_code == 201
+    prod_id = prod_resp.json()["id"]
+
+    max_limit = settings.MAX_IMAGES_PER_PRODUCT
+    # Upload max_limit imagens com sucesso
+    for i in range(max_limit):
         img_bytes = _create_test_image_bytes(format="JPEG", color=(i * 20, 100, 150))
         resp = client.post(
-            f"/api/v1/products/{sample_product.id}/images",
+            f"/api/v1/products/{prod_id}/images",
             headers={"Authorization": f"Bearer {admin_token}"},
             files={"file": (f"foto_{i+1}.jpg", img_bytes, "image/jpeg")},
         )
         assert resp.status_code == 201, f"Falha no upload da foto {i+1}: {resp.text}"
 
-    # Verificar que o produto possui 10 imagens
+    # Verificar que o produto possui max_limit imagens
     prod_resp = client.get(
-        f"/api/v1/products/{sample_product.id}",
+        f"/api/v1/products/{prod_id}",
         headers={"Authorization": f"Bearer {admin_token}"},
     )
-    assert len(prod_resp.json()["images"]) == 10
+    assert len(prod_resp.json()["images"]) == max_limit
 
-    # Tentar upload da 11ª imagem (deve falhar por limite atingido)
+    # Tentar upload de imagem extra além do limite (deve falhar por limite atingido)
     extra_img = _create_test_image_bytes(format="PNG", color=(255, 255, 255))
     overflow_resp = client.post(
-        f"/api/v1/products/{sample_product.id}/images",
+        f"/api/v1/products/{prod_id}/images",
         headers={"Authorization": f"Bearer {admin_token}"},
-        files={"file": ("foto_11.png", extra_img, "image/png")},
+        files={"file": ("foto_extra.png", extra_img, "image/png")},
     )
     assert overflow_resp.status_code == 400
     assert "Limite de imagens atingido" in overflow_resp.json()["detail"]
-    assert "10 fotos" in overflow_resp.json()["detail"]
+    assert f"{max_limit} fotos" in overflow_resp.json()["detail"]
+
 
 

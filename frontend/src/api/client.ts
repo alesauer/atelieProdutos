@@ -333,11 +333,13 @@ class ApiClient {
     });
   }
 
-  async deleteProduct(id: number): Promise<void> {
-    return this.request<void>(`/products/${id}`, {
+  async deleteProduct(id: number, keepVariations: boolean = false): Promise<void> {
+    const query = keepVariations ? '?keep_variations=true' : '';
+    return this.request<void>(`/products/${id}${query}`, {
       method: 'DELETE',
     });
   }
+
 
   // --- Variações / Subprodutos (Estilo Shopee) ---
   async createVariation(productId: number, data: VariationFormData): Promise<ProductVariation> {

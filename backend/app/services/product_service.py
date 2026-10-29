@@ -1084,11 +1084,13 @@ class ProductService:
         return child
 
     @staticmethod
-    def delete_product(db: Session, product: Product) -> None:
+    def delete_product(db: Session, product: Product, keep_variations: bool = False) -> None:
         """
         Exclui permanentemente um produto do catálogo e limpa registros
         associados (fotos em disco/banco, movimentações de estoque, itens de receitas,
         ordens de produção e itens de vendas associados).
+        Se keep_variations=True, desvincula as variações filhas tornando-as produtos independentes
+        em vez de excluí-las em cascata.
         """
         from app.models.stock import StockMovement
         from app.models.sale import Sale, SaleItem
@@ -1099,8 +1101,19 @@ class ProductService:
             ProductionOrderItem,
         )
 
-        # Obter IDs do produto e de todas as suas variações filhas
-        target_ids = [product.id] + [v.id for v in product.variations]
+        if keep_variations and product.variations:
+            from sqlalchemy import update
+            db.execute(update(Product).where(Product.parent_id == product.id).values(parent_id=None))
+            db.commit()
+            db.expire_all()
+            product = db.get(Product, product.id)
+            target_ids = [product.id]
+            photos_to_delete_products = [product]
+        else:
+            # Obter IDs do produto e de todas as suas variações filhas
+            target_ids = [product.id] + [v.id for v in product.variations]
+            photos_to_delete_products = [product] + list(product.variations)
+
 
         # 0. Remover itens de kits onde este produto ou variação participa ou é o kit pai
         from app.models.product import ProductKitItem
@@ -1143,7 +1156,7 @@ class ProductService:
                     sale.total_amount = sum(it.total_price for it in sale.items)
 
         # 7. Excluir arquivos físicos de fotos do produto e variações do disco
-        for p_item in [product] + list(product.variations):
+        for p_item in photos_to_delete_products:
             for img in p_item.images:
                 try:
                     storage_service.delete_file(img.file_path)
@@ -1154,6 +1167,7 @@ class ProductService:
         db.flush()
         db.delete(product)
         db.commit()
+
 
     # --- Imagens dos Produtos ---
     @staticmethod

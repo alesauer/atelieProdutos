@@ -73,9 +73,10 @@ class Product(Base, TimestampMixin):
     variations = relationship(
         "Product",
         back_populates="parent",
-        cascade="all, delete-orphan",
+        cascade="save-update, merge",
         order_by="Product.id",
     )
+
     kit_items = relationship(
         "ProductKitItem",
         foreign_keys="[ProductKitItem.kit_product_id]",

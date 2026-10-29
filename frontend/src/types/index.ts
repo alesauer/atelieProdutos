@@ -251,7 +251,13 @@ export interface StockBalanceItem {
   is_zero_stock: boolean;
   unit_cost: string | number;
   estimated_total_value: string | number;
+  parent_id?: number | null;
+  has_variations?: boolean;
+  variations_count?: number;
+  variation_name?: string | null;
 }
+
+
 
 export interface StockMovementItem {
   id: number;

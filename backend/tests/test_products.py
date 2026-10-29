@@ -486,3 +486,67 @@ def test_create_and_update_product_with_variations(
     )
     assert del_resp.status_code == 204
 
+
+def test_delete_product_keep_variations(
+    client: TestClient, admin_token: str, sample_category: Category, sample_unit: UnitOfMeasure
+):
+    # Criar produto pai com 2 variações
+    resp = client.post(
+        "/api/v1/products",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "sku": "PJ-PARENT-01",
+            "name": "Porta Joia Teste Pai",
+            "item_type": "PRODUTO_ACABADO",
+            "category_id": sample_category.id,
+            "unit_id": sample_unit.id,
+            "unit_cost": "15.00",
+            "variations": [
+                {
+                    "sku": "PJ-VAR-BRANCO",
+                    "variation_name": "Branco",
+                    "color": "Branco",
+                    "sale_price": "35.00",
+                    "unit_cost": "15.00",
+                    "initial_stock": "5.000",
+                },
+                {
+                    "sku": "PJ-VAR-CINZA",
+                    "variation_name": "Cinza",
+                    "color": "Cinza",
+                    "sale_price": "35.00",
+                    "unit_cost": "15.00",
+                    "initial_stock": "3.000",
+                },
+            ],
+        },
+    )
+    assert resp.status_code == 201
+    parent_id = resp.json()["id"]
+    var_ids = [v["id"] for v in resp.json()["variations"]]
+    assert len(var_ids) == 2
+
+    # Excluir apenas o pai mantendo as variações
+    del_resp = client.delete(
+        f"/api/v1/products/{parent_id}?keep_variations=true",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert del_resp.status_code == 204
+
+    # Pai não existe mais
+    check_parent = client.get(
+        f"/api/v1/products/{parent_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert check_parent.status_code == 404
+
+    # As variações continuam existindo e agora são produtos avulsos (parent_id is null)
+    for v_id in var_ids:
+        check_var = client.get(
+            f"/api/v1/products/{v_id}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert check_var.status_code == 200
+        assert check_var.json()["parent_id"] is None
+
+

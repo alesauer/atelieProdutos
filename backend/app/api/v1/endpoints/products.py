@@ -246,6 +246,7 @@ def toggle_product_status(
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_product(
     product_id: int,
+    keep_variations: bool = False,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
@@ -256,8 +257,9 @@ def delete_product(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Item não encontrado.",
         )
-    product_service.delete_product(db, product)
+    product_service.delete_product(db, product, keep_variations=keep_variations)
     return None
+
 
 
 # --- Gestão de Imagens dos Produtos ---

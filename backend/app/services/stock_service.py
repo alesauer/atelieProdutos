@@ -197,6 +197,9 @@ class StockService:
             is_low = curr_stock <= Decimal("5.00") and not is_zero
             est_value = round(curr_stock * unit_cost, 2) if curr_stock > 0 else Decimal("0.00")
 
+            has_vars = bool(p.variations and len(p.variations) > 0)
+            vars_count = len(p.variations) if p.variations else 0
+
             balances.append(
                 StockBalanceResponse(
                     product_id=p.id,
@@ -211,6 +214,10 @@ class StockService:
                     is_zero_stock=is_zero,
                     unit_cost=unit_cost,
                     estimated_total_value=est_value,
+                    parent_id=p.parent_id,
+                    has_variations=has_vars,
+                    variations_count=vars_count,
+                    variation_name=p.variation_name,
                 )
             )
         return balances

@@ -50,5 +50,10 @@ class StockBalanceResponse(BaseModel):
     is_zero_stock: bool
     unit_cost: Decimal
     estimated_total_value: Decimal
+    parent_id: Optional[int] = None
+    has_variations: bool = False
+    variations_count: int = 0
+    variation_name: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
