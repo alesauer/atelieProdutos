@@ -10,6 +10,7 @@ import {
   AlertCircle,
   ArrowDownRight,
   ArrowUpRight,
+  Trash2,
 } from 'lucide-react';
 
 import { api } from '../api/client';
@@ -38,6 +39,10 @@ export const StockPage: React.FC = () => {
   // Modais
   const [isAdjModalOpen, setIsAdjModalOpen] = useState(false);
   const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletingItem, setDeletingItem] = useState<StockBalanceItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Form de Ajuste
   const [adjProductId, setAdjProductId] = useState<number>(0);
@@ -162,8 +167,76 @@ export const StockPage: React.FC = () => {
     setIsAdjModalOpen(true);
   };
 
+  const showToast = (type: 'success' | 'error', message: string) => {
+    setFeedback({ type, message });
+    setTimeout(() => {
+      setFeedback((prev) => (prev?.message === message ? null : prev));
+    }, 4500);
+  };
+
+  const handleOpenDeleteModal = (item: StockBalanceItem) => {
+    setDeletingItem(item);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDeleteItem = async () => {
+    if (!deletingItem) return;
+    setDeleting(true);
+    try {
+      await api.deleteProduct(deletingItem.product_id);
+      setBalances((prev) => prev.filter((b) => b.product_id !== deletingItem.product_id));
+      setMovements((prev) => prev.filter((m) => m.product_id !== deletingItem.product_id));
+      setProducts((prev) => prev.filter((p) => p.id !== deletingItem.product_id));
+      setIsDeleteModalOpen(false);
+      showToast('success', `Registro do item "${deletingItem.name}" (${deletingItem.sku}) excluído com sucesso!`);
+      setDeletingItem(null);
+    } catch (err: any) {
+      alert(err.message || 'Erro ao excluir registro de estoque.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteMovement = async (m: StockMovementItem) => {
+    const qtySign = Number(m.quantity) > 0 ? `+${m.quantity}` : `${m.quantity}`;
+    if (!confirm(`Deseja realmente excluir este registro de movimentação?\nItem: ${m.product_name}\nQuantidade: ${qtySign}\nOperação: ${m.movement_type}`)) {
+      return;
+    }
+    try {
+      await api.deleteStockMovement(m.id);
+      setMovements((prev) => prev.filter((item) => item.id !== m.id));
+      const bData = await api.getStockBalances();
+      setBalances(bData);
+      showToast('success', 'Registro de movimentação excluído com sucesso e saldo recalculado!');
+    } catch (err: any) {
+      alert(err.message || 'Erro ao excluir registro de movimentação.');
+    }
+  };
+
   return (
     <div style={{ padding: '28px', maxWidth: '1400px', margin: '0 auto' }}>
+      {/* Toast Feedback */}
+      {feedback && (
+        <div
+          style={{
+            marginBottom: '20px',
+            padding: '12px 18px',
+            borderRadius: 'var(--radius-sm)',
+            backgroundColor: feedback.type === 'success' ? '#f0fdf4' : '#fef2f2',
+            color: feedback.type === 'success' ? '#166534' : '#991b1b',
+            border: `1px solid ${feedback.type === 'success' ? '#bbf7d0' : '#fecaca'}`,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            fontSize: '0.9rem',
+            fontWeight: 500,
+          }}
+        >
+          {feedback.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+          <span>{feedback.message}</span>
+        </div>
+      )}
+
       {/* Cards de Métricas do Estoque */}
       <div
         style={{
@@ -401,13 +474,35 @@ export const StockPage: React.FC = () => {
                       R$ {Number(b.estimated_total_value).toFixed(2)}
                     </td>
                     <td style={{ padding: '14px 20px', textAlign: 'right' }}>
-                      <button
-                        onClick={() => handleQuickAdjust(b.product_id)}
-                        className="btn-secondary"
-                        style={{ padding: '6px 12px', fontSize: '0.8rem' }}
-                      >
-                        Ajustar
-                      </button>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button
+                          onClick={() => handleQuickAdjust(b.product_id)}
+                          className="btn-secondary"
+                          style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                          title="Ajustar saldo em estoque"
+                        >
+                          Ajustar
+                        </button>
+                        <button
+                          onClick={() => handleOpenDeleteModal(b)}
+                          className="btn-secondary"
+                          style={{
+                            padding: '6px 10px',
+                            fontSize: '0.8rem',
+                            color: '#dc2626',
+                            borderColor: '#fecaca',
+                            backgroundColor: '#fff5f5',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            cursor: 'pointer',
+                          }}
+                          title="Excluir este registro do estoque"
+                        >
+                          <Trash2 size={14} />
+                          <span>Excluir</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -428,6 +523,7 @@ export const StockPage: React.FC = () => {
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>QUANTIDADE</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>JUSTIFICATIVA / NOTAS</th>
                   <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>OPERADOR</th>
+                  <th style={{ padding: '14px 20px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', textAlign: 'right' }}>AÇÕES</th>
                 </tr>
               </thead>
               <tbody>
@@ -482,6 +578,27 @@ export const StockPage: React.FC = () => {
                       </td>
                       <td style={{ padding: '12px 20px', fontSize: '0.85rem', color: 'var(--text-tertiary)' }}>
                         {m.user_name || 'Sistema'}
+                      </td>
+                      <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+                        <button
+                          onClick={() => handleDeleteMovement(m)}
+                          className="btn-secondary"
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '0.78rem',
+                            color: '#dc2626',
+                            borderColor: '#fecaca',
+                            backgroundColor: '#fff5f5',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            cursor: 'pointer',
+                          }}
+                          title="Excluir este registro de movimentação"
+                        >
+                          <Trash2 size={13} />
+                          <span>Excluir</span>
+                        </button>
                       </td>
                     </tr>
                   );
@@ -627,6 +744,102 @@ export const StockPage: React.FC = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal de Exclusão de Registro de Estoque */}
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => !deleting && setIsDeleteModalOpen(false)}
+        title="Excluir Registro de Estoque"
+        subtitle="Remover o item e desconsiderar seu histórico de saldo"
+        maxWidth="480px"
+      >
+        {deletingItem && (
+          <div>
+            <div
+              style={{
+                padding: '14px 16px',
+                backgroundColor: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: 'var(--radius-sm)',
+                marginBottom: '16px',
+                color: '#991b1b',
+                fontSize: '0.85rem',
+                display: 'flex',
+                gap: '10px',
+                alignItems: 'flex-start',
+              }}
+            >
+              <AlertCircle size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
+              <div>
+                <strong>Atenção:</strong> Você está prestes a excluir o registro de{' '}
+                <strong>{deletingItem.name}</strong> (SKU: <code>{deletingItem.sku}</code>).
+                <p style={{ margin: '6px 0 0', fontSize: '0.8rem', color: '#b91c1c' }}>
+                  Esta ação removerá o registro do inventário de estoque e do catálogo de produtos.
+                </p>
+              </div>
+            </div>
+
+            <div
+              style={{
+                padding: '14px 16px',
+                backgroundColor: 'var(--bg-sand-light)',
+                borderRadius: 'var(--radius-sm)',
+                marginBottom: '20px',
+                fontSize: '0.84rem',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>Item:</span>
+                <strong style={{ color: 'var(--brand-primary)' }}>{deletingItem.name}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>SKU:</span>
+                <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{deletingItem.sku}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>Estoque Atual:</span>
+                <strong>{formatQuantity(deletingItem.current_stock)} {deletingItem.unit_code}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>Custo Unitário:</span>
+                <span>R$ {Number(deletingItem.unit_cost).toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="btn-secondary"
+                disabled={deleting}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteItem}
+                disabled={deleting}
+                style={{
+                  backgroundColor: '#dc2626',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '9px 18px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontWeight: 600,
+                  fontSize: '0.88rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                {deleting ? <Loader2 size={16} className="spin-animation" /> : <Trash2 size={16} />}
+                <span>{deleting ? 'Excluindo...' : 'Confirmar Exclusão'}</span>
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

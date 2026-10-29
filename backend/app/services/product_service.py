@@ -1102,6 +1102,11 @@ class ProductService:
         # Obter IDs do produto e de todas as suas variações filhas
         target_ids = [product.id] + [v.id for v in product.variations]
 
+        # 0. Remover itens de kits onde este produto ou variação participa ou é o kit pai
+        from app.models.product import ProductKitItem
+        db.execute(delete(ProductKitItem).where(ProductKitItem.component_product_id.in_(target_ids)))
+        db.execute(delete(ProductKitItem).where(ProductKitItem.kit_product_id.in_(target_ids)))
+
         # 1. Remover movimentações de estoque deste produto e de suas variações
         db.execute(delete(StockMovement).where(StockMovement.product_id.in_(target_ids)))
 

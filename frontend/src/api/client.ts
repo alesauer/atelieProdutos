@@ -437,6 +437,12 @@ class ApiClient {
     });
   }
 
+  async deleteStockMovement(movementId: number): Promise<void> {
+    return this.request<void>(`/stock/movements/${movementId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // --- Produção Artesanal ---
   async listRecipes(): Promise<Recipe[]> {
     return this.request<Recipe[]>('/production/recipes');

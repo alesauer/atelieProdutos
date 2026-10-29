@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_db, get_current_user
 from app.models.user import User
-from app.models.stock import MovementType
+from app.models.stock import MovementType, StockMovement
 from app.schemas.stock import (
     StockAdjustmentCreate,
     StockEntryCreate,
@@ -86,3 +86,21 @@ def create_stock_entry(
         resp.product_sku = mov.product.sku
     resp.user_name = current_user.full_name
     return resp
+
+
+@router.delete("/movements/{movement_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_stock_movement(
+    movement_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Exclui um registro individual de movimentação do extrato de estoque."""
+    movement = db.get(StockMovement, movement_id)
+    if not movement:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Registro de movimentação não encontrado.",
+        )
+    db.delete(movement)
+    db.commit()
+    return None
