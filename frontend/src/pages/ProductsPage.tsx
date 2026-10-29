@@ -164,8 +164,10 @@ export const ProductsPage: React.FC = () => {
   const [isQuickColorModalOpen, setIsQuickColorModalOpen] = useState(false);
   const [quickColorName, setQuickColorName] = useState('');
   const [quickColorHex, setQuickColorHex] = useState('#d1d5db');
+  const [quickColorTargetVarIndex, setQuickColorTargetVarIndex] = useState<number | null>(null);
   const [savingQuickColor, setSavingQuickColor] = useState(false);
   const [quickColorError, setQuickColorError] = useState<string | null>(null);
+
 
   const [isQuickMaterialModalOpen, setIsQuickMaterialModalOpen] = useState(false);
   const [quickMaterialName, setQuickMaterialName] = useState('');
@@ -808,8 +810,18 @@ export const ProductsPage: React.FC = () => {
     setQuickColorError(null);
     try {
       const newColor = await api.createColor(quickColorName.trim(), quickColorHex);
-      setColors((prev) => [...prev, newColor]);
-      setFormData((prev) => ({ ...prev, color: newColor.name }));
+      setColors((prev) => {
+        const exists = prev.some((c) => c.name.toLowerCase() === newColor.name.toLowerCase());
+        return exists ? prev : [...prev, newColor];
+      });
+
+      if (quickColorTargetVarIndex !== null && quickColorTargetVarIndex >= 0) {
+        handleUpdateVariation(quickColorTargetVarIndex, 'color', newColor.name);
+        setQuickColorTargetVarIndex(null);
+      } else {
+        setFormData((prev) => ({ ...prev, color: newColor.name }));
+      }
+
       setIsQuickColorModalOpen(false);
       setQuickColorName('');
     } catch (err: any) {
@@ -818,6 +830,7 @@ export const ProductsPage: React.FC = () => {
       setSavingQuickColor(false);
     }
   };
+
 
   // Criação rápida de material
   const handleSaveQuickMaterial = async (e?: React.FormEvent) => {
@@ -1867,9 +1880,33 @@ export const ProductsPage: React.FC = () => {
             <span>Gerar Catálogo PDF</span>
           </button>
 
+          <button
+            type="button"
+            onClick={() => {
+              setQuickColorTargetVarIndex(null);
+              setQuickColorName('');
+              setQuickColorHex('#d1d5db');
+              setQuickColorError(null);
+              setIsQuickColorModalOpen(true);
+            }}
+            className="btn-secondary"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: '#fff',
+              fontWeight: 600,
+            }}
+            title="Cadastrar nova cor para uso em produtos e variações"
+          >
+            <Palette size={17} color="var(--brand-accent)" />
+            <span>Cadastrar Cor</span>
+          </button>
+
           <button onClick={handleOpenCreateModal} className="btn-primary">
             <Plus size={18} />
             <span>Novo Produto</span>
+
           </button>
         </div>
       </div>
@@ -3723,6 +3760,7 @@ export const ProductsPage: React.FC = () => {
                   value={formData.color || ''}
                   onChange={(e) => {
                     if (e.target.value === '__NEW_COLOR__') {
+                      setQuickColorTargetVarIndex(null);
                       setQuickColorName('');
                       setQuickColorHex('#d1d5db');
                       setQuickColorError(null);
@@ -3759,12 +3797,14 @@ export const ProductsPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
+                    setQuickColorTargetVarIndex(null);
                     setQuickColorName('');
                     setQuickColorHex('#d1d5db');
                     setQuickColorError(null);
                     setIsQuickColorModalOpen(true);
                   }}
                   title="Cadastrar nova cor"
+
                   style={{
                     padding: '0 12px',
                     height: '38px',
@@ -4186,7 +4226,32 @@ export const ProductsPage: React.FC = () => {
                       <Plus size={14} />
                       + Adicionar Variação
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuickColorTargetVarIndex(null);
+                        setQuickColorName('');
+                        setQuickColorHex('#d1d5db');
+                        setQuickColorError(null);
+                        setIsQuickColorModalOpen(true);
+                      }}
+                      className="btn-secondary"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '0.8rem',
+                        padding: '6px 12px',
+                        fontWeight: 600,
+                      }}
+                      title="Cadastrar uma nova cor para usar nas variações"
+                    >
+                      <Palette size={14} color="var(--brand-accent)" />
+                      + Cadastrar Cor
+                    </button>
                   </div>
+
 
                   {formVariations.length > 0 && (
                     <button
@@ -4371,17 +4436,65 @@ export const ProductsPage: React.FC = () => {
                               />
                             </td>
                             <td style={{ padding: '6px 8px' }}>
-                              <select
-                                value={v.color || ''}
-                                onChange={(e) => handleUpdateVariation(idx, 'color', e.target.value)}
-                                style={{ width: '100%', padding: '4px 6px', fontSize: '0.8rem' }}
-                              >
-                                <option value="">(Sem cor)</option>
-                                {colors.map((c) => (
-                                  <option key={c.id} value={c.name}>{c.name}</option>
-                                ))}
-                              </select>
+                              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                <select
+                                  value={v.color || ''}
+                                  onChange={(e) => {
+                                    if (e.target.value === '__NEW_COLOR__') {
+                                      setQuickColorTargetVarIndex(idx);
+                                      const candidate = v.variation_name?.trim();
+                                      setQuickColorName(candidate || '');
+                                      setQuickColorHex('#d1d5db');
+                                      setQuickColorError(null);
+                                      setIsQuickColorModalOpen(true);
+                                    } else {
+                                      handleUpdateVariation(idx, 'color', e.target.value);
+                                    }
+                                  }}
+                                  style={{ flex: 1, padding: '4px 6px', fontSize: '0.8rem' }}
+                                >
+                                  <option value="">(Sem cor)</option>
+                                  <option value="__NEW_COLOR__" style={{ fontWeight: 700, color: 'var(--brand-accent)' }}>
+                                    ➕ Cadastrar nova cor...
+                                  </option>
+                                  <optgroup label="Cores Cadastradas">
+                                    {colors.map((c) => (
+                                      <option key={c.id} value={c.name}>{c.name}</option>
+                                    ))}
+                                    {v.color && !colors.some((c) => c.name.toLowerCase() === v.color?.toLowerCase()) && (
+                                      <option value={v.color}>{v.color}</option>
+                                    )}
+                                  </optgroup>
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setQuickColorTargetVarIndex(idx);
+                                    const candidate = v.variation_name?.trim();
+                                    setQuickColorName(candidate || '');
+                                    setQuickColorHex('#d1d5db');
+                                    setQuickColorError(null);
+                                    setIsQuickColorModalOpen(true);
+                                  }}
+                                  title="Cadastrar nova cor"
+                                  style={{
+                                    padding: '0 6px',
+                                    height: '28px',
+                                    backgroundColor: 'var(--bg-sand-light)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  <Plus size={13} color="var(--brand-accent)" />
+                                </button>
+                              </div>
                             </td>
+
                             <td style={{ padding: '6px 8px' }}>
                               <input
                                 type="text"
