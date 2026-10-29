@@ -170,6 +170,8 @@ class StockService:
             if m.product:
                 resp.product_name = m.product.name
                 resp.product_sku = m.product.sku
+                resp.product_color = m.product.color
+                resp.product_variation_name = m.product.variation_name
             if m.user:
                 resp.user_name = m.user.full_name
             results.append(resp)
@@ -218,6 +220,8 @@ class StockService:
                     has_variations=has_vars,
                     variations_count=vars_count,
                     variation_name=p.variation_name,
+                    color=p.color,
+                    size=p.size,
                 )
             )
         return balances

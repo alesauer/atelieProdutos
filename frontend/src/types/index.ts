@@ -255,6 +255,8 @@ export interface StockBalanceItem {
   has_variations?: boolean;
   variations_count?: number;
   variation_name?: string | null;
+  color?: string | null;
+  size?: string | null;
 }
 
 
@@ -264,6 +266,8 @@ export interface StockMovementItem {
   product_id: number;
   product_name?: string | null;
   product_sku?: string | null;
+  product_color?: string | null;
+  product_variation_name?: string | null;
   movement_type: MovementType;
   quantity: string | number;
   unit_cost_at_moment: string | number;

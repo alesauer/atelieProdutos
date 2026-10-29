@@ -782,7 +782,17 @@ class ProductService:
         if product_in.variations:
             from app.models.stock import StockMovement, MovementType
             for idx, var_in in enumerate(product_in.variations):
-                var_sku = var_in.sku.strip().upper() if var_in.sku else f"{product.sku}-{var_in.variation_name.strip().upper().replace(' ', '-')}"
+                var_color = var_in.color.strip() if var_in.color else (product.color.strip() if (idx == 0 and product.color) else None)
+                clean_name = var_in.variation_name.strip() if var_in.variation_name else (var_color or f"Variação {idx+1}")
+                
+                var_sku = var_in.sku.strip().upper() if var_in.sku else None
+                if not var_sku:
+                    sku_slug = var_color.upper().replace(' ', '-') if var_color else clean_name.upper().replace(' ', '-')
+                    var_sku = f"{product.sku}-{sku_slug}"
+                elif var_sku.endswith('-1') and var_color:
+                    # Se foi gerado com sufixo genérico '-1', substitui pelo slug da cor
+                    var_sku = f"{product.sku}-{var_color.upper().replace(' ', '-')}"
+
                 existing = ProductService.get_product_by_sku(db, var_sku)
                 if existing:
                     var_sku = f"{var_sku}-{idx+1}"
@@ -801,7 +811,7 @@ class ProductService:
                     unit_cost=unit_cost,
                     cost_breakdown=product.cost_breakdown,
                     sales_links=product.sales_links,
-                    color=var_in.color.strip() if var_in.color else None,
+                    color=var_color,
                     size=var_in.size.strip() if var_in.size else None,
                     material=var_in.material.strip() if var_in.material else product.material,
                     sale_price=sale_price,
@@ -809,7 +819,7 @@ class ProductService:
                     min_stock=var_in.min_stock if var_in.min_stock is not None else Decimal("0.000"),
                     is_active=True,
                     parent_id=product.id,
-                    variation_name=var_in.variation_name.strip(),
+                    variation_name=clean_name,
                 )
                 db.add(variation)
                 db.flush()
@@ -907,36 +917,87 @@ class ProductService:
                         )
                         db.add(kit_item)
 
-        # Atualização/inserção de variações se informadas no payload
+        # Atualização/inserção/exclusão de variações se informadas no payload
         if product_in.variations is not None:
             from app.models.stock import StockMovement, MovementType
+            from app.services.stock_service import StockService
+
+            incoming_skus = {v.sku.strip().upper() for v in product_in.variations if v.sku}
+            incoming_ids = {v.id for v in product_in.variations if v.id is not None}
+
+            # 1. Excluir permanentemente variações que foram removidas pelo usuário da grade
+            for existing_var in list(product.variations):
+                is_retained = (existing_var.id in incoming_ids) or (existing_var.sku.upper() in incoming_skus)
+                if not is_retained:
+                    ProductService.delete_product(db, existing_var)
+
+            # Recarrega mapa de variações restantes por id e por sku
+            existing_vars_by_id = {v.id: v for v in product.variations}
             existing_vars_by_sku = {v.sku.upper(): v for v in product.variations}
+
             for idx, var_in in enumerate(product_in.variations):
                 var_sku = var_in.sku.strip().upper() if var_in.sku else f"{product.sku}-{var_in.variation_name.strip().upper().replace(' ', '-')}"
-                if var_sku in existing_vars_by_sku:
+
+                # Localiza se já existe pelo ID ou pelo SKU
+                target_var = None
+                if var_in.id and var_in.id in existing_vars_by_id:
+                    target_var = existing_vars_by_id[var_in.id]
+                elif var_sku in existing_vars_by_sku:
+                    target_var = existing_vars_by_sku[var_sku]
+
+                if target_var:
                     # Atualiza variação existente
-                    existing_var = existing_vars_by_sku[var_sku]
-                    existing_var.variation_name = var_in.variation_name.strip()
+                    target_var.variation_name = var_in.variation_name.strip()
+                    if var_in.sku:
+                        new_var_sku = var_in.sku.strip().upper()
+                        if new_var_sku != target_var.sku:
+                            other = ProductService.get_product_by_sku(db, new_var_sku)
+                            if other and other.id != target_var.id:
+                                new_var_sku = f"{new_var_sku}-{idx+1}"
+                            target_var.sku = new_var_sku
                     if var_in.color is not None:
-                        existing_var.color = var_in.color.strip() if var_in.color else None
+                        target_var.color = var_in.color.strip() if var_in.color else None
                     if var_in.size is not None:
-                        existing_var.size = var_in.size.strip() if var_in.size else None
+                        target_var.size = var_in.size.strip() if var_in.size else None
                     if var_in.material is not None:
-                        existing_var.material = var_in.material.strip() if var_in.material else product.material
+                        target_var.material = var_in.material.strip() if var_in.material else product.material
                     if var_in.sale_price is not None:
-                        existing_var.sale_price = var_in.sale_price
+                        target_var.sale_price = var_in.sale_price
                     if var_in.unit_cost is not None:
-                        existing_var.unit_cost = var_in.unit_cost
+                        target_var.unit_cost = var_in.unit_cost
                     if var_in.weight is not None:
-                        existing_var.weight = var_in.weight
+                        target_var.weight = var_in.weight
                     if var_in.min_stock is not None:
-                        existing_var.min_stock = var_in.min_stock
+                        target_var.min_stock = var_in.min_stock
+
+                    # Atualização de saldo em estoque para variação existente
+                    if var_in.initial_stock is not None:
+                        target_stock = Decimal(str(var_in.initial_stock))
+                        current_balance = StockService.get_product_balance(db, target_var.id)
+                        stock_diff = target_stock - current_balance
+                        if stock_diff != Decimal("0.000"):
+                            if current_balance <= Decimal("0.000") and stock_diff > 0:
+                                mov_type = MovementType.ENTRADA_INICIAL
+                                just = f"Estoque inicial definido na edição da variação '{target_var.variation_name}'"
+                            else:
+                                mov_type = MovementType.AJUSTE_INVENTARIO
+                                just = f"Ajuste de estoque na edição de '{target_var.variation_name}' (de {current_balance} para {target_stock})"
+                            StockService.create_movement(
+                                db=db,
+                                product_id=target_var.id,
+                                movement_type=mov_type,
+                                quantity=stock_diff,
+                                unit_cost_at_moment=target_var.unit_cost,
+                                justification=just,
+                                reference_type="MANUAL_ADJUSTMENT",
+                            )
                 else:
                     # Nova variação
                     existing_glob = ProductService.get_product_by_sku(db, var_sku)
                     if existing_glob:
                         var_sku = f"{var_sku}-{idx+1}"
 
+                    var_color = var_in.color.strip() if var_in.color else (product.color.strip() if (idx == 0 and product.color) else None)
                     unit_cost = var_in.unit_cost if var_in.unit_cost is not None else product.unit_cost
                     sale_price = var_in.sale_price if var_in.sale_price is not None else product.sale_price
                     weight = var_in.weight if var_in.weight is not None else product.weight
@@ -951,7 +1012,7 @@ class ProductService:
                         unit_cost=unit_cost,
                         cost_breakdown=product.cost_breakdown,
                         sales_links=product.sales_links,
-                        color=var_in.color.strip() if var_in.color else None,
+                        color=var_color,
                         size=var_in.size.strip() if var_in.size else None,
                         material=var_in.material.strip() if var_in.material else product.material,
                         sale_price=sale_price,

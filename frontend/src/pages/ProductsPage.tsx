@@ -258,6 +258,9 @@ export const ProductsPage: React.FC = () => {
   const [linkExistingVarName, setLinkExistingVarName] = useState('');
   const [linkingProduct, setLinkingProduct] = useState(false);
 
+  // Rastreamento de variações excluídas na edição para limpeza no banco
+  const [deletedVariationIds, setDeletedVariationIds] = useState<number[]>([]);
+
   // Handlers de Variações no Formulário de Produto (Opção C - Híbrida)
   const handleToggleHasVariations = (checked: boolean) => {
     setHasVariations(checked);
@@ -265,7 +268,10 @@ export const ProductsPage: React.FC = () => {
       const baseColor = formData.color?.trim() || '';
       const baseSize = formData.size?.trim() || '';
       const initialName = baseColor && baseSize ? `${baseColor} - ${baseSize}` : (baseColor || baseSize || 'Padrão');
-      const initialSku = formData.sku ? `${formData.sku}-1` : 'PROD-1';
+      const cleanColor = baseColor ? baseColor.toUpperCase().replace(/\s+/g, '-') : '';
+      const cleanSize = baseSize ? baseSize.toUpperCase().replace(/\s+/g, '-') : '';
+      const colorSuffix = cleanColor ? (cleanSize ? `${cleanColor}-${cleanSize}` : cleanColor) : '1';
+      const initialSku = formData.sku ? `${formData.sku}-${colorSuffix}` : `PROD-${colorSuffix}`;
       setFormVariations([
         {
           sku: initialSku,
@@ -284,12 +290,15 @@ export const ProductsPage: React.FC = () => {
   const handleAddEmptyVariation = () => {
     const nextIdx = formVariations.length + 1;
     const baseSku = formData.sku.trim() || 'PROD';
+    const fallbackColor = formVariations.length === 0 && formData.color?.trim() ? formData.color.trim() : '';
+    const cleanColor = fallbackColor ? fallbackColor.toUpperCase().replace(/\s+/g, '-') : '';
+    const varSku = cleanColor ? `${baseSku}-${cleanColor}` : `${baseSku}-VAR${nextIdx}`;
     setFormVariations((prev) => [
       ...prev,
       {
-        sku: `${baseSku}-VAR${nextIdx}`,
-        variation_name: `Variação ${nextIdx}`,
-        color: '',
+        sku: varSku,
+        variation_name: fallbackColor || `Variação ${nextIdx}`,
+        color: fallbackColor,
         size: '',
         sale_price: formData.sale_price || '',
         unit_cost: formData.unit_cost || '0,00',
@@ -317,6 +326,10 @@ export const ProductsPage: React.FC = () => {
   };
 
   const handleRemoveVariation = (index: number) => {
+    const target = formVariations[index];
+    if (target?.id) {
+      setDeletedVariationIds((prev) => (prev.includes(target.id!) ? prev : [...prev, target.id!]));
+    }
     setFormVariations((prev) => prev.filter((_, i) => i !== index));
   };
 
@@ -669,6 +682,7 @@ export const ProductsPage: React.FC = () => {
   const handleOpenCreateModal = () => {
     pendingImages.forEach((p) => URL.revokeObjectURL(p.previewUrl));
     setPendingImages([]);
+    setDeletedVariationIds([]);
     setFormError(null);
     setCostItems([]);
     setSalesLinks([]);
@@ -715,6 +729,7 @@ export const ProductsPage: React.FC = () => {
   const handleOpenEditModal = async (prod: Product) => {
     pendingImages.forEach((p) => URL.revokeObjectURL(p.previewUrl));
     setPendingImages([]);
+    setDeletedVariationIds([]);
     setFormError(null);
     let parsedCostItems: CostComponentItem[] = [];
     if (prod.cost_breakdown) {
@@ -768,8 +783,8 @@ export const ProductsPage: React.FC = () => {
           material: v.material || '',
           sale_price: v.sale_price != null && v.sale_price !== '' ? Number(v.sale_price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '',
           unit_cost: v.unit_cost != null && v.unit_cost !== '' ? Number(v.unit_cost).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00',
-          initial_stock: '',
-          current_stock: v.current_stock != null ? String(v.current_stock) : '0',
+          initial_stock: v.current_stock != null ? String(Number(v.current_stock)) : '0',
+          current_stock: v.current_stock != null ? String(Number(v.current_stock)) : '0',
           min_stock: cleanStockValue(v.min_stock),
           weight: v.weight != null && v.weight !== '' ? String(v.weight) : '',
         }))
@@ -820,6 +835,22 @@ export const ProductsPage: React.FC = () => {
         setQuickColorTargetVarIndex(null);
       } else {
         setFormData((prev) => ({ ...prev, color: newColor.name }));
+        if (hasVariations && formVariations.length === 1) {
+          setFormVariations((prev) => {
+            const first = prev[0];
+            const cleanC = newColor.name.toUpperCase().replace(/\s+/g, '-');
+            const cleanS = first.size ? first.size.toUpperCase().replace(/\s+/g, '-') : '';
+            const skuBase = formData.sku || 'PROD';
+            return [
+              {
+                ...first,
+                color: newColor.name,
+                variation_name: first.size ? `${newColor.name} - ${first.size}` : newColor.name,
+                sku: `${skuBase}-${cleanC}${cleanS ? `-${cleanS}` : ''}`,
+              },
+            ];
+          });
+        }
       }
 
       setIsQuickColorModalOpen(false);
@@ -1536,6 +1567,11 @@ export const ProductsPage: React.FC = () => {
           min_stock: parseStockValue(v.min_stock || 0),
           weight: v.weight ? parseFloat(String(v.weight).replace(',', '.')) : null,
         }));
+      }
+
+      if (editingProduct && deletedVariationIds.length > 0) {
+        // Exclui diretamente variações removidas na interface
+        await Promise.allSettled(deletedVariationIds.map((delId) => api.deleteProduct(delId)));
       }
 
       let savedProduct: Product;
@@ -3766,7 +3802,28 @@ export const ProductsPage: React.FC = () => {
                       setQuickColorError(null);
                       setIsQuickColorModalOpen(true);
                     } else {
-                      setFormData({ ...formData, color: e.target.value || undefined });
+                      const newColor = e.target.value || undefined;
+                      setFormData({ ...formData, color: newColor });
+                      if (hasVariations && formVariations.length === 1 && newColor) {
+                        setFormVariations((prev) => {
+                          const first = prev[0];
+                          if (!first.color || first.color === formData.color) {
+                            const cleanC = newColor.toUpperCase().replace(/\s+/g, '-');
+                            const cleanS = first.size ? first.size.toUpperCase().replace(/\s+/g, '-') : '';
+                            const skuBase = formData.sku || 'PROD';
+                            const newSku = `${skuBase}-${cleanC}${cleanS ? `-${cleanS}` : ''}`;
+                            return [
+                              {
+                                ...first,
+                                color: newColor,
+                                variation_name: first.size ? `${newColor} - ${first.size}` : newColor,
+                                sku: newSku,
+                              },
+                            ];
+                          }
+                          return prev;
+                        });
+                      }
                     }
                   }}
                   style={{ flex: 1 }}
@@ -4535,20 +4592,28 @@ export const ProductsPage: React.FC = () => {
                               />
                             </td>
                             <td style={{ padding: '6px 8px', textAlign: 'center' }}>
-                              {editingProduct && v.id ? (
-                                <span style={{ fontWeight: 700, color: Number(v.current_stock || 0) <= 0 ? 'var(--status-danger-text)' : 'var(--brand-primary)' }}>
-                                  {Number(v.current_stock || 0).toFixed(2)}
-                                </span>
-                              ) : (
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="1"
-                                  value={v.initial_stock || '0'}
-                                  onChange={(e) => handleUpdateVariation(idx, 'initial_stock', e.target.value)}
-                                  style={{ width: '100%', padding: '4px 6px', fontSize: '0.8rem', textAlign: 'center' }}
-                                />
-                              )}
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={v.initial_stock ?? ''}
+                                onChange={(e) => {
+                                  const val = e.target.value.replace(/[^0-9.,]/g, '');
+                                  handleUpdateVariation(idx, 'initial_stock', val);
+                                }}
+                                placeholder="0"
+                                style={{
+                                  width: '100%',
+                                  padding: '4px 6px',
+                                  fontSize: '0.82rem',
+                                  fontWeight: 600,
+                                  textAlign: 'center',
+                                  borderRadius: 'var(--radius-sm)',
+                                  border: '1px solid var(--border-color)',
+                                  backgroundColor: '#fff',
+                                  color: Number(String(v.initial_stock || '0').replace(',', '.')) <= 0 ? 'var(--status-danger-text)' : 'var(--brand-primary)',
+                                }}
+                                title={editingProduct ? "Editar saldo em estoque desta variação" : "Estoque inicial desta variação"}
+                              />
                             </td>
                             <td style={{ padding: '6px 4px', textAlign: 'center' }}>
                               <div style={{ display: 'flex', gap: '3px', justifyContent: 'center' }}>

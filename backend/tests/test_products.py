@@ -450,7 +450,7 @@ def test_create_and_update_product_with_variations(
     # O estoque do produto pai deve ser a soma das variações
     assert float(prod_data["current_stock"]) == 15.0
 
-    # 2. Atualizar produto adicionando mais 1 variação
+    # 2. Atualizar produto mantendo var1 e var2 e adicionando mais 1 variação
     parent_id = prod_data["id"]
     upd_resp = client.put(
         f"/api/v1/products/{parent_id}",
@@ -464,6 +464,16 @@ def test_create_and_update_product_with_variations(
                     "size": var1["size"],
                     "sale_price": "42.00",
                     "unit_cost": "12.0000",
+                    "initial_stock": "12.000",  # Ajusta estoque de 10 para 12
+                },
+                {
+                    "sku": var2["sku"],
+                    "variation_name": var2["variation_name"],
+                    "color": var2["color"],
+                    "size": var2["size"],
+                    "sale_price": var2["sale_price"],
+                    "unit_cost": var2["unit_cost"],
+                    "initial_stock": "5.000",
                 },
                 {
                     "variation_name": "Lavanda 350g",
@@ -479,6 +489,38 @@ def test_create_and_update_product_with_variations(
     assert upd_resp.status_code == 200, upd_resp.text
     upd_data = upd_resp.json()
     assert len(upd_data["variations"]) == 3
+    # Verifica que o estoque da var1 foi atualizado para 12.0
+    upd_var1 = next(v for v in upd_data["variations"] if v["sku"] == var1["sku"])
+    assert float(upd_var1["current_stock"]) == 12.0
+
+    # 3. Atualizar omitindo var2 (deve deletar var2 permanentemente)
+    upd_resp2 = client.put(
+        f"/api/v1/products/{parent_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "variations": [
+                {
+                    "sku": var1["sku"],
+                    "variation_name": var1["variation_name"],
+                    "color": var1["color"],
+                    "size": var1["size"],
+                    "initial_stock": "12.000",
+                },
+                {
+                    "variation_name": "Lavanda 350g",
+                    "color": "Lavanda",
+                    "size": "350g",
+                    "initial_stock": "4.000",
+                },
+            ],
+        },
+    )
+    assert upd_resp2.status_code == 200, upd_resp2.text
+    upd_data2 = upd_resp2.json()
+    assert len(upd_data2["variations"]) == 2
+    skus_remaining = [v["sku"] for v in upd_data2["variations"]]
+    assert var2["sku"] not in skus_remaining
+
     # Exclusão em cascata deve funcionar sem erros de chave estrangeira
     del_resp = client.delete(
         f"/api/v1/products/{parent_id}",

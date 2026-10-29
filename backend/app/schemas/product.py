@@ -77,6 +77,7 @@ class ProductBase(BaseModel):
 
 
 class VariationCreate(BaseModel):
+    id: Optional[int] = None
     sku: Optional[str] = Field(None, max_length=50)
     variation_name: str = Field(..., min_length=1, max_length=100)
     color: Optional[str] = Field(None, max_length=50)
@@ -87,6 +88,8 @@ class VariationCreate(BaseModel):
     weight: Optional[Decimal] = Field(default=None, ge=0)
     min_stock: Decimal = Field(default=Decimal("0.000"), ge=0)
     initial_stock: Decimal = Field(default=Decimal("0.000"), ge=0)
+    current_stock: Optional[Decimal] = None
+
 
 
 class ProductCreate(ProductBase):

@@ -25,6 +25,8 @@ class StockMovementResponse(BaseModel):
     product_id: int
     product_name: Optional[str] = None
     product_sku: Optional[str] = None
+    product_color: Optional[str] = None
+    product_variation_name: Optional[str] = None
     movement_type: MovementType
     quantity: Decimal
     unit_cost_at_moment: Decimal
@@ -54,6 +56,8 @@ class StockBalanceResponse(BaseModel):
     has_variations: bool = False
     variations_count: int = 0
     variation_name: Optional[str] = None
+    color: Optional[str] = None
+    size: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

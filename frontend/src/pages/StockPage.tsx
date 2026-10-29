@@ -26,6 +26,25 @@ const formatQuantity = (val: number | string | undefined | null): string => {
   return num.toFixed(2);
 };
 
+const getColorHex = (colorName?: string | null): string => {
+  if (!colorName) return '#ccc';
+  const c = colorName.toLowerCase().trim();
+  if (c.includes('branco')) return '#ffffff';
+  if (c.includes('natural') || c.includes('cru') || c.includes('off-white')) return '#f7f4ea';
+  if (c.includes('baunilha') || c.includes('marfim')) return '#fef3c7';
+  if (c.includes('lavanda') || c.includes('lilás') || c.includes('lilas') || c.includes('roxa') || c.includes('roxo')) return '#d8b4fe';
+  if (c.includes('rosa')) return '#fbcfe8';
+  if (c.includes('terracota') || c.includes('marrom') || c.includes('cobre')) return '#c86d51';
+  if (c.includes('verde') || c.includes('oliva') || c.includes('menta')) return '#86efac';
+  if (c.includes('azul')) return '#93c5fd';
+  if (c.includes('dourad') || c.includes('ouro') || c.includes('amarelo')) return '#fde047';
+  if (c.includes('preto') || c.includes('grafite') || c.includes('cinza escuro')) return '#2c2824';
+  if (c.includes('cinza') || c.includes('prata')) return '#d1d5db';
+  if (c.includes('vermelh') || c.includes('vinho')) return '#f87171';
+  if (c.includes('laranja') || c.includes('âmbar') || c.includes('ambar')) return '#fb923c';
+  return '#e2d9cf';
+};
+
 export const StockPage: React.FC = () => {
   const [balances, setBalances] = useState<StockBalanceItem[]>([]);
   const [movements, setMovements] = useState<StockMovementItem[]>([]);
@@ -108,7 +127,9 @@ export const StockPage: React.FC = () => {
   const filteredBalances = balances.filter(
     (b) =>
       b.name.toLowerCase().includes(search.toLowerCase()) ||
-      b.sku.toLowerCase().includes(search.toLowerCase())
+      b.sku.toLowerCase().includes(search.toLowerCase()) ||
+      (b.color && b.color.toLowerCase().includes(search.toLowerCase())) ||
+      (b.variation_name && b.variation_name.toLowerCase().includes(search.toLowerCase()))
   );
 
   const totalValue = balances.reduce(
@@ -434,6 +455,56 @@ export const StockPage: React.FC = () => {
                         <span style={{ fontWeight: 600, color: 'var(--brand-primary)', fontSize: '0.95rem' }}>
                           {b.name}
                         </span>
+
+                        {/* Tag de Cor com indicador visual destacado */}
+                        {(b.color || (b.variation_name && b.variation_name.toLowerCase() !== 'padrão')) && (
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              fontSize: '0.74rem',
+                              fontWeight: 600,
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              backgroundColor: '#f5efe6',
+                              color: 'var(--brand-primary)',
+                              border: '1px solid #e2d7cd',
+                            }}
+                            title={`Cor do item: ${b.color || b.variation_name}`}
+                          >
+                            <span
+                              style={{
+                                width: '8px',
+                                height: '8px',
+                                borderRadius: '50%',
+                                backgroundColor: getColorHex(b.color || b.variation_name),
+                                border: '1px solid rgba(0,0,0,0.2)',
+                                display: 'inline-block',
+                              }}
+                            />
+                            Cor: {b.color || b.variation_name}
+                          </span>
+                        )}
+
+                        {/* Tamanho se houver */}
+                        {b.size && (
+                          <span
+                            style={{
+                              fontSize: '0.70rem',
+                              fontWeight: 600,
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              backgroundColor: '#f1f5f9',
+                              color: '#475569',
+                              border: '1px solid #cbd5e1',
+                            }}
+                            title="Tamanho / Volume"
+                          >
+                            📏 {b.size}
+                          </span>
+                        )}
+
                         {b.has_variations && (
                           <span
                             style={{
@@ -463,11 +534,11 @@ export const StockPage: React.FC = () => {
                             }}
                             title="Variação vinculada ao produto principal"
                           >
-                            ↳ Variação {b.variation_name ? `(${b.variation_name})` : ''}
+                            ↳ Variação {b.variation_name && b.variation_name !== b.color ? `(${b.variation_name})` : ''}
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', fontFamily: 'monospace', marginTop: '3px' }}>
                         {b.sku}
                       </div>
                     </td>
@@ -583,10 +654,40 @@ export const StockPage: React.FC = () => {
                         {formatDateTime(m.created_at)}
                       </td>
                       <td style={{ padding: '12px 20px' }}>
-                        <div style={{ fontWeight: 600, color: 'var(--brand-primary)', fontSize: '0.9rem' }}>
-                          {m.product_name}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 600, color: 'var(--brand-primary)', fontSize: '0.9rem' }}>
+                            {m.product_name}
+                          </span>
+                          {(m.product_color || m.product_variation_name) && (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                fontSize: '0.70rem',
+                                fontWeight: 600,
+                                padding: '1px 6px',
+                                borderRadius: '10px',
+                                backgroundColor: '#f5efe6',
+                                color: 'var(--brand-primary)',
+                                border: '1px solid #e2d7cd',
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: '6px',
+                                  height: '6px',
+                                  borderRadius: '50%',
+                                  backgroundColor: getColorHex(m.product_color || m.product_variation_name),
+                                  border: '1px solid rgba(0,0,0,0.2)',
+                                  display: 'inline-block',
+                                }}
+                              />
+                              {m.product_color || m.product_variation_name}
+                            </span>
+                          )}
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontFamily: 'monospace', marginTop: '2px' }}>
                           {m.product_sku}
                         </div>
                       </td>
