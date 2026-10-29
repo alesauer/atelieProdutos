@@ -12,13 +12,15 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle2,
+  Sliders,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { Modal } from '../components/Modal';
+import { OtherSettingsTab } from '../components/OtherSettingsTab';
 import type { Category, UnitOfMeasure, ItemTypeDefinition, ProductColor, ProductMaterial, ProductSupply } from '../types';
 
 export const SettingsPage: React.FC = () => {
-  const [activeSubTab, setActiveSubTab] = useState<'categorias' | 'unidades' | 'tipos' | 'cores' | 'materiais' | 'insumos'>('categorias');
+  const [activeSubTab, setActiveSubTab] = useState<'categorias' | 'unidades' | 'tipos' | 'cores' | 'materiais' | 'insumos' | 'outros'>('categorias');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -724,9 +726,47 @@ export const SettingsPage: React.FC = () => {
             {supplies.length}
           </span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveSubTab('outros');
+            setSearch('');
+          }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '9px 18px',
+            borderRadius: 'var(--radius-sm)',
+            border: activeSubTab === 'outros' ? '1px solid var(--border-medium)' : '1px solid transparent',
+            backgroundColor: activeSubTab === 'outros' ? 'var(--bg-sand)' : 'transparent',
+            color: activeSubTab === 'outros' ? 'var(--brand-primary)' : 'var(--text-secondary)',
+            fontWeight: activeSubTab === 'outros' ? 700 : 500,
+            fontSize: '0.92rem',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <Sliders size={18} color={activeSubTab === 'outros' ? 'var(--brand-accent)' : 'currentColor'} />
+          <span>Outros</span>
+          <span
+            style={{
+              padding: '2px 7px',
+              borderRadius: '10px',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              backgroundColor: activeSubTab === 'outros' ? 'var(--brand-accent)' : 'var(--border-subtle)',
+              color: activeSubTab === 'outros' ? '#fff' : 'var(--text-tertiary)',
+            }}
+          >
+            Sistema
+          </span>
+        </button>
       </div>
 
-      {/* Barra de Ações: Busca e Botão de Adição */}
+      {/* Barra de Ações: Busca e Botão de Adição (apenas para cadastros operacionais) */}
+      {activeSubTab !== 'outros' && (
       <div
         className="card"
         style={{
@@ -813,6 +853,7 @@ export const SettingsPage: React.FC = () => {
           </button>
         )}
       </div>
+      )}
 
       {/* Conteúdo Principal */}
       {loading ? (
@@ -1332,6 +1373,11 @@ export const SettingsPage: React.FC = () => {
                 </div>
               )}
             </div>
+          )}
+
+          {/* TAB 7: OUTROS (SISTEMA, BACKUP, IMPORT/EXPORT, DADOS OFICIAIS, POLÍTICAS E MANUTENÇÃO) */}
+          {activeSubTab === 'outros' && (
+            <OtherSettingsTab />
           )}
         </>
       )}

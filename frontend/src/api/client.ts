@@ -32,6 +32,8 @@ import type {
   FinancialSummary,
   FinancialType,
   FinancialStatus,
+  SystemSettings,
+  SystemStatus,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
@@ -801,6 +803,140 @@ class ApiClient {
       method: 'DELETE',
     });
   }
+
+  // --- Sistema, Configurações, Backup, Import/Export e Manutenção ---
+  private async downloadFile(endpoint: string, fallbackFilename: string): Promise<void> {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const headers: Record<string, string> = {};
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(url, { headers });
+    if (!response.ok) {
+      let errorMessage = `Erro ao baixar arquivo (HTTP ${response.status})`;
+      try {
+        const errorJson = await response.json();
+        if (errorJson.detail) errorMessage = errorJson.detail;
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    let filename = fallbackFilename;
+    const contentDisposition = response.headers.get('Content-Disposition') || '';
+    const match = contentDisposition.match(/filename="?([^";]+)"?/);
+    if (match && match[1]) {
+      filename = match[1];
+    }
+
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+  }
+
+  async getSettings(): Promise<SystemSettings> {
+    return this.request<SystemSettings>('/system/settings');
+  }
+
+  async updateSetting(key: string, value: any, description?: string): Promise<{ key: string; updated_at: string }> {
+    return this.request<{ key: string; updated_at: string }>(`/system/settings/${key}`, {
+      method: 'PUT',
+      body: JSON.stringify({ value, description }),
+    });
+  }
+
+  async uploadLogo(file: File): Promise<{ logo_url: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request<{ logo_url: string }>('/system/settings/logo', {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
+  async exportBackup(): Promise<void> {
+    return this.downloadFile('/system/backup', 'backup_casaluma.zip');
+  }
+
+  async restoreBackup(file: File, confirmationKeyword: string): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('confirmation_keyword', confirmationKeyword);
+    return this.request<any>('/system/restore', {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
+  async exportResource(
+    resource: 'products' | 'customers' | 'sales' | 'stock',
+    format: 'xlsx' | 'csv' = 'xlsx'
+  ): Promise<void> {
+    return this.downloadFile(
+      `/system/export/${resource}?format=${format}`,
+      `export_${resource}.${format}`
+    );
+  }
+
+  async downloadTemplate(
+    resource: 'products' | 'customers',
+    format: 'xlsx' | 'csv' = 'xlsx'
+  ): Promise<void> {
+    return this.downloadFile(
+      `/system/templates/${resource}?format=${format}`,
+      `modelo_${resource}.${format}`
+    );
+  }
+
+  async importResource(
+    resource: 'products' | 'customers',
+    file: File
+  ): Promise<{ success: number; errors: string[] }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request<{ success: number; errors: string[] }>(`/system/import/${resource}`, {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
+  async cleanOrphanedImages(): Promise<{
+    success: boolean;
+    removed_count: number;
+    freed_bytes: number;
+    freed_formatted: string;
+  }> {
+    return this.request<any>('/system/maintenance/clean-orphaned-images', {
+      method: 'POST',
+    });
+  }
+
+  async optimizeDatabase(): Promise<{
+    success: boolean;
+    details: Array<{ table: string; status: string }>;
+  }> {
+    return this.request<any>('/system/maintenance/optimize-database', {
+      method: 'POST',
+    });
+  }
+
+  async resetDemoData(password: string): Promise<{ success: boolean; message: string }> {
+    return this.request<any>('/system/maintenance/reset-demo-data', {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    });
+  }
+
+  async getSystemStatus(): Promise<SystemStatus> {
+    return this.request<SystemStatus>('/system/status');
+  }
 }
+
 
 export const api = new ApiClient();

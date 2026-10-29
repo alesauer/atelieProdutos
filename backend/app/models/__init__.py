@@ -25,6 +25,8 @@ from app.models.financial import (
     TransactionStatus,
 )
 
+from app.models.setting import SystemSetting
+
 __all__ = [
     "Base",
     "TimestampMixin",
@@ -57,4 +59,5 @@ __all__ = [
     "FinancialTransaction",
     "TransactionType",
     "TransactionStatus",
+    "SystemSetting",
 ]

@@ -634,3 +634,64 @@ export interface FinancialSummary {
   daily_cash_flow: FinancialCashFlowPoint[];
   dre_items: FinancialDREItem[];
 }
+
+export interface CompanyInfo {
+  trade_name: string;
+  legal_name: string;
+  document: string;
+  state_registration: string;
+  phone: string;
+  email: string;
+  address_line: string;
+  city: string;
+  state: string;
+  zip_code: string;
+  pix_key: string;
+  pix_key_type: string;
+  pix_bank: string;
+  pix_owner_name: string;
+  logo_url?: string | null;
+}
+
+export interface WhatsAppTemplates {
+  order_confirmation: string;
+  pix_billing: string;
+  shipping_notification: string;
+  follow_up: string;
+}
+
+export interface StudioPolicies {
+  production_cure_time: string;
+  care_instructions: string;
+  warranty_terms: string;
+}
+
+export interface SystemSettings {
+  company_info: CompanyInfo;
+  whatsapp_templates: WhatsAppTemplates;
+  studio_policies: StudioPolicies;
+  [key: string]: any;
+}
+
+export interface SystemStatus {
+  version: string;
+  app_name: string;
+  database_status: string;
+  media_storage_size_bytes: number;
+  media_storage_formatted: string;
+  media_files_count: number;
+  counts: {
+    products_total: number;
+    products_finished: number;
+    variations_count: number;
+    customers_count: number;
+    sales_count: number;
+    stock_movements_count: number;
+    recipes_count: number;
+    orders_count: number;
+    financial_count: number;
+  };
+  server_time: string;
+}
+
+

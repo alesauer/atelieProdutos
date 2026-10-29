@@ -96,12 +96,27 @@ async def lifespan(app: FastAPI):
                     conn.commit()
                 except Exception:
                     pass
+            # Tabela de configurações gerais do sistema (Empresa, Pix, WhatsApp, Políticas)
+            try:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS system_settings (
+                        `key` VARCHAR(100) NOT NULL PRIMARY KEY,
+                        `value` TEXT NOT NULL,
+                        `description` VARCHAR(255) NULL,
+                        `updated_at` DATETIME NOT NULL
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                """))
+                conn.commit()
+            except Exception:
+                pass
         # Popula categorias financeiras padrão se vazio
         try:
             with SessionLocal() as db:
                 financial_service.seed_default_categories(db)
+                from app.services.system_service import system_service
+                system_service.seed_default_settings(db)
         except Exception as seed_err:
-            print(f"[!] Aviso no seed de categorias financeiras: {seed_err}")
+            print(f"[!] Aviso no seed de categorias financeiras/configurações: {seed_err}")
     except Exception as e:
         print(f"[!] Aviso durante criacao das tabelas no startup: {e}")
     yield
