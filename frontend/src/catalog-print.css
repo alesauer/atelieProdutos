@@ -49,18 +49,23 @@
   position: relative;
 }
 
+/* Ocultar portal de impressão na tela */
+#catalog-print-portal {
+  display: none;
+}
+
 /* ==========================================================================
    REGRAS DE IMPRESSÃO (@media print)
    ========================================================================== */
 @media print {
   @page {
     size: A4 portrait;
-    margin: 8mm 10mm;
+    margin: 0 !important;
   }
 
   html, body {
     width: 210mm !important;
-    height: auto !important;
+    height: 100% !important;
     background: #ffffff !important;
     color: #2c2824 !important;
     margin: 0 !important;
@@ -86,33 +91,35 @@
 
   #catalog-print-portal {
     display: block !important;
-    position: static !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
     width: 210mm !important;
-    margin: 0 auto !important;
+    margin: 0 !important;
     padding: 0 !important;
     background: #ffffff !important;
     box-shadow: none !important;
   }
 
   .catalog-screen-preview {
-    background: transparent !important;
-    padding: 0 !important;
-    max-height: none !important;
-    overflow: visible !important;
-    gap: 0 !important;
+    display: none !important;
   }
 
   .catalog-a4-page {
-    width: 100% !important;
-    min-height: 275mm !important;
-    height: auto !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    max-height: 297mm !important;
+    box-sizing: border-box !important;
     box-shadow: none !important;
     margin: 0 !important;
     padding: 10mm 12mm !important;
+    page-break-before: auto !important;
     page-break-after: always !important;
     break-after: page !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+    overflow: hidden !important;
     background: #ffffff !important;
   }
 
@@ -124,5 +131,24 @@
   .catalog-product-card {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+  }
+
+  a {
+    text-decoration: none !important;
+    color: inherit !important;
+  }
+
+  .catalog-buy-btn {
+    display: inline-flex !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .catalog-whatsapp-btn {
+    display: inline-flex !important;
+    background-color: #25D366 !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }

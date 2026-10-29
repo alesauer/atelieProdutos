@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Printer,
@@ -6,10 +7,26 @@ import {
   Share2,
   Check,
   Settings2,
-  Phone,
+  ShoppingBag,
 } from 'lucide-react';
 import type { Category, ItemTypeDefinition, Product, SalesLinkItem } from '../types';
 import { getProductImageUrl, handleImageError } from '../utils/imageUrl';
+
+const WhatsAppIcon: React.FC<{ size?: number; color?: string; style?: React.CSSProperties }> = ({
+  size = 16,
+  color = '#25D366',
+  style,
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    style={{ display: 'inline-block', verticalAlign: 'middle', color, flexShrink: 0, ...style }}
+  >
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+  </svg>
+);
 
 interface ProductCatalogModalProps {
   isOpen: boolean;
@@ -34,7 +51,8 @@ export const ProductCatalogModal: React.FC<ProductCatalogModalProps> = ({
   const [showLinks, setShowLinks] = useState<boolean>(true);
   const [includeCover, setIncludeCover] = useState<boolean>(true);
   const [includeBackCover, setIncludeBackCover] = useState<boolean>(true);
-  const [contactPhone, setContactPhone] = useState<string>('(47) 99999-9999');
+  const [contactPhone, setContactPhone] = useState<string>('(31) 98337-1642');
+  const [defaultStoreUrl, setDefaultStoreUrl] = useState<string>('');
   const [instagramHandle, setInstagramHandle] = useState<string>('@ateliecasaluma');
   const [customSubtitle, setCustomSubtitle] = useState<string>('Arte em Cimento, Velas Aromáticas & Decoração Autoral');
   const [copiedShare, setCopiedShare] = useState<boolean>(false);
@@ -73,12 +91,60 @@ export const ProductCatalogModal: React.FC<ProductCatalogModalProps> = ({
 
   const totalPages = (includeCover ? 1 : 0) + productPages.length + (includeBackCover ? 1 : 0);
 
-  // Formatação de Preço
+  // Formatação Precisa de Preço (resolve valores numéricos e strings como "19.90" ou "19,90")
   const formatPrice = (val: string | number | null | undefined): string => {
     if (val === null || val === undefined || val === '') return 'Sob consulta';
-    const num = typeof val === 'number' ? val : parseFloat(String(val).replace(/\./g, '').replace(',', '.'));
+    let num: number;
+    if (typeof val === 'number') {
+      num = val;
+    } else {
+      const s = String(val).trim();
+      if (s.includes(',') && s.includes('.')) {
+        num = parseFloat(s.replace(/\./g, '').replace(',', '.'));
+      } else if (s.includes(',')) {
+        num = parseFloat(s.replace(',', '.'));
+      } else {
+        num = parseFloat(s);
+      }
+    }
     if (isNaN(num) || num <= 0) return 'Sob consulta';
     return `R$ ${num.toFixed(2).replace('.', ',')}`;
+  };
+
+  // Resolução do link da loja cadastrada para o produto
+  const getProductStoreUrl = (prod: Product): { url: string; platform: string } => {
+    if (prod.sales_links) {
+      try {
+        const parsed: SalesLinkItem[] =
+          typeof prod.sales_links === 'string' ? JSON.parse(prod.sales_links) : prod.sales_links;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const valid = parsed.find((l) => l.url && l.url.trim().length > 0);
+          if (valid) {
+            const u = valid.url.trim();
+            return {
+              url: u.startsWith('http://') || u.startsWith('https://') ? u : `https://${u}`,
+              platform: valid.platform || 'Loja',
+            };
+          }
+        }
+      } catch {}
+    }
+
+    if (defaultStoreUrl && defaultStoreUrl.trim().length > 0) {
+      const u = defaultStoreUrl.trim();
+      return {
+        url: u.startsWith('http://') || u.startsWith('https://') ? u : `https://${u}`,
+        platform: 'Loja',
+      };
+    }
+
+    const clean = contactPhone.replace(/\D/g, '') || '31983371642';
+    const ddi = clean.startsWith('55') ? clean : `55${clean}`;
+    const msg = encodeURIComponent(`Olá! Gostaria de comprar o produto: ${prod.name} (Cód / SKU: ${prod.sku})`);
+    return {
+      url: `https://wa.me/${ddi}?text=${msg}`,
+      platform: 'WhatsApp',
+    };
   };
 
   // Disparar Impressão / Salvar PDF
@@ -104,6 +170,23 @@ export const ProductCatalogModal: React.FC<ProductCatalogModalProps> = ({
   };
 
   if (!isOpen) return null;
+
+  const renderProps: RenderParams = {
+    catalogProducts,
+    productPages,
+    includeCover,
+    includeBackCover,
+    itemsPerPage,
+    showPrices,
+    showVariations,
+    showLinks,
+    contactPhone,
+    instagramHandle,
+    customSubtitle,
+    formatPrice,
+    getProductStoreUrl,
+    totalPages,
+  };
 
   return (
     <>
@@ -344,8 +427,20 @@ export const ProductCatalogModal: React.FC<ProductCatalogModalProps> = ({
                 type="text"
                 value={contactPhone}
                 onChange={(e) => setContactPhone(e.target.value)}
-                style={{ padding: '3px 8px', fontSize: '0.8rem', width: '130px', borderRadius: 'var(--radius-xs)' }}
-                placeholder="(00) 00000-0000"
+                style={{ padding: '3px 8px', fontSize: '0.8rem', width: '135px', borderRadius: 'var(--radius-xs)' }}
+                placeholder="(31) 98337-1642"
+              />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontWeight: 600, color: 'var(--brand-primary)' }}>Link Loja Geral:</span>
+              <input
+                type="text"
+                value={defaultStoreUrl}
+                onChange={(e) => setDefaultStoreUrl(e.target.value)}
+                style={{ padding: '3px 8px', fontSize: '0.8rem', width: '180px', borderRadius: 'var(--radius-xs)' }}
+                placeholder="https://shopee.com.br/..."
+                title="Loja padrão caso o produto não possua link específico cadastrado"
               />
             </div>
 
@@ -380,43 +475,18 @@ export const ProductCatalogModal: React.FC<ProductCatalogModalProps> = ({
           </div>
 
           <div id="catalog-content-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '28px', alignItems: 'center' }}>
-            {renderCatalogContent({
-              catalogProducts,
-              productPages,
-              includeCover,
-              includeBackCover,
-              itemsPerPage,
-              showPrices,
-              showVariations,
-              showLinks,
-              contactPhone,
-              instagramHandle,
-              customSubtitle,
-              formatPrice,
-              totalPages,
-            })}
+            {renderCatalogContent(renderProps)}
           </div>
         </div>
       </div>
 
-      {/* Portal Isolado para Impressão Nativa (Apenas visível via @media print) */}
-      <div id="catalog-print-portal" style={{ display: 'none' }}>
-        {renderCatalogContent({
-          catalogProducts,
-          productPages,
-          includeCover,
-          includeBackCover,
-          itemsPerPage,
-          showPrices,
-          showVariations,
-          showLinks,
-          contactPhone,
-          instagramHandle,
-          customSubtitle,
-          formatPrice,
-          totalPages,
-        })}
-      </div>
+      {/* Portal Isolado Renderizado Diretamente em document.body para Impressão Perfeita sem Páginas em Branco */}
+      {createPortal(
+        <div id="catalog-print-portal">
+          {renderCatalogContent(renderProps)}
+        </div>,
+        document.body
+      )}
     </>
   );
 };
@@ -435,6 +505,7 @@ interface RenderParams {
   instagramHandle: string;
   customSubtitle: string;
   formatPrice: (val: string | number | null | undefined) => string;
+  getProductStoreUrl: (prod: Product) => { url: string; platform: string };
   totalPages: number;
 }
 
@@ -451,11 +522,15 @@ function renderCatalogContent({
   instagramHandle,
   customSubtitle,
   formatPrice,
+  getProductStoreUrl,
   totalPages,
 }: RenderParams) {
   // Foto de destaque da capa (primeiro produto com foto)
   const coverProduct = catalogProducts.find((p) => p.images && p.images.length > 0) || catalogProducts[0];
   const coverImageUrl = coverProduct ? getProductImageUrl(coverProduct.primary_image_url || (coverProduct.images?.[0]?.url || coverProduct.images?.[0]?.file_path)) : null;
+
+  const cleanPhone = contactPhone.replace(/\D/g, '') || '31983371642';
+  const phoneWithDDI = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
 
   return (
     <>
@@ -464,7 +539,7 @@ function renderCatalogContent({
         <div className="catalog-a4-page">
           <div className="catalog-cover-border">
             {/* Topo da Capa: Monograma & Nome da Marca */}
-            <div style={{ paddingTop: '10mm' }}>
+            <div style={{ paddingTop: '8mm' }}>
               <div
                 style={{
                   letterSpacing: '5px',
@@ -510,7 +585,7 @@ function renderCatalogContent({
               style={{
                 width: '120mm',
                 height: '115mm',
-                margin: '8mm auto',
+                margin: '6mm auto',
                 borderRadius: '80mm 80mm 20mm 20mm',
                 overflow: 'hidden',
                 boxShadow: '0 12px 30px rgba(74, 65, 55, 0.15)',
@@ -518,6 +593,9 @@ function renderCatalogContent({
                 outline: '1px solid #d6ccbe',
                 backgroundColor: 'var(--bg-sand-light)',
                 position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
               {coverImageUrl ? (
@@ -551,7 +629,7 @@ function renderCatalogContent({
             </div>
 
             {/* Base da Capa: Título do Catálogo e Informações */}
-            <div style={{ paddingBottom: '10mm', maxWidth: '140mm' }}>
+            <div style={{ paddingBottom: '8mm', maxWidth: '140mm' }}>
               <div
                 style={{
                   display: 'inline-block',
@@ -563,7 +641,7 @@ function renderCatalogContent({
                   letterSpacing: '2px',
                   textTransform: 'uppercase',
                   borderRadius: 'var(--radius-full)',
-                  marginBottom: '14px',
+                  marginBottom: '12px',
                 }}
               >
                 Catálogo Oficial • Coleções
@@ -576,7 +654,7 @@ function renderCatalogContent({
                   color: 'var(--brand-primary)',
                   lineHeight: 1.45,
                   fontStyle: 'italic',
-                  margin: '0 0 12px 0',
+                  margin: '0 0 10px 0',
                 }}
               >
                 "{customSubtitle}"
@@ -610,7 +688,7 @@ function renderCatalogContent({
                 alignItems: 'center',
                 paddingBottom: '8px',
                 borderBottom: '1px solid #d6ccbe',
-                marginBottom: '14px',
+                marginBottom: '12px',
                 fontSize: '0.74rem',
                 color: 'var(--text-secondary)',
                 letterSpacing: '1px',
@@ -634,22 +712,15 @@ function renderCatalogContent({
                 display: 'grid',
                 gridTemplateColumns: itemsPerPage === 2 ? '1fr' : '1fr 1fr',
                 gridTemplateRows: itemsPerPage === 2 ? '1fr 1fr' : '1fr 1fr',
-                gap: itemsPerPage === 2 ? '22px' : '16px',
-                alignContent: 'start',
+                gap: itemsPerPage === 2 ? '18px' : '14px',
+                alignContent: 'stretch',
               }}
             >
               {pageItems.map((prod) => {
                 const prodImg = getProductImageUrl(
                   prod.primary_image_url || (prod.images && prod.images.length > 0 ? prod.images[0].url || prod.images[0].file_path : null)
                 );
-
-                // Links de marketplaces
-                let parsedLinks: SalesLinkItem[] = [];
-                if (prod.sales_links) {
-                  try {
-                    parsedLinks = JSON.parse(prod.sales_links);
-                  } catch {}
-                }
+                const storeInfo = getProductStoreUrl(prod);
 
                 return (
                   <div
@@ -658,27 +729,33 @@ function renderCatalogContent({
                     style={{
                       border: '1px solid #e8e1d7',
                       borderRadius: '12px',
-                      padding: itemsPerPage === 2 ? '16px 20px' : '12px',
+                      padding: itemsPerPage === 2 ? '16px 20px' : '12px 14px',
                       backgroundColor: '#ffffff',
                       display: 'flex',
                       flexDirection: itemsPerPage === 2 ? 'row' : 'column',
-                      gap: itemsPerPage === 2 ? '20px' : '10px',
+                      gap: itemsPerPage === 2 ? '18px' : '10px',
                       overflow: 'hidden',
                       position: 'relative',
                       boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                      boxSizing: 'border-box',
                     }}
                   >
-                    {/* Imagem do Produto */}
+                    {/* Imagem do Produto: Espaçosa, sem cortes e com fundo suave */}
                     <div
                       style={{
-                        width: itemsPerPage === 2 ? '180px' : '100%',
-                        height: itemsPerPage === 2 ? '180px' : '125px',
+                        width: itemsPerPage === 2 ? '210px' : '100%',
+                        height: itemsPerPage === 2 ? '210px' : '185px',
                         flexShrink: 0,
                         borderRadius: '8px',
                         overflow: 'hidden',
-                        backgroundColor: 'var(--bg-sand-light)',
-                        border: '1px solid #e9e1d7',
+                        backgroundColor: '#faf7f2',
+                        border: '1px solid #ebd9c8',
                         position: 'relative',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '6px',
+                        boxSizing: 'border-box',
                       }}
                     >
                       <img
@@ -686,9 +763,12 @@ function renderCatalogContent({
                         alt={prod.name}
                         onError={handleImageError}
                         style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
+                          maxWidth: '100%',
+                          maxHeight: '100%',
+                          width: 'auto',
+                          height: 'auto',
+                          objectFit: 'contain',
+                          objectPosition: 'center',
                           display: 'block',
                         }}
                       />
@@ -698,14 +778,15 @@ function renderCatalogContent({
                             position: 'absolute',
                             top: '6px',
                             left: '6px',
-                            backgroundColor: 'rgba(255, 255, 255, 0.94)',
+                            backgroundColor: 'rgba(255, 255, 255, 0.96)',
                             color: 'var(--brand-primary)',
                             fontSize: '0.65rem',
                             fontWeight: 700,
-                            padding: '2px 6px',
+                            padding: '2px 8px',
                             borderRadius: '4px',
                             letterSpacing: '0.5px',
                             boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                            border: '1px solid #ebd9c8',
                           }}
                         >
                           {prod.category.name}
@@ -714,23 +795,21 @@ function renderCatalogContent({
                     </div>
 
                     {/* Detalhes do Produto */}
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minWidth: 0 }}>
                       <div>
-                        {/* Linha SKU e Nome */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px' }}>
-                          <h3
-                            style={{
-                              fontFamily: 'var(--font-serif)',
-                              fontSize: itemsPerPage === 2 ? '1.4rem' : '1.05rem',
-                              fontWeight: 700,
-                              color: 'var(--brand-primary)',
-                              margin: '0 0 2px 0',
-                              lineHeight: 1.2,
-                            }}
-                          >
-                            {prod.name}
-                          </h3>
-                        </div>
+                        {/* Linha Nome e SKU */}
+                        <h3
+                          style={{
+                            fontFamily: 'var(--font-serif)',
+                            fontSize: itemsPerPage === 2 ? '1.35rem' : '1.08rem',
+                            fontWeight: 700,
+                            color: 'var(--brand-primary)',
+                            margin: '0 0 2px 0',
+                            lineHeight: 1.25,
+                          }}
+                        >
+                          {prod.name}
+                        </h3>
 
                         <div
                           style={{
@@ -748,10 +827,10 @@ function renderCatalogContent({
                         {prod.description && (
                           <p
                             style={{
-                              fontSize: itemsPerPage === 2 ? '0.82rem' : '0.74rem',
+                              fontSize: itemsPerPage === 2 ? '0.82rem' : '0.73rem',
                               color: 'var(--text-secondary)',
                               lineHeight: 1.35,
-                              margin: '0 0 8px 0',
+                              margin: '0 0 6px 0',
                               fontStyle: 'italic',
                               display: '-webkit-box',
                               WebkitLineClamp: itemsPerPage === 2 ? 3 : 2,
@@ -763,13 +842,13 @@ function renderCatalogContent({
                           </p>
                         )}
 
-                        {/* Ficha Técnica: Material & Cor */}
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+                        {/* Ficha Técnica: Material, Cor, Tamanho */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '6px' }}>
                           {prod.material && (
                             <span
                               style={{
                                 fontSize: '0.68rem',
-                                padding: '2px 6px',
+                                padding: '2px 7px',
                                 backgroundColor: 'var(--bg-sand-light)',
                                 borderRadius: '4px',
                                 color: 'var(--text-secondary)',
@@ -783,7 +862,7 @@ function renderCatalogContent({
                             <span
                               style={{
                                 fontSize: '0.68rem',
-                                padding: '2px 6px',
+                                padding: '2px 7px',
                                 backgroundColor: 'var(--bg-sand-light)',
                                 borderRadius: '4px',
                                 color: 'var(--text-secondary)',
@@ -793,20 +872,34 @@ function renderCatalogContent({
                               🎨 Cor: {prod.color}
                             </span>
                           )}
+                          {prod.size && (
+                            <span
+                              style={{
+                                fontSize: '0.68rem',
+                                padding: '2px 7px',
+                                backgroundColor: 'var(--bg-sand-light)',
+                                borderRadius: '4px',
+                                color: 'var(--text-secondary)',
+                                fontWeight: 500,
+                              }}
+                            >
+                              📏 {prod.size}
+                            </span>
+                          )}
                         </div>
 
-                        {/* Variações de Cores/Modelos */}
+                        {/* Variações de Cores/Tamanhos */}
                         {showVariations && prod.variations && prod.variations.length > 0 && (
-                          <div style={{ marginBottom: '8px' }}>
-                            <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                              Opções / Cores disponíveis:
+                          <div style={{ marginBottom: '6px' }}>
+                            <span style={{ fontSize: '0.66rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                              Variações ({prod.variations.length}):
                             </span>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '3px' }}>
-                              {prod.variations.map((v) => (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '2px' }}>
+                              {prod.variations.slice(0, 3).map((v) => (
                                 <span
                                   key={v.id}
                                   style={{
-                                    fontSize: '0.65rem',
+                                    fontSize: '0.63rem',
                                     padding: '2px 6px',
                                     backgroundColor: '#fff5f0',
                                     border: '1px solid #ffdcd4',
@@ -815,34 +908,40 @@ function renderCatalogContent({
                                     fontWeight: 600,
                                   }}
                                 >
-                                  {v.variation_name || v.color || v.sku}
+                                  {v.variation_name || [v.color, v.size].filter(Boolean).join(' • ') || v.sku}
                                 </span>
                               ))}
+                              {prod.variations.length > 3 && (
+                                <span style={{ fontSize: '0.63rem', color: 'var(--text-tertiary)', alignSelf: 'center' }}>
+                                  +{prod.variations.length - 3} mais
+                                </span>
+                              )}
                             </div>
                           </div>
                         )}
                       </div>
 
-                      {/* Rodapé do Card: Preço e Links */}
+                      {/* Rodapé do Card: Preço e Botão "Comprar Produto" */}
                       <div
                         style={{
                           display: 'flex',
                           justifyContent: 'space-between',
-                          alignItems: 'flex-end',
+                          alignItems: 'center',
                           paddingTop: '6px',
                           borderTop: '1px dashed #e8e1d7',
-                          marginTop: '6px',
+                          marginTop: 'auto',
+                          gap: '8px',
                         }}
                       >
                         {showPrices ? (
                           <div>
-                            <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)', display: 'block', textTransform: 'uppercase' }}>
+                            <span style={{ fontSize: '0.62rem', color: 'var(--text-tertiary)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
                               Preço de Venda
                             </span>
                             <span
                               style={{
                                 fontFamily: 'var(--font-serif)',
-                                fontSize: itemsPerPage === 2 ? '1.45rem' : '1.2rem',
+                                fontSize: itemsPerPage === 2 ? '1.45rem' : '1.25rem',
                                 fontWeight: 700,
                                 color: 'var(--brand-accent)',
                               }}
@@ -851,30 +950,38 @@ function renderCatalogContent({
                             </span>
                           </div>
                         ) : (
-                          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--brand-primary)' }}>
-                            Sob encomenda
+                          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--brand-primary)' }}>
+                            Sob consulta
                           </span>
                         )}
 
-                        {showLinks && parsedLinks.length > 0 && (
-                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                            {parsedLinks.slice(0, 2).map((l, lIdx) => (
-                              <span
-                                key={lIdx}
-                                style={{
-                                  fontSize: '0.62rem',
-                                  padding: '2px 6px',
-                                  borderRadius: '4px',
-                                  backgroundColor: l.platform.toLowerCase().includes('shopee') ? '#fff5f0' : '#f5efe8',
-                                  color: l.platform.toLowerCase().includes('shopee') ? '#ee4d2d' : 'var(--brand-primary)',
-                                  border: '1px solid #e8e1d7',
-                                  fontWeight: 600,
-                                }}
-                              >
-                                {l.platform}
-                              </span>
-                            ))}
-                          </div>
+                        {/* Botão / Link Comprar Produto */}
+                        {showLinks && (
+                          <a
+                            href={storeInfo.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="catalog-buy-btn"
+                            title={`Comprar ${prod.name} (${storeInfo.platform})`}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              padding: '6px 13px',
+                              backgroundColor: storeInfo.platform.toLowerCase().includes('shopee') ? '#ee4d2d' : '#8c6b4e',
+                              color: '#ffffff',
+                              borderRadius: '6px',
+                              fontSize: '0.74rem',
+                              fontWeight: 700,
+                              textDecoration: 'none',
+                              boxShadow: '0 2px 5px rgba(0,0,0,0.12)',
+                              letterSpacing: '0.3px',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            <ShoppingBag size={13} />
+                            <span>Comprar Produto</span>
+                          </a>
                         )}
                       </div>
                     </div>
@@ -889,9 +996,9 @@ function renderCatalogContent({
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                paddingTop: '10px',
+                paddingTop: '8px',
                 borderTop: '1px solid #d6ccbe',
-                marginTop: '12px',
+                marginTop: '10px',
                 fontSize: '0.74rem',
                 color: 'var(--text-secondary)',
               }}
@@ -908,20 +1015,47 @@ function renderCatalogContent({
         <div className="catalog-a4-page">
           <div className="catalog-cover-border" style={{ justifyContent: 'space-between' }}>
             {/* Topo da Contra-Capa */}
-            <div style={{ paddingTop: '8mm' }}>
-              <div style={{ letterSpacing: '4px', fontSize: '0.8rem', color: 'var(--brand-accent)', textTransform: 'uppercase', marginBottom: '8px' }}>
+            <div style={{ paddingTop: '6mm', textAlign: 'center' }}>
+              <div style={{ letterSpacing: '4px', fontSize: '0.8rem', color: 'var(--brand-accent)', textTransform: 'uppercase', marginBottom: '6px' }}>
                 ✦ Como Encomendar ✦
               </div>
-              <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '2.5rem', color: 'var(--brand-primary)', margin: 0 }}>
+              <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '2.4rem', color: 'var(--brand-primary)', margin: 0 }}>
                 Peças Personalizadas & Pedidos
               </h2>
-              <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', maxWidth: '120mm', margin: '8px auto 0' }}>
+              <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', maxWidth: '140mm', margin: '10px auto 0', lineHeight: 1.5 }}>
                 Produzimos com matérias-primas selecionadas, respeitando o tempo de cura natural do cimento e a maciez das ceras vegetais.
               </p>
+
+              {/* Botão do WhatsApp exatamente após o texto solicitado */}
+              <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'center' }}>
+                <a
+                  href={`https://wa.me/${phoneWithDDI}?text=${encodeURIComponent('Olá! Gostaria de fazer um pedido pelo Catálogo Oficial do Ateliê Casa Luma.')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="catalog-whatsapp-btn"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '12px 28px',
+                    backgroundColor: '#25D366',
+                    color: '#ffffff',
+                    borderRadius: '30px',
+                    fontSize: '0.98rem',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    boxShadow: '0 4px 14px rgba(37, 211, 102, 0.35)',
+                    letterSpacing: '0.5px',
+                  }}
+                >
+                  <WhatsAppIcon size={20} color="#ffffff" />
+                  <span>Fazer Pedido pelo WhatsApp: {contactPhone}</span>
+                </a>
+              </div>
             </div>
 
             {/* 3 Passos para Pedido */}
-            <div style={{ width: '100%', maxWidth: '140mm', display: 'flex', flexDirection: 'column', gap: '14px', margin: '14mm 0' }}>
+            <div style={{ width: '100%', maxWidth: '140mm', display: 'flex', flexDirection: 'column', gap: '12px', margin: '8mm 0' }}>
               <div
                 style={{
                   display: 'flex',
@@ -954,7 +1088,7 @@ function renderCatalogContent({
                 <div>
                   <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--brand-primary)' }}>Escolha seus Itens & Cores</h4>
                   <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                    Anote os códigos (SKU) e as cores desejadas deste catálogo para enviar em seu pedido.
+                    Anote os códigos (SKU) deste catálogo ou clique em <strong>"Comprar Produto"</strong> no anúncio da loja.
                   </p>
                 </div>
               </div>
@@ -991,7 +1125,7 @@ function renderCatalogContent({
                 <div>
                   <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--brand-primary)' }}>Envie para Nosso WhatsApp</h4>
                   <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                    Atendimento rápido e personalizado para confirmar disponibilidade, frete e prazo de produção.
+                    Atendimento rápido e acolhedor para confirmar disponibilidade, frete e prazo de produção.
                   </p>
                 </div>
               </div>
@@ -1034,39 +1168,21 @@ function renderCatalogContent({
               </div>
             </div>
 
-            {/* Cartão de Contato Central */}
+            {/* Informações de Contato e Redes */}
             <div
               style={{
-                paddingBottom: '8mm',
+                paddingBottom: '6mm',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: '8px',
+                gap: '6px',
               }}
             >
-              <div
-                style={{
-                  padding: '12px 24px',
-                  backgroundColor: 'var(--brand-primary)',
-                  color: '#ffffff',
-                  borderRadius: 'var(--radius-md)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  boxShadow: '0 4px 14px rgba(74, 65, 55, 0.2)',
-                }}
-              >
-                <Phone size={18} color="var(--brand-accent-light)" />
-                <span style={{ fontSize: '1.05rem', fontWeight: 700, letterSpacing: '1px' }}>
-                  {contactPhone}
-                </span>
+              <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+                Instagram: <strong style={{ color: 'var(--brand-accent)' }}>{instagramHandle}</strong> • WhatsApp: <strong>{contactPhone}</strong>
               </div>
 
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                Instagram: <strong style={{ color: 'var(--brand-accent)' }}>{instagramHandle}</strong>
-              </div>
-
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', marginTop: '8px' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', marginTop: '4px' }}>
                 Pág. {totalPages} de {totalPages} • Ateliê Casa Luma © {new Date().getFullYear()}
               </div>
             </div>
