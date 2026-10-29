@@ -79,12 +79,17 @@ export const StockPage: React.FC = () => {
 
   const selectableProducts = products.flatMap((p) => {
     if (p.variations && p.variations.length > 0) {
-      return p.variations.map((v) => ({
-        ...p,
-        id: v.id,
-        sku: v.sku,
-        name: `${p.name} - ${v.variation_name || v.color || 'Variação'}`,
-      }));
+      return p.variations.map((v) => {
+        const varLabel = v.variation_name
+          ? (v.size && !v.variation_name.toLowerCase().includes(v.size.toLowerCase()) ? `${v.variation_name} (${v.size})` : v.variation_name)
+          : [v.color, v.size].filter(Boolean).join(' • ') || 'Variação';
+        return {
+          ...p,
+          id: v.id,
+          sku: v.sku,
+          name: `${p.name} - ${varLabel}`,
+        };
+      });
     }
     return [p];
   });

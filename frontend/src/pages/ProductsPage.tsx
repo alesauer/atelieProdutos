@@ -26,13 +26,14 @@ import {
   Link2,
   FileText,
   Scale,
+  Sparkles,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import { ProductCatalogModal } from '../components/ProductCatalogModal';
 import { getProductImageUrl, handleImageError } from '../utils/imageUrl';
-import type { Category, CostComponentItem, ItemType, ItemTypeDefinition, Product, ProductKitItem, ProductVariation, ProductColor, ProductMaterial, ProductSupply, ProductFormData, SalesLinkItem, UnitOfMeasure } from '../types';
+import type { Category, CostComponentItem, ItemType, ItemTypeDefinition, Product, ProductKitItem, ProductVariation, ProductColor, ProductMaterial, ProductSupply, ProductFormData, VariationFormData, SalesLinkItem, UnitOfMeasure } from '../types';
 
 const WhatsAppIcon: React.FC<{ size?: number; color?: string; style?: React.CSSProperties }> = ({
   size = 16,
@@ -135,6 +136,7 @@ export const ProductsPage: React.FC = () => {
     name: '',
     description: '',
     color: '',
+    size: '',
     material: '',
     item_type: 'PRODUTO_ACABADO',
     category_id: null,
@@ -148,6 +150,15 @@ export const ProductsPage: React.FC = () => {
     is_active: true,
     is_kit: false,
   });
+
+  // Variações integradas no formulário do produto (Opção C - Híbrida Inteligente)
+  const [hasVariations, setHasVariations] = useState(false);
+  const [formVariations, setFormVariations] = useState<VariationFormData[]>([]);
+  const [isQuickGenOpen, setIsQuickGenOpen] = useState(false);
+  const [quickGenSelectedColors, setQuickGenSelectedColors] = useState<string[]>([]);
+  const [quickGenSelectedSizes, setQuickGenSelectedSizes] = useState<string[]>([]);
+  const [quickGenCustomColor, setQuickGenCustomColor] = useState('');
+  const [quickGenCustomSize, setQuickGenCustomSize] = useState('');
 
   // Modais rápidos de Nova Cor e Novo Material
   const [isQuickColorModalOpen, setIsQuickColorModalOpen] = useState(false);
@@ -245,7 +256,176 @@ export const ProductsPage: React.FC = () => {
   const [linkExistingVarName, setLinkExistingVarName] = useState('');
   const [linkingProduct, setLinkingProduct] = useState(false);
 
-  // Handlers de Variações
+  // Handlers de Variações no Formulário de Produto (Opção C - Híbrida)
+  const handleToggleHasVariations = (checked: boolean) => {
+    setHasVariations(checked);
+    if (checked && formVariations.length === 0) {
+      const baseColor = formData.color?.trim() || '';
+      const baseSize = formData.size?.trim() || '';
+      const initialName = baseColor && baseSize ? `${baseColor} - ${baseSize}` : (baseColor || baseSize || 'Padrão');
+      const initialSku = formData.sku ? `${formData.sku}-1` : 'PROD-1';
+      setFormVariations([
+        {
+          sku: initialSku,
+          variation_name: initialName,
+          color: baseColor,
+          size: baseSize,
+          sale_price: formData.sale_price || '',
+          unit_cost: formData.unit_cost || '0,00',
+          initial_stock: '0',
+          min_stock: formData.min_stock || '0',
+        },
+      ]);
+    }
+  };
+
+  const handleAddEmptyVariation = () => {
+    const nextIdx = formVariations.length + 1;
+    const baseSku = formData.sku.trim() || 'PROD';
+    setFormVariations((prev) => [
+      ...prev,
+      {
+        sku: `${baseSku}-VAR${nextIdx}`,
+        variation_name: `Variação ${nextIdx}`,
+        color: '',
+        size: '',
+        sale_price: formData.sale_price || '',
+        unit_cost: formData.unit_cost || '0,00',
+        initial_stock: '0',
+        min_stock: '0',
+      },
+    ]);
+  };
+
+  const handleDuplicateVariation = (index: number) => {
+    const source = formVariations[index];
+    if (!source) return;
+    const nextIdx = formVariations.length + 1;
+    const cleanSku = source.sku ? `${source.sku}-C${nextIdx}` : `${formData.sku}-VAR${nextIdx}`;
+    setFormVariations((prev) => [
+      ...prev,
+      {
+        ...source,
+        id: undefined,
+        sku: cleanSku,
+        variation_name: `${source.variation_name} (Cópia)`,
+        initial_stock: '0',
+      },
+    ]);
+  };
+
+  const handleRemoveVariation = (index: number) => {
+    setFormVariations((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleUpdateVariation = (index: number, field: keyof VariationFormData, value: any) => {
+    setFormVariations((prev) => {
+      const updated = [...prev];
+      const item = { ...updated[index], [field]: value };
+
+      if (field === 'color' || field === 'size') {
+        const c = field === 'color' ? value : item.color;
+        const s = field === 'size' ? value : item.size;
+        if (c || s) {
+          item.variation_name = `${c || ''}${c && s ? ' - ' : ''}${s || ''}`;
+          if (formData.sku) {
+            const cleanC = c ? c.toUpperCase().replace(/\s+/g, '-') : '';
+            const cleanS = s ? s.toUpperCase().replace(/\s+/g, '-') : '';
+            item.sku = `${formData.sku}-${cleanC}${cleanC && cleanS ? '-' : ''}${cleanS}`.replace(/-+$/, '');
+          }
+        }
+      }
+
+      updated[index] = item;
+      return updated;
+    });
+  };
+
+  const handleApplyBasePriceAndCostToAll = () => {
+    if (formVariations.length === 0) return;
+    setFormVariations((prev) =>
+      prev.map((v) => ({
+        ...v,
+        sale_price: formData.sale_price || '',
+        unit_cost: formData.unit_cost || '0,00',
+      }))
+    );
+  };
+
+  const handleGenerateQuickCombinations = () => {
+    const allColors = [...quickGenSelectedColors];
+    if (quickGenCustomColor.trim() && !allColors.includes(quickGenCustomColor.trim())) {
+      allColors.push(quickGenCustomColor.trim());
+    }
+
+    const allSizes = [...quickGenSelectedSizes];
+    if (quickGenCustomSize.trim() && !allSizes.includes(quickGenCustomSize.trim())) {
+      allSizes.push(quickGenCustomSize.trim());
+    }
+
+    if (allColors.length === 0 && allSizes.length === 0) {
+      alert('Selecione pelo menos uma cor ou um tamanho para gerar a grade.');
+      return;
+    }
+
+    const newRows: VariationFormData[] = [];
+    const baseSku = formData.sku.trim() || 'PROD';
+
+    if (allColors.length > 0 && allSizes.length > 0) {
+      for (const c of allColors) {
+        for (const s of allSizes) {
+          const varName = `${c} - ${s}`;
+          const cleanC = c.toUpperCase().replace(/\s+/g, '-');
+          const cleanS = s.toUpperCase().replace(/\s+/g, '-');
+          newRows.push({
+            sku: `${baseSku}-${cleanC}-${cleanS}`,
+            variation_name: varName,
+            color: c,
+            size: s,
+            sale_price: formData.sale_price || '',
+            unit_cost: formData.unit_cost || '0,00',
+            initial_stock: '0',
+            min_stock: '0',
+          });
+        }
+      }
+    } else if (allColors.length > 0) {
+      for (const c of allColors) {
+        const cleanC = c.toUpperCase().replace(/\s+/g, '-');
+        newRows.push({
+          sku: `${baseSku}-${cleanC}`,
+          variation_name: c,
+          color: c,
+          size: '',
+          sale_price: formData.sale_price || '',
+          unit_cost: formData.unit_cost || '0,00',
+          initial_stock: '0',
+          min_stock: '0',
+        });
+      }
+    } else {
+      for (const s of allSizes) {
+        const cleanS = s.toUpperCase().replace(/\s+/g, '-');
+        newRows.push({
+          sku: `${baseSku}-${cleanS}`,
+          variation_name: s,
+          color: '',
+          size: s,
+          sale_price: formData.sale_price || '',
+          unit_cost: formData.unit_cost || '0,00',
+          initial_stock: '0',
+          min_stock: '0',
+        });
+      }
+    }
+
+    setFormVariations(newRows);
+    setIsQuickGenOpen(false);
+    setQuickGenCustomColor('');
+    setQuickGenCustomSize('');
+  };
+
+  // Handlers de Variações Existentes
   const handleCreateVariation = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!variationManageModalProduct) return;
@@ -501,11 +681,19 @@ export const ProductsPage: React.FC = () => {
       (u) => u.code.toUpperCase() === 'UN' || u.name.toLowerCase().includes('unidade')
     ) || (units.length > 0 ? units[0] : null);
 
+    setHasVariations(false);
+    setFormVariations([]);
+    setIsQuickGenOpen(false);
+    setQuickGenSelectedColors([]);
+    setQuickGenSelectedSizes([]);
+    setQuickGenCustomColor('');
+    setQuickGenCustomSize('');
     setFormData({
       sku: '',
       name: '',
       description: '',
       color: '',
+      size: '',
       material: '',
       item_type: 'PRODUTO_ACABADO',
       category_id: null,
@@ -560,12 +748,42 @@ export const ProductsPage: React.FC = () => {
     setSelectedKitProductId('');
     setSelectedKitQuantity('1');
 
+    setIsQuickGenOpen(false);
+    setQuickGenSelectedColors([]);
+    setQuickGenSelectedSizes([]);
+    setQuickGenCustomColor('');
+    setQuickGenCustomSize('');
+
+    if (prod.variations && prod.variations.length > 0) {
+      setHasVariations(true);
+      setFormVariations(
+        prod.variations.map((v) => ({
+          id: v.id,
+          sku: v.sku,
+          variation_name: v.variation_name || '',
+          color: v.color || '',
+          size: v.size || '',
+          material: v.material || '',
+          sale_price: v.sale_price != null && v.sale_price !== '' ? Number(v.sale_price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '',
+          unit_cost: v.unit_cost != null && v.unit_cost !== '' ? Number(v.unit_cost).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00',
+          initial_stock: '',
+          current_stock: v.current_stock != null ? String(v.current_stock) : '0',
+          min_stock: cleanStockValue(v.min_stock),
+          weight: v.weight != null && v.weight !== '' ? String(v.weight) : '',
+        }))
+      );
+    } else {
+      setHasVariations(false);
+      setFormVariations([]);
+    }
+
     setEditingProduct(prod);
     setFormData({
       sku: prod.sku,
       name: prod.name,
       description: prod.description || '',
       color: prod.color || '',
+      size: prod.size || '',
       material: prod.material || '',
       item_type: prod.item_type,
       category_id: prod.category_id || null,
@@ -1280,9 +1498,32 @@ export const ProductsPage: React.FC = () => {
         weight: formData.weight ? parseFloat(String(formData.weight).replace(',', '.')) : null,
         min_stock: parseStockValue(formData.min_stock),
         color: formData.color?.trim() || undefined,
+        size: formData.size?.trim() || undefined,
         material: formData.material?.trim() || undefined,
         sales_links: currentSalesLinks.length > 0 ? JSON.stringify(currentSalesLinks) : '',
       };
+
+      if (hasVariations) {
+        if (formVariations.length === 0) {
+          setFormError('Você marcou que o produto possui variações, mas nenhuma foi cadastrada. Adicione ao menos uma variação ou desmarque a opção.');
+          setSavingProduct(false);
+          return;
+        }
+
+        productPayload.variations = formVariations.map((v) => ({
+          ...v,
+          sku: v.sku.trim().toUpperCase(),
+          variation_name: v.variation_name.trim(),
+          color: v.color?.trim() || undefined,
+          size: v.size?.trim() || undefined,
+          material: v.material?.trim() || undefined,
+          sale_price: parseOptionalCurrencyValue(v.sale_price) ?? (productPayload.sale_price ? Number(productPayload.sale_price) : null),
+          unit_cost: parseOptionalCurrencyValue(v.unit_cost) ?? Number(productPayload.unit_cost || 0),
+          initial_stock: parseStockValue(v.initial_stock),
+          min_stock: parseStockValue(v.min_stock || 0),
+          weight: v.weight ? parseFloat(String(v.weight).replace(',', '.')) : null,
+        }));
+      }
 
       let savedProduct: Product;
       if (editingProduct) {
@@ -2953,8 +3194,8 @@ export const ProductsPage: React.FC = () => {
           setIsFormModalOpen(false);
         }}
         title={editingProduct ? 'Editar Produto' : 'Cadastrar Novo Produto'}
-        subtitle="Informe os dados cadastrais, links de vendas nos marketplaces e fotos"
-        maxWidth="680px"
+        subtitle="Informe os dados cadastrais, variações (cores e tamanhos), links nos marketplaces e fotos"
+        maxWidth={hasVariations ? '960px' : '720px'}
       >
         <form onSubmit={handleSaveProduct}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
@@ -3443,7 +3684,7 @@ export const ProductsPage: React.FC = () => {
             )}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.9fr 1.2fr', gap: '14px', marginBottom: '16px' }}>
             {/* Cor do Produto */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
@@ -3543,6 +3784,20 @@ export const ProductsPage: React.FC = () => {
                   +
                 </button>
               </div>
+            </div>
+
+            {/* Tamanho / Dimensão do Produto */}
+            <div>
+              <label htmlFor="prod-size" style={{ marginBottom: '6px', display: 'block' }}>
+                Tamanho / Volume
+              </label>
+              <input
+                id="prod-size"
+                type="text"
+                value={formData.size || ''}
+                onChange={(e) => setFormData({ ...formData, size: e.target.value })}
+                placeholder="Ex.: 180g / M"
+              />
             </div>
 
             {/* Material do Produto */}
@@ -3812,6 +4067,421 @@ export const ProductsPage: React.FC = () => {
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="Notas aromáticas, insumos chaves ou fornecedor..."
             />
+          </div>
+
+          {/* Seção de Variações do Produto (Cor, Tamanho, Preço e Estoque por Variação) */}
+          <div
+            style={{
+              marginBottom: '22px',
+              padding: '16px 18px',
+              backgroundColor: hasVariations ? '#fffaf5' : '#faf9f8',
+              borderRadius: 'var(--radius-md)',
+              border: hasVariations ? '1.5px solid var(--brand-accent)' : '1px solid var(--border-medium)',
+              boxShadow: hasVariations ? '0 2px 8px rgba(184, 115, 51, 0.08)' : 'none',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '8px',
+                    backgroundColor: hasVariations ? 'rgba(184, 115, 51, 0.15)' : 'var(--bg-tertiary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: hasVariations ? 'var(--brand-accent)' : 'var(--text-tertiary)',
+                  }}
+                >
+                  <Layers size={20} />
+                </div>
+                <div>
+                  <label
+                    htmlFor="toggle-has-variations"
+                    style={{
+                      margin: 0,
+                      fontWeight: 700,
+                      fontSize: '0.94rem',
+                      color: 'var(--brand-primary)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    Este produto possui variações (cores, tamanhos, modelos)?
+                    {hasVariations && (
+                      <span
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          backgroundColor: 'var(--brand-accent)',
+                          color: '#fff',
+                        }}
+                      >
+                        {formVariations.length} {formVariations.length === 1 ? 'variação' : 'variações'}
+                      </span>
+                    )}
+                  </label>
+                  <p style={{ margin: '2px 0 0', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                    Permite definir cor, tamanho, preço de venda e estoque individual para cada variação do item.
+                  </p>
+                </div>
+              </div>
+              <div>
+                <input
+                  id="toggle-has-variations"
+                  type="checkbox"
+                  checked={hasVariations}
+                  onChange={(e) => handleToggleHasVariations(e.target.checked)}
+                  style={{ width: '22px', height: '22px', cursor: 'pointer', accentColor: 'var(--brand-accent)' }}
+                />
+              </div>
+            </div>
+
+            {hasVariations && (
+              <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid var(--border-subtle)' }}>
+                {/* Barra de Ações Rápidas */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsQuickGenOpen(!isQuickGenOpen)}
+                      className="btn-secondary"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '0.8rem',
+                        padding: '6px 12px',
+                        color: 'var(--brand-accent)',
+                        borderColor: 'var(--brand-accent)',
+                        backgroundColor: isQuickGenOpen ? '#fdf2ea' : '#fff',
+                        fontWeight: 600,
+                      }}
+                      title="Gerar combinações de cores e tamanhos em lote"
+                    >
+                      <Sparkles size={14} />
+                      {isQuickGenOpen ? 'Fechar Gerador de Grade' : '✨ Gerar Grade Rápida'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleAddEmptyVariation}
+                      className="btn-secondary"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '0.8rem',
+                        padding: '6px 12px',
+                        fontWeight: 600,
+                      }}
+                      title="Adicionar uma linha de variação personalizada"
+                    >
+                      <Plus size={14} />
+                      + Adicionar Variação
+                    </button>
+                  </div>
+
+                  {formVariations.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleApplyBasePriceAndCostToAll}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--brand-accent)',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                      title="Copiar o preço de venda e custo unitário acima para todas as variações"
+                    >
+                      <Copy size={12} />
+                      Copiar Preço/Custo Base para Todas
+                    </button>
+                  )}
+                </div>
+
+                {/* Painel Retrátil de Geração Rápida de Grade */}
+                {isQuickGenOpen && (
+                  <div
+                    style={{
+                      marginBottom: '16px',
+                      padding: '14px 16px',
+                      backgroundColor: '#fff',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1.5px solid #ebd3c2',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                    }}
+                  >
+                    <div style={{ marginBottom: '12px' }}>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--brand-primary)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                        1. Selecione as Cores da Grade:
+                      </span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                        {colors.map((c) => {
+                          const isSelected = quickGenSelectedColors.includes(c.name);
+                          return (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => {
+                                setQuickGenSelectedColors((prev) =>
+                                  isSelected ? prev.filter((x) => x !== c.name) : [...prev, c.name]
+                                );
+                              }}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '4px 10px',
+                                borderRadius: '16px',
+                                fontSize: '0.76rem',
+                                fontWeight: isSelected ? 700 : 500,
+                                backgroundColor: isSelected ? '#feece2' : '#f9f9f9',
+                                border: isSelected ? '1.5px solid var(--brand-accent)' : '1px solid var(--border-medium)',
+                                color: isSelected ? 'var(--brand-accent)' : 'var(--text-primary)',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <span style={{ width: '9px', height: '9px', borderRadius: '50%', backgroundColor: c.hex_code || '#ccc', border: '1px solid rgba(0,0,0,0.2)' }} />
+                              {c.name}
+                            </button>
+                          );
+                        })}
+                        <input
+                          type="text"
+                          placeholder="+ Outra cor..."
+                          value={quickGenCustomColor}
+                          onChange={(e) => setQuickGenCustomColor(e.target.value)}
+                          style={{ width: '110px', padding: '4px 8px', fontSize: '0.76rem', borderRadius: '16px' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: '14px' }}>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--brand-primary)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                        2. Selecione os Tamanhos / Pesos / Volumes:
+                      </span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                        {['100g', '150g', '180g', '200g', '250g', 'P', 'M', 'G', 'GG', 'Único'].map((s) => {
+                          const isSelected = quickGenSelectedSizes.includes(s);
+                          return (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => {
+                                setQuickGenSelectedSizes((prev) =>
+                                  isSelected ? prev.filter((x) => x !== s) : [...prev, s]
+                                );
+                              }}
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: '16px',
+                                fontSize: '0.76rem',
+                                fontWeight: isSelected ? 700 : 500,
+                                backgroundColor: isSelected ? '#feece2' : '#f9f9f9',
+                                border: isSelected ? '1.5px solid var(--brand-accent)' : '1px solid var(--border-medium)',
+                                color: isSelected ? 'var(--brand-accent)' : 'var(--text-primary)',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {s}
+                            </button>
+                          );
+                        })}
+                        <input
+                          type="text"
+                          placeholder="+ Outro tamanho..."
+                          value={quickGenCustomSize}
+                          onChange={(e) => setQuickGenCustomSize(e.target.value)}
+                          style={{ width: '130px', padding: '4px 8px', fontSize: '0.76rem', borderRadius: '16px' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuickGenSelectedColors([]);
+                          setQuickGenSelectedSizes([]);
+                          setIsQuickGenOpen(false);
+                        }}
+                        className="btn-secondary"
+                        style={{ fontSize: '0.78rem', padding: '4px 10px' }}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleGenerateQuickCombinations}
+                        className="btn-primary"
+                        style={{ fontSize: '0.78rem', padding: '6px 14px' }}
+                      >
+                        Gerar Grade de Combinações
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tabela Interativa de Variações */}
+                {formVariations.length === 0 ? (
+                  <div style={{ padding: '20px', textAlign: 'center', backgroundColor: '#fff', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--border-medium)' }}>
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      Nenhuma variação adicionada ainda. Clique em <strong>✨ Gerar Grade Rápida</strong> para combinar cores e tamanhos ou <strong>+ Adicionar Variação</strong>.
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto', backgroundColor: '#fff', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-medium)' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#f9f6f2', borderBottom: '1.5px solid #ebd3c2', textAlign: 'left' }}>
+                          <th style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--brand-primary)', width: '22%' }}>Variação (Nome) *</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--brand-primary)', width: '14%' }}>Cor</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--brand-primary)', width: '12%' }}>Tamanho</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--brand-primary)', width: '16%' }}>SKU *</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--brand-primary)', textAlign: 'right', width: '12%' }}>Preço (R$)</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--brand-primary)', textAlign: 'right', width: '10%' }}>Custo (R$)</th>
+                          <th style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--brand-primary)', textAlign: 'center', width: '10%' }}>Estoque {editingProduct ? 'Atual' : 'Inicial'}</th>
+                          <th style={{ padding: '8px 6px', textAlign: 'center', width: '4%' }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {formVariations.map((v, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid var(--border-subtle)', backgroundColor: idx % 2 === 0 ? '#fff' : '#fcfbfa' }}>
+                            <td style={{ padding: '6px 8px' }}>
+                              <input
+                                type="text"
+                                required
+                                value={v.variation_name}
+                                onChange={(e) => handleUpdateVariation(idx, 'variation_name', e.target.value)}
+                                placeholder="Ex: Branco 180g"
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '0.8rem' }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 8px' }}>
+                              <select
+                                value={v.color || ''}
+                                onChange={(e) => handleUpdateVariation(idx, 'color', e.target.value)}
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '0.8rem' }}
+                              >
+                                <option value="">(Sem cor)</option>
+                                {colors.map((c) => (
+                                  <option key={c.id} value={c.name}>{c.name}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td style={{ padding: '6px 8px' }}>
+                              <input
+                                type="text"
+                                value={v.size || ''}
+                                onChange={(e) => handleUpdateVariation(idx, 'size', e.target.value)}
+                                placeholder="Ex: 180g / M"
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '0.8rem' }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 8px' }}>
+                              <input
+                                type="text"
+                                required
+                                value={v.sku}
+                                onChange={(e) => handleUpdateVariation(idx, 'sku', e.target.value.toUpperCase())}
+                                placeholder="SKU-VAR"
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '0.78rem', fontFamily: 'monospace' }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 8px' }}>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={v.sale_price || ''}
+                                onChange={(e) => handleUpdateVariation(idx, 'sale_price', formatCurrencyInputRTL(e.target.value, true))}
+                                placeholder="0,00"
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '0.8rem', textAlign: 'right' }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 8px' }}>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={v.unit_cost || ''}
+                                onChange={(e) => handleUpdateVariation(idx, 'unit_cost', formatCurrencyInputRTL(e.target.value))}
+                                placeholder="0,00"
+                                style={{ width: '100%', padding: '4px 6px', fontSize: '0.8rem', textAlign: 'right' }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                              {editingProduct && v.id ? (
+                                <span style={{ fontWeight: 700, color: Number(v.current_stock || 0) <= 0 ? 'var(--status-danger-text)' : 'var(--brand-primary)' }}>
+                                  {Number(v.current_stock || 0).toFixed(2)}
+                                </span>
+                              ) : (
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  value={v.initial_stock || '0'}
+                                  onChange={(e) => handleUpdateVariation(idx, 'initial_stock', e.target.value)}
+                                  style={{ width: '100%', padding: '4px 6px', fontSize: '0.8rem', textAlign: 'center' }}
+                                />
+                              )}
+                            </td>
+                            <td style={{ padding: '6px 4px', textAlign: 'center' }}>
+                              <div style={{ display: 'flex', gap: '3px', justifyContent: 'center' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDuplicateVariation(idx)}
+                                  style={{ background: 'none', border: 'none', color: 'var(--brand-accent)', cursor: 'pointer', padding: '2px' }}
+                                  title="Duplicar esta variação"
+                                >
+                                  <Copy size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveVariation(idx)}
+                                  style={{ background: 'none', border: 'none', color: 'var(--status-danger-text)', cursor: 'pointer', padding: '2px' }}
+                                  title="Remover variação"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    {/* Resumo consolidado */}
+                    <div style={{
+                      padding: '8px 12px',
+                      backgroundColor: '#f5efe9',
+                      borderTop: '1px solid #ebd3c2',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: '0.78rem',
+                      color: 'var(--text-secondary)',
+                      fontWeight: 600,
+                    }}>
+                      <span>Total: <strong>{formVariations.length}</strong> {formVariations.length === 1 ? 'variação' : 'variações'}</span>
+                      {!editingProduct && (
+                        <span>Estoque Inicial Somado: <strong style={{ color: 'var(--brand-primary)' }}>{formVariations.reduce((acc, v) => acc + (parseFloat(String(v.initial_stock || '0')) || 0), 0).toFixed(2)} UN</strong></span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Seção de Links de Vendas em Marketplaces */}

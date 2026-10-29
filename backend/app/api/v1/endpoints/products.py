@@ -155,7 +155,17 @@ def create_product(
 ):
     """Cadastra um novo item (produto acabado, matéria-prima, embalagem ou material auxiliar)."""
     product = product_service.create_product(db, product_in)
-    return _enrich_product_response(product, current_stock=Decimal("0.000"))
+    all_ids = [product.id] + [v.id for v in product.variations]
+    stock_rows = db.execute(
+        select(
+            StockMovement.product_id,
+            func.coalesce(func.sum(StockMovement.quantity), Decimal("0.000")),
+        )
+        .where(StockMovement.product_id.in_(all_ids))
+        .group_by(StockMovement.product_id)
+    ).all()
+    stock_map = {row[0]: Decimal(str(row[1])) for row in stock_rows}
+    return _enrich_product_response(product, stock_map=stock_map)
 
 
 @router.get("/{product_id}", response_model=ProductResponse)
@@ -199,8 +209,17 @@ def update_product(
             detail="Item não encontrado.",
         )
     updated = product_service.update_product(db, product, product_in)
-    current_stock = stock_service.get_product_balance(db, updated.id)
-    return _enrich_product_response(updated, current_stock=current_stock)
+    all_ids = [updated.id] + [v.id for v in updated.variations]
+    stock_rows = db.execute(
+        select(
+            StockMovement.product_id,
+            func.coalesce(func.sum(StockMovement.quantity), Decimal("0.000")),
+        )
+        .where(StockMovement.product_id.in_(all_ids))
+        .group_by(StockMovement.product_id)
+    ).all()
+    stock_map = {row[0]: Decimal(str(row[1])) for row in stock_rows}
+    return _enrich_product_response(updated, stock_map=stock_map)
 
 
 @router.put("/{product_id}/status", response_model=ProductResponse)

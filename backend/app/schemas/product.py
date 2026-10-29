@@ -65,6 +65,7 @@ class ProductBase(BaseModel):
     cost_breakdown: Optional[str] = None
     sales_links: Optional[str] = None
     color: Optional[str] = Field(None, max_length=50)
+    size: Optional[str] = Field(None, max_length=50)
     material: Optional[str] = Field(None, max_length=100)
     sale_price: Optional[Decimal] = Field(default=None, ge=0)
     weight: Optional[Decimal] = Field(default=None, ge=0)
@@ -75,8 +76,22 @@ class ProductBase(BaseModel):
     variation_name: Optional[str] = Field(None, max_length=100)
 
 
+class VariationCreate(BaseModel):
+    sku: Optional[str] = Field(None, max_length=50)
+    variation_name: str = Field(..., min_length=1, max_length=100)
+    color: Optional[str] = Field(None, max_length=50)
+    size: Optional[str] = Field(None, max_length=50)
+    material: Optional[str] = Field(None, max_length=100)
+    sale_price: Optional[Decimal] = Field(default=None, ge=0)
+    unit_cost: Optional[Decimal] = Field(default=None, ge=0)
+    weight: Optional[Decimal] = Field(default=None, ge=0)
+    min_stock: Decimal = Field(default=Decimal("0.000"), ge=0)
+    initial_stock: Decimal = Field(default=Decimal("0.000"), ge=0)
+
+
 class ProductCreate(ProductBase):
     kit_items: Optional[List[KitItemCreate]] = None
+    variations: Optional[List[VariationCreate]] = None
 
 
 class ProductUpdate(BaseModel):
@@ -90,6 +105,7 @@ class ProductUpdate(BaseModel):
     cost_breakdown: Optional[str] = None
     sales_links: Optional[str] = None
     color: Optional[str] = Field(None, max_length=50)
+    size: Optional[str] = Field(None, max_length=50)
     material: Optional[str] = Field(None, max_length=100)
     sale_price: Optional[Decimal] = Field(None, ge=0)
     weight: Optional[Decimal] = Field(None, ge=0)
@@ -99,6 +115,7 @@ class ProductUpdate(BaseModel):
     parent_id: Optional[int] = None
     variation_name: Optional[str] = Field(None, max_length=100)
     kit_items: Optional[List[KitItemCreate]] = None
+    variations: Optional[List[VariationCreate]] = None
 
 
 class ProductVariationResponse(ProductBase):
@@ -125,18 +142,6 @@ class ProductResponse(ProductBase):
     kit_items: List[KitItemResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
-
-
-class VariationCreate(BaseModel):
-    sku: str = Field(..., min_length=2, max_length=50)
-    variation_name: str = Field(..., min_length=1, max_length=100)
-    color: Optional[str] = Field(None, max_length=50)
-    material: Optional[str] = Field(None, max_length=100)
-    sale_price: Optional[Decimal] = Field(default=None, ge=0)
-    unit_cost: Optional[Decimal] = Field(default=None, ge=0)
-    weight: Optional[Decimal] = Field(default=None, ge=0)
-    min_stock: Decimal = Field(default=Decimal("0.000"), ge=0)
-    initial_stock: Decimal = Field(default=Decimal("0.000"), ge=0)
 
 
 class LinkVariationRequest(BaseModel):

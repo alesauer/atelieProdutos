@@ -144,6 +144,7 @@ export interface ProductVariation {
   images: ProductImage[];
   primary_image_url?: string | null;
   current_stock?: string | number;
+  size?: string | null;
 }
 
 export interface ProductKitItem {
@@ -170,6 +171,7 @@ export interface Product {
   name: string;
   description?: string;
   color?: string | null;
+  size?: string | null;
   material?: string | null;
   item_type: ItemType;
   category_id?: number | null;
@@ -195,11 +197,27 @@ export interface Product {
   variations?: ProductVariation[];
 }
 
+export interface VariationFormData {
+  id?: number;
+  sku: string;
+  variation_name: string;
+  color?: string;
+  size?: string;
+  material?: string;
+  sale_price?: number | string | null;
+  unit_cost?: number | string | null;
+  weight?: number | string | null;
+  min_stock?: number | string;
+  initial_stock?: number | string;
+  current_stock?: number | string;
+}
+
 export interface ProductFormData {
   sku: string;
   name: string;
   description?: string;
   color?: string;
+  size?: string;
   material?: string;
   item_type: ItemType;
   category_id?: number | null;
@@ -215,18 +233,8 @@ export interface ProductFormData {
   kit_items?: ProductKitItem[];
   parent_id?: number | null;
   variation_name?: string | null;
-}
-
-export interface VariationFormData {
-  sku: string;
-  variation_name: string;
-  color?: string;
-  material?: string;
-  sale_price?: number | string | null;
-  unit_cost?: number | string | null;
-  weight?: number | string | null;
-  min_stock?: number | string;
-  initial_stock?: number | string;
+  has_variations?: boolean;
+  variations?: VariationFormData[];
 }
 
 // --- Estoque ---

@@ -397,3 +397,92 @@ def test_create_and_update_product_kit(client: TestClient, admin_token: str, sam
             assert Decimal(str(ki["quantity"])) == Decimal("1.000")
         if ki["component_product_id"] == p2["id"]:
             assert Decimal(str(ki["quantity"])) == Decimal("2.000")
+
+
+def test_create_and_update_product_with_variations(
+    client: TestClient, admin_token: str, sample_category: Category, sample_unit: UnitOfMeasure
+):
+    # 1. Cadastrar produto com 2 variações (com cor, tamanho, preço e estoque inicial)
+    resp = client.post(
+        "/api/v1/products",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "sku": "VELA-VAR-TEST",
+            "name": "Vela Aromática Teste Variação",
+            "item_type": "PRODUTO_ACABADO",
+            "category_id": sample_category.id,
+            "unit_id": sample_unit.id,
+            "unit_cost": "15.0000",
+            "sale_price": "45.00",
+            "color": "Lavanda",
+            "size": "Padrão",
+            "variations": [
+                {
+                    "variation_name": "Lavanda 100g",
+                    "color": "Lavanda",
+                    "size": "100g",
+                    "sale_price": "39.90",
+                    "unit_cost": "12.0000",
+                    "initial_stock": "10.000",
+                    "min_stock": "2.000",
+                },
+                {
+                    "variation_name": "Lavanda 200g",
+                    "color": "Lavanda",
+                    "size": "200g",
+                    "sale_price": "59.90",
+                    "unit_cost": "18.0000",
+                    "initial_stock": "5.000",
+                    "min_stock": "2.000",
+                },
+            ],
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    prod_data = resp.json()
+    assert len(prod_data["variations"]) == 2
+    var1 = prod_data["variations"][0]
+    var2 = prod_data["variations"][1]
+    assert var1["size"] == "100g"
+    assert var2["size"] == "200g"
+    assert float(var1["current_stock"]) == 10.0
+    assert float(var2["current_stock"]) == 5.0
+    # O estoque do produto pai deve ser a soma das variações
+    assert float(prod_data["current_stock"]) == 15.0
+
+    # 2. Atualizar produto adicionando mais 1 variação
+    parent_id = prod_data["id"]
+    upd_resp = client.put(
+        f"/api/v1/products/{parent_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "variations": [
+                {
+                    "sku": var1["sku"],
+                    "variation_name": var1["variation_name"],
+                    "color": var1["color"],
+                    "size": var1["size"],
+                    "sale_price": "42.00",
+                    "unit_cost": "12.0000",
+                },
+                {
+                    "variation_name": "Lavanda 350g",
+                    "color": "Lavanda",
+                    "size": "350g",
+                    "sale_price": "89.90",
+                    "unit_cost": "28.0000",
+                    "initial_stock": "4.000",
+                },
+            ],
+        },
+    )
+    assert upd_resp.status_code == 200, upd_resp.text
+    upd_data = upd_resp.json()
+    assert len(upd_data["variations"]) == 3
+    # Exclusão em cascata deve funcionar sem erros de chave estrangeira
+    del_resp = client.delete(
+        f"/api/v1/products/{parent_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert del_resp.status_code == 204
+

@@ -752,6 +752,7 @@ class ProductService:
             cost_breakdown=product_in.cost_breakdown,
             sales_links=product_in.sales_links,
             color=product_in.color.strip() if product_in.color else None,
+            size=product_in.size.strip() if product_in.size else None,
             material=product_in.material.strip() if product_in.material else None,
             sale_price=product_in.sale_price,
             weight=product_in.weight,
@@ -776,6 +777,52 @@ class ProductService:
                         quantity=item.quantity,
                     )
                     db.add(kit_item)
+
+        # Criação de variações se informadas diretamente no cadastro do produto
+        if product_in.variations:
+            from app.models.stock import StockMovement, MovementType
+            for idx, var_in in enumerate(product_in.variations):
+                var_sku = var_in.sku.strip().upper() if var_in.sku else f"{product.sku}-{var_in.variation_name.strip().upper().replace(' ', '-')}"
+                existing = ProductService.get_product_by_sku(db, var_sku)
+                if existing:
+                    var_sku = f"{var_sku}-{idx+1}"
+
+                unit_cost = var_in.unit_cost if var_in.unit_cost is not None else product.unit_cost
+                sale_price = var_in.sale_price if var_in.sale_price is not None else product.sale_price
+                weight = var_in.weight if var_in.weight is not None else product.weight
+
+                variation = Product(
+                    sku=var_sku,
+                    name=product.name,
+                    description=product.description,
+                    item_type=product.item_type,
+                    category_id=product.category_id,
+                    unit_id=product.unit_id,
+                    unit_cost=unit_cost,
+                    cost_breakdown=product.cost_breakdown,
+                    sales_links=product.sales_links,
+                    color=var_in.color.strip() if var_in.color else None,
+                    size=var_in.size.strip() if var_in.size else None,
+                    material=var_in.material.strip() if var_in.material else product.material,
+                    sale_price=sale_price,
+                    weight=weight,
+                    min_stock=var_in.min_stock if var_in.min_stock is not None else Decimal("0.000"),
+                    is_active=True,
+                    parent_id=product.id,
+                    variation_name=var_in.variation_name.strip(),
+                )
+                db.add(variation)
+                db.flush()
+
+                if var_in.initial_stock and var_in.initial_stock > 0:
+                    initial_mov = StockMovement(
+                        product_id=variation.id,
+                        movement_type=MovementType.ENTRADA_INICIAL,
+                        quantity=var_in.initial_stock,
+                        unit_cost_at_moment=variation.unit_cost,
+                        justification=f"Estoque inicial ao cadastrar variação '{variation.variation_name}'",
+                    )
+                    db.add(initial_mov)
 
         db.commit()
         db.refresh(product)
@@ -826,6 +873,8 @@ class ProductService:
             product.sales_links = product_in.sales_links
         if product_in.color is not None:
             product.color = product_in.color.strip() if product_in.color else None
+        if "size" in product_in.model_fields_set:
+            product.size = product_in.size.strip() if product_in.size else None
         if product_in.material is not None:
             product.material = product_in.material.strip() if product_in.material else None
         if product_in.sale_price is not None:
@@ -858,6 +907,73 @@ class ProductService:
                         )
                         db.add(kit_item)
 
+        # Atualização/inserção de variações se informadas no payload
+        if product_in.variations is not None:
+            from app.models.stock import StockMovement, MovementType
+            existing_vars_by_sku = {v.sku.upper(): v for v in product.variations}
+            for idx, var_in in enumerate(product_in.variations):
+                var_sku = var_in.sku.strip().upper() if var_in.sku else f"{product.sku}-{var_in.variation_name.strip().upper().replace(' ', '-')}"
+                if var_sku in existing_vars_by_sku:
+                    # Atualiza variação existente
+                    existing_var = existing_vars_by_sku[var_sku]
+                    existing_var.variation_name = var_in.variation_name.strip()
+                    if var_in.color is not None:
+                        existing_var.color = var_in.color.strip() if var_in.color else None
+                    if var_in.size is not None:
+                        existing_var.size = var_in.size.strip() if var_in.size else None
+                    if var_in.material is not None:
+                        existing_var.material = var_in.material.strip() if var_in.material else product.material
+                    if var_in.sale_price is not None:
+                        existing_var.sale_price = var_in.sale_price
+                    if var_in.unit_cost is not None:
+                        existing_var.unit_cost = var_in.unit_cost
+                    if var_in.weight is not None:
+                        existing_var.weight = var_in.weight
+                    if var_in.min_stock is not None:
+                        existing_var.min_stock = var_in.min_stock
+                else:
+                    # Nova variação
+                    existing_glob = ProductService.get_product_by_sku(db, var_sku)
+                    if existing_glob:
+                        var_sku = f"{var_sku}-{idx+1}"
+
+                    unit_cost = var_in.unit_cost if var_in.unit_cost is not None else product.unit_cost
+                    sale_price = var_in.sale_price if var_in.sale_price is not None else product.sale_price
+                    weight = var_in.weight if var_in.weight is not None else product.weight
+
+                    new_var = Product(
+                        sku=var_sku,
+                        name=product.name,
+                        description=product.description,
+                        item_type=product.item_type,
+                        category_id=product.category_id,
+                        unit_id=product.unit_id,
+                        unit_cost=unit_cost,
+                        cost_breakdown=product.cost_breakdown,
+                        sales_links=product.sales_links,
+                        color=var_in.color.strip() if var_in.color else None,
+                        size=var_in.size.strip() if var_in.size else None,
+                        material=var_in.material.strip() if var_in.material else product.material,
+                        sale_price=sale_price,
+                        weight=weight,
+                        min_stock=var_in.min_stock if var_in.min_stock is not None else Decimal("0.000"),
+                        is_active=True,
+                        parent_id=product.id,
+                        variation_name=var_in.variation_name.strip(),
+                    )
+                    db.add(new_var)
+                    db.flush()
+
+                    if var_in.initial_stock and var_in.initial_stock > 0:
+                        initial_mov = StockMovement(
+                            product_id=new_var.id,
+                            movement_type=MovementType.ENTRADA_INICIAL,
+                            quantity=var_in.initial_stock,
+                            unit_cost_at_moment=new_var.unit_cost,
+                            justification=f"Estoque inicial ao adicionar variação '{new_var.variation_name}'",
+                        )
+                        db.add(initial_mov)
+
         db.commit()
         db.refresh(product)
         return product
@@ -872,7 +988,7 @@ class ProductService:
                 detail=f"Produto pai ID {parent_id} não encontrado.",
             )
 
-        clean_sku = var_in.sku.strip().upper()
+        clean_sku = var_in.sku.strip().upper() if var_in.sku else f"{parent.sku}-{var_in.variation_name.strip().upper().replace(' ', '-')}"
         existing_sku = ProductService.get_product_by_sku(db, clean_sku)
         if existing_sku:
             raise HTTPException(
@@ -895,6 +1011,7 @@ class ProductService:
             cost_breakdown=parent.cost_breakdown,
             sales_links=parent.sales_links,
             color=var_in.color.strip() if var_in.color else None,
+            size=var_in.size.strip() if var_in.size else None,
             material=var_in.material.strip() if var_in.material else parent.material,
             sale_price=sale_price,
             weight=weight,
@@ -913,9 +1030,8 @@ class ProductService:
                 product_id=variation.id,
                 movement_type=MovementType.ENTRADA_INICIAL,
                 quantity=var_in.initial_stock,
-                unit_cost=variation.unit_cost,
-                total_cost=var_in.initial_stock * variation.unit_cost,
-                notes=f"Estoque inicial ao cadastrar variação '{variation.variation_name}'",
+                unit_cost_at_moment=variation.unit_cost,
+                justification=f"Estoque inicial ao cadastrar variação '{variation.variation_name}'",
             )
             db.add(initial_mov)
 
@@ -983,31 +1099,34 @@ class ProductService:
             ProductionOrderItem,
         )
 
-        # 1. Remover movimentações de estoque deste produto
-        db.execute(delete(StockMovement).where(StockMovement.product_id == product.id))
+        # Obter IDs do produto e de todas as suas variações filhas
+        target_ids = [product.id] + [v.id for v in product.variations]
 
-        # 2. Remover itens de ordens de produção onde o produto é insumo
-        db.execute(delete(ProductionOrderItem).where(ProductionOrderItem.component_product_id == product.id))
+        # 1. Remover movimentações de estoque deste produto e de suas variações
+        db.execute(delete(StockMovement).where(StockMovement.product_id.in_(target_ids)))
+
+        # 2. Remover itens de ordens de produção onde o produto ou variação é insumo
+        db.execute(delete(ProductionOrderItem).where(ProductionOrderItem.component_product_id.in_(target_ids)))
 
         # 3. Remover ordens de produção onde o produto é o produto acabado principal (e seus itens)
-        stmt_orders = select(ProductionOrder).where(ProductionOrder.product_id == product.id)
+        stmt_orders = select(ProductionOrder).where(ProductionOrder.product_id.in_(target_ids))
         orders = list(db.execute(stmt_orders).scalars().all())
         for order in orders:
             db.delete(order)
 
         # 4. Remover itens de receitas onde o produto é insumo
-        db.execute(delete(ProductionRecipeItem).where(ProductionRecipeItem.component_product_id == product.id))
+        db.execute(delete(ProductionRecipeItem).where(ProductionRecipeItem.component_product_id.in_(target_ids)))
 
         # 5. Remover receitas onde o produto é o produto acabado principal (e seus itens)
-        stmt_recipes = select(ProductionRecipe).where(ProductionRecipe.product_id == product.id)
+        stmt_recipes = select(ProductionRecipe).where(ProductionRecipe.product_id.in_(target_ids))
         recipes = list(db.execute(stmt_recipes).scalars().all())
         for recipe in recipes:
             db.delete(recipe)
 
-        # 6. Remover itens de venda deste produto e atualizar vendas vinculadas
-        stmt_sales = select(SaleItem.sale_id).where(SaleItem.product_id == product.id).distinct()
+        # 6. Remover itens de venda deste produto ou de suas variações e atualizar vendas vinculadas
+        stmt_sales = select(SaleItem.sale_id).where(SaleItem.product_id.in_(target_ids)).distinct()
         affected_sale_ids = list(db.execute(stmt_sales).scalars().all())
-        db.execute(delete(SaleItem).where(SaleItem.product_id == product.id))
+        db.execute(delete(SaleItem).where(SaleItem.product_id.in_(target_ids)))
 
         for s_id in affected_sale_ids:
             sale = db.get(Sale, s_id)
@@ -1018,12 +1137,13 @@ class ProductService:
                 else:
                     sale.total_amount = sum(it.total_price for it in sale.items)
 
-        # 7. Excluir arquivos físicos de fotos do produto do disco
-        for img in product.images:
-            try:
-                storage_service.delete_file(img.file_path)
-            except Exception:
-                pass
+        # 7. Excluir arquivos físicos de fotos do produto e variações do disco
+        for p_item in [product] + list(product.variations):
+            for img in p_item.images:
+                try:
+                    storage_service.delete_file(img.file_path)
+                except Exception:
+                    pass
 
         # 8. Sincronizar exclusões intermediárias e remover o produto
         db.flush()
