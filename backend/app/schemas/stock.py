@@ -58,6 +58,7 @@ class StockBalanceResponse(BaseModel):
     variation_name: Optional[str] = None
     color: Optional[str] = None
     size: Optional[str] = None
+    is_kit: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 

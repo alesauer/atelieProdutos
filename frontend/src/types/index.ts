@@ -259,6 +259,7 @@ export interface StockBalanceItem {
   variation_name?: string | null;
   color?: string | null;
   size?: string | null;
+  is_kit?: boolean;
 }
 
 

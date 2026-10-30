@@ -824,7 +824,7 @@ class ProductService:
                 db.add(variation)
                 db.flush()
 
-                if var_in.initial_stock and var_in.initial_stock > 0:
+                if not product.is_kit and var_in.initial_stock and var_in.initial_stock > 0:
                     initial_mov = StockMovement(
                         product_id=variation.id,
                         movement_type=MovementType.ENTRADA_INICIAL,
@@ -970,8 +970,8 @@ class ProductService:
                     if var_in.min_stock is not None:
                         target_var.min_stock = var_in.min_stock
 
-                    # Atualização de saldo em estoque para variação existente
-                    if var_in.initial_stock is not None:
+                    # Atualização de saldo em estoque para variação existente (ignorado para kits)
+                    if not product.is_kit and var_in.initial_stock is not None:
                         target_stock = Decimal(str(var_in.initial_stock))
                         current_balance = StockService.get_product_balance(db, target_var.id)
                         stock_diff = target_stock - current_balance
@@ -1025,7 +1025,7 @@ class ProductService:
                     db.add(new_var)
                     db.flush()
 
-                    if var_in.initial_stock and var_in.initial_stock > 0:
+                    if not product.is_kit and var_in.initial_stock and var_in.initial_stock > 0:
                         initial_mov = StockMovement(
                             product_id=new_var.id,
                             movement_type=MovementType.ENTRADA_INICIAL,

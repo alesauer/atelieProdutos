@@ -124,8 +124,8 @@ export const StockPage: React.FC = () => {
     loadData();
   }, []);
 
-  // Filtra itens de estoque desconsiderando produtos "Pai" com variações para evitar duplicidade
-  const activeBalances = balances.filter((b) => !b.has_variations);
+  // Filtra itens de estoque desconsiderando produtos "Pai" com variações e Kits (pois kits não possuem estoque próprio)
+  const activeBalances = balances.filter((b) => !b.has_variations && !b.is_kit);
 
   const filteredBalances = activeBalances.filter(
     (b) =>

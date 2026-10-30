@@ -605,7 +605,7 @@ export const ProductsPage: React.FC = () => {
         sale_price: parseOptionalCurrencyValue(newVarSalePrice) ?? (variationManageModalProduct.sale_price ? Number(variationManageModalProduct.sale_price) : null),
         unit_cost: parseOptionalCurrencyValue(newVarUnitCost) ?? Number(variationManageModalProduct.unit_cost || 0),
         min_stock: 5,
-        initial_stock: parseStockValue(newVarStock),
+        initial_stock: variationManageModalProduct.is_kit ? 0 : parseStockValue(newVarStock),
       });
 
       const updatedProd = await api.getProduct(variationManageModalProduct.id);
@@ -668,6 +668,30 @@ export const ProductsPage: React.FC = () => {
   };
 
   const renderStockDisplay = (item: Product | ProductVariation, isCompact = false) => {
+    // Kits não possuem estoque físico próprio; o saldo é gerido pelas peças componentes individuais
+    if (('is_kit' in item && item.is_kit) || ('parent' in item && (item as any).parent?.is_kit)) {
+      return (
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '5px',
+            padding: isCompact ? '2px 8px' : '4px 10px',
+            borderRadius: '12px',
+            fontSize: isCompact ? '0.74rem' : '0.82rem',
+            fontWeight: 700,
+            backgroundColor: '#fef3c7',
+            color: '#92400e',
+            border: '1px solid #fde68a',
+          }}
+          title="Kit de produtos — o estoque é gerido pelas peças componentes individuais"
+        >
+          <span>🎁</span>
+          <span>Kit de Peças</span>
+        </span>
+      );
+    }
+
     const stockNum = Number(item.current_stock ?? 0);
     const unit = ('unit' in item && item.unit?.code) ? item.unit.code : 'UN';
     const formattedStock = stockNum.toFixed(2);
@@ -1882,8 +1906,8 @@ export const ProductsPage: React.FC = () => {
           material: v.material?.trim() || undefined,
           sale_price: parseOptionalCurrencyValue(v.sale_price) ?? (productPayload.sale_price ? Number(productPayload.sale_price) : null),
           unit_cost: parseOptionalCurrencyValue(v.unit_cost) ?? Number(productPayload.unit_cost || 0),
-          initial_stock: parseStockValue(v.initial_stock),
-          min_stock: parseStockValue(v.min_stock || 0),
+          initial_stock: formData.is_kit ? 0 : parseStockValue(v.initial_stock),
+          min_stock: formData.is_kit ? 0 : parseStockValue(v.min_stock || 0),
           weight: v.weight ? parseFloat(String(v.weight).replace(',', '.')) : null,
         }));
       }
@@ -4884,7 +4908,9 @@ export const ProductsPage: React.FC = () => {
                     )}
                   </label>
                   <p style={{ margin: '2px 0 0', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
-                    Permite definir cor, tamanho, preço de venda e estoque individual para cada variação do item.
+                    {formData.is_kit
+                      ? 'Permite definir cor, tamanho e preço de venda para cada variação do kit (o estoque é debitado exclusivamente das peças componentes).'
+                      : 'Permite definir cor, tamanho, preço de venda e estoque individual para cada variação do item.'}
                   </p>
                 </div>
               </div>
@@ -5134,7 +5160,9 @@ export const ProductsPage: React.FC = () => {
                           <th style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--brand-primary)', width: '16%' }}>SKU *</th>
                           <th style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--brand-primary)', textAlign: 'right', width: '12%' }}>Preço (R$)</th>
                           <th style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--brand-primary)', textAlign: 'right', width: '10%' }}>Custo (R$)</th>
-                          <th style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--brand-primary)', textAlign: 'center', width: '10%' }}>Estoque {editingProduct ? 'Atual' : 'Inicial'}</th>
+                          {!formData.is_kit && (
+                            <th style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--brand-primary)', textAlign: 'center', width: '10%' }}>Estoque {editingProduct ? 'Atual' : 'Inicial'}</th>
+                          )}
                           <th style={{ padding: '8px 6px', textAlign: 'center', width: '4%' }}></th>
                         </tr>
                       </thead>
@@ -5250,30 +5278,32 @@ export const ProductsPage: React.FC = () => {
                                 style={{ width: '100%', padding: '4px 6px', fontSize: '0.8rem', textAlign: 'right' }}
                               />
                             </td>
-                            <td style={{ padding: '6px 8px', textAlign: 'center' }}>
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                value={v.initial_stock ?? ''}
-                                onChange={(e) => {
-                                  const val = e.target.value.replace(/[^0-9.,]/g, '');
-                                  handleUpdateVariation(idx, 'initial_stock', val);
-                                }}
-                                placeholder="0"
-                                style={{
-                                  width: '100%',
-                                  padding: '4px 6px',
-                                  fontSize: '0.82rem',
-                                  fontWeight: 600,
-                                  textAlign: 'center',
-                                  borderRadius: 'var(--radius-sm)',
-                                  border: '1px solid var(--border-color)',
-                                  backgroundColor: '#fff',
-                                  color: Number(String(v.initial_stock || '0').replace(',', '.')) <= 0 ? 'var(--status-danger-text)' : 'var(--brand-primary)',
-                                }}
-                                title={editingProduct ? "Editar saldo em estoque desta variação" : "Estoque inicial desta variação"}
-                              />
-                            </td>
+                            {!formData.is_kit && (
+                              <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={v.initial_stock ?? ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value.replace(/[^0-9.,]/g, '');
+                                    handleUpdateVariation(idx, 'initial_stock', val);
+                                  }}
+                                  placeholder="0"
+                                  style={{
+                                    width: '100%',
+                                    padding: '4px 6px',
+                                    fontSize: '0.82rem',
+                                    fontWeight: 600,
+                                    textAlign: 'center',
+                                    borderRadius: 'var(--radius-sm)',
+                                    border: '1px solid var(--border-color)',
+                                    backgroundColor: '#fff',
+                                    color: Number(String(v.initial_stock || '0').replace(',', '.')) <= 0 ? 'var(--status-danger-text)' : 'var(--brand-primary)',
+                                  }}
+                                  title={editingProduct ? "Editar saldo em estoque desta variação" : "Estoque inicial desta variação"}
+                                />
+                              </td>
+                            )}
                             <td style={{ padding: '6px 4px', textAlign: 'center' }}>
                               <div style={{ display: 'flex', gap: '3px', justifyContent: 'center' }}>
                                 <button
@@ -5311,8 +5341,15 @@ export const ProductsPage: React.FC = () => {
                       fontWeight: 600,
                     }}>
                       <span>Total: <strong>{formVariations.length}</strong> {formVariations.length === 1 ? 'variação' : 'variações'}</span>
-                      {!editingProduct && (
-                        <span>Estoque Inicial Somado: <strong style={{ color: 'var(--brand-primary)' }}>{formVariations.reduce((acc, v) => acc + (parseFloat(String(v.initial_stock || '0')) || 0), 0).toFixed(2)} UN</strong></span>
+                      {formData.is_kit ? (
+                        <span style={{ color: '#92400e', fontSize: '0.74rem', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                          <span>📦</span>
+                          <span>Kit sem estoque próprio (o saldo é gerido exclusivamente nas peças componentes)</span>
+                        </span>
+                      ) : (
+                        !editingProduct && (
+                          <span>Estoque Inicial Somado: <strong style={{ color: 'var(--brand-primary)' }}>{formVariations.reduce((acc, v) => acc + (parseFloat(String(v.initial_stock || '0')) || 0), 0).toFixed(2)} UN</strong></span>
+                        )
                       )}
                     </div>
                   </div>
@@ -7889,7 +7926,13 @@ export const ProductsPage: React.FC = () => {
                   Variações Cadastradas ({(variationManageModalProduct.variations || []).length})
                 </h4>
                 <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                  Total em estoque somado: <strong>{Number(variationManageModalProduct.current_stock ?? 0).toFixed(2)} {variationManageModalProduct.unit?.code || 'UN'}</strong>
+                  {variationManageModalProduct.is_kit ? (
+                    <span style={{ color: '#92400e', fontSize: '0.75rem', fontWeight: 600 }}>
+                      📦 Kit sem estoque próprio (o saldo é gerido pelas peças componentes)
+                    </span>
+                  ) : (
+                    <>Total em estoque somado: <strong>{Number(variationManageModalProduct.current_stock ?? 0).toFixed(2)} {variationManageModalProduct.unit?.code || 'UN'}</strong></>
+                  )}
                 </span>
               </div>
 
@@ -8182,19 +8225,21 @@ export const ProductsPage: React.FC = () => {
                   />
                 </div>
 
-                <div>
-                  <label className="form-label" style={{ fontSize: '0.78rem' }}>
-                    Estoque Inicial
-                  </label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    min="0"
-                    step="1"
-                    value={newVarStock}
-                    onChange={(e) => setNewVarStock(e.target.value)}
-                  />
-                </div>
+                {!variationManageModalProduct.is_kit && (
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.78rem' }}>
+                      Estoque Inicial
+                    </label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      min="0"
+                      step="1"
+                      value={newVarStock}
+                      onChange={(e) => setNewVarStock(e.target.value)}
+                    />
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
