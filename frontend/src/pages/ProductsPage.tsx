@@ -190,6 +190,7 @@ export const ProductsPage: React.FC = () => {
   // Composição de Kit de Produtos
   const [kitItems, setKitItems] = useState<ProductKitItem[]>([]);
   const [selectedKitProductId, setSelectedKitProductId] = useState<string>('');
+  const [selectedKitVariationId, setSelectedKitVariationId] = useState<string>('');
   const [selectedKitQuantity, setSelectedKitQuantity] = useState<string>('1');
 
   // Insumos de Produção e Calculadora de Composição de Custo Estimado
@@ -762,6 +763,7 @@ export const ProductsPage: React.FC = () => {
     setNewLinkUrl('');
     setKitItems([]);
     setSelectedKitProductId('');
+    setSelectedKitVariationId('');
     setSelectedKitQuantity('1');
     setFormData({
       sku: '',
@@ -831,6 +833,7 @@ export const ProductsPage: React.FC = () => {
             setCostItems(dCosts);
             setKitItems(dKits);
             setSelectedKitProductId('');
+            setSelectedKitVariationId('');
             setSelectedKitQuantity('1');
             setIsQuickGenOpen(false);
             setQuickGenSelectedColors([]);
@@ -865,6 +868,7 @@ export const ProductsPage: React.FC = () => {
       setNewLinkUrl('');
       setKitItems([]);
       setSelectedKitProductId('');
+      setSelectedKitVariationId('');
       setSelectedKitQuantity('1');
       setFormData({
         sku: '',
@@ -928,6 +932,7 @@ export const ProductsPage: React.FC = () => {
     }
     setKitItems(initialKitItems);
     setSelectedKitProductId('');
+    setSelectedKitVariationId('');
     setSelectedKitQuantity('1');
 
     setIsQuickGenOpen(false);
@@ -1572,13 +1577,58 @@ export const ProductsPage: React.FC = () => {
   const handleAddKitItem = () => {
     if (!selectedKitProductId) return;
     const prodId = Number(selectedKitProductId);
-    const compProduct = products.find((p) => p.id === prodId);
-    if (!compProduct) return;
+    const parentProduct = products.find((p) => p.id === prodId);
+    if (!parentProduct) return;
+
+    // Se o produto pai possuir variações cadastradas, a variação/cor específica deve ser selecionada
+    let targetComponentId = prodId;
+    let targetComponentProduct: any = parentProduct;
+
+    if (parentProduct.variations && parentProduct.variations.length > 0) {
+      if (!selectedKitVariationId) {
+        alert('Por favor, selecione a cor / variação específica da peça para adicionar ao kit.');
+        return;
+      }
+      const varId = Number(selectedKitVariationId);
+      const variation = parentProduct.variations.find((v) => v.id === varId);
+      if (!variation) {
+        alert('Variação de cor selecionada não encontrada.');
+        return;
+      }
+      targetComponentId = varId;
+      targetComponentProduct = {
+        id: variation.id,
+        sku: variation.sku,
+        name: parentProduct.name,
+        variation_name: variation.variation_name || variation.color,
+        unit_cost: variation.unit_cost != null ? variation.unit_cost : parentProduct.unit_cost,
+        sale_price: variation.sale_price != null ? variation.sale_price : parentProduct.sale_price,
+        weight: variation.weight != null ? variation.weight : parentProduct.weight,
+        color: variation.color || variation.variation_name || parentProduct.color,
+        material: variation.material || parentProduct.material,
+        is_active: variation.is_active,
+        current_stock: variation.current_stock,
+      };
+    } else {
+      targetComponentProduct = {
+        id: parentProduct.id,
+        sku: parentProduct.sku,
+        name: parentProduct.name,
+        variation_name: parentProduct.variation_name,
+        unit_cost: parentProduct.unit_cost,
+        sale_price: parentProduct.sale_price,
+        weight: parentProduct.weight,
+        color: parentProduct.color,
+        material: parentProduct.material,
+        is_active: parentProduct.is_active,
+        current_stock: parentProduct.current_stock,
+      };
+    }
 
     const qty = Math.max(1, parseFloat(selectedKitQuantity.replace(',', '.')) || 1);
 
     setKitItems((prev) => {
-      const existingIndex = prev.findIndex((item) => item.component_product_id === prodId);
+      const existingIndex = prev.findIndex((item) => item.component_product_id === targetComponentId);
       if (existingIndex >= 0) {
         const updated = [...prev];
         const currentQty = typeof updated[existingIndex].quantity === 'string'
@@ -1594,24 +1644,15 @@ export const ProductsPage: React.FC = () => {
       return [
         ...prev,
         {
-          component_product_id: prodId,
+          component_product_id: targetComponentId,
           quantity: qty,
-          component_product: {
-            id: compProduct.id,
-            sku: compProduct.sku,
-            name: compProduct.name,
-            unit_cost: compProduct.unit_cost,
-            sale_price: compProduct.sale_price,
-            weight: compProduct.weight,
-            color: compProduct.color,
-            material: compProduct.material,
-            is_active: compProduct.is_active,
-          },
+          component_product: targetComponentProduct,
         },
       ];
     });
 
     setSelectedKitProductId('');
+    setSelectedKitVariationId('');
     setSelectedKitQuantity('1');
   };
 
@@ -3644,81 +3685,165 @@ export const ProductsPage: React.FC = () => {
                 </div>
 
                 {/* Linha de Seleção e Quantidade */}
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '16px' }}>
-                  <div style={{ flex: '1 1 280px' }}>
-                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>
-                      Produto do Ateliê:
-                    </label>
-                    <select
-                      value={selectedKitProductId}
-                      onChange={(e) => setSelectedKitProductId(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '8px 10px',
-                        fontSize: '0.85rem',
-                        borderRadius: '6px',
-                        border: '1px solid #d1d5db',
-                        backgroundColor: '#fff',
-                      }}
-                    >
-                      <option value="">-- Selecione um produto para o kit --</option>
-                      {products
-                        .filter((p) => (!editingProduct || p.id !== editingProduct.id) && p.is_active && !p.is_kit)
-                        .map((p) => {
-                          const stockNum = parseFloat(String(p.current_stock || '0')) || 0;
-                          const priceNum = p.sale_price ? Number(p.sale_price).toFixed(2) : null;
-                          return (
-                            <option key={p.id} value={p.id}>
-                              [{p.sku}] {p.name} {p.color ? `(${p.color})` : ''} — {priceNum ? `R$ ${priceNum}` : 'Sem preço'} | Est: {stockNum.toFixed(0)} un
-                            </option>
-                          );
-                        })}
-                    </select>
-                  </div>
+                {(() => {
+                  const selectedParent = selectedKitProductId
+                    ? products.find((p) => p.id === Number(selectedKitProductId))
+                    : null;
+                  const hasVariations = Boolean(selectedParent?.variations && selectedParent.variations.length > 0);
+                  const isAddDisabled = !selectedParent || (hasVariations && !selectedKitVariationId);
 
-                  <div style={{ width: '100px' }}>
-                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>
-                      Qtd no Kit:
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={selectedKitQuantity}
-                      onChange={(e) => setSelectedKitQuantity(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '8px 10px',
-                        fontSize: '0.85rem',
-                        borderRadius: '6px',
-                        border: '1px solid #d1d5db',
-                        textAlign: 'center',
-                      }}
-                    />
-                  </div>
+                  return (
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '16px' }}>
+                      <div style={{ flex: '1 1 260px' }}>
+                        <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>
+                          PRODUTO DO ATELIÊ:
+                        </label>
+                        <select
+                          value={selectedKitProductId}
+                          onChange={(e) => {
+                            setSelectedKitProductId(e.target.value);
+                            setSelectedKitVariationId('');
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            fontSize: '0.85rem',
+                            borderRadius: '6px',
+                            border: '1px solid #d1d5db',
+                            backgroundColor: '#fff',
+                          }}
+                        >
+                          <option value="">- Selecione um produto para o kit -</option>
+                          {products
+                            .filter((p) => (!editingProduct || p.id !== editingProduct.id) && p.is_active && !p.is_kit)
+                            .map((p) => {
+                              const varCount = p.variations ? p.variations.length : 0;
+                              const varLabel = varCount > 0 ? ` (${varCount} cores/variações)` : (p.color ? ` (Cor: ${p.color})` : '');
+                              return (
+                                <option key={p.id} value={p.id}>
+                                  [{p.sku}] {p.name}{varLabel}
+                                </option>
+                              );
+                            })}
+                        </select>
+                      </div>
 
-                  <button
-                    type="button"
-                    onClick={handleAddKitItem}
-                    disabled={!selectedKitProductId}
-                    className="btn btn-primary"
-                    style={{
-                      padding: '8px 16px',
-                      fontSize: '0.84rem',
-                      fontWeight: 700,
-                      backgroundColor: selectedKitProductId ? '#d97706' : '#d1d5db',
-                      borderColor: selectedKitProductId ? '#d97706' : '#d1d5db',
-                      color: '#fff',
-                      cursor: selectedKitProductId ? 'pointer' : 'not-allowed',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      height: '38px',
-                    }}
-                  >
-                    <Plus size={15} /> Adicionar ao Kit
-                  </button>
-                </div>
+                      {/* Se o produto selecionado possuir variações (cores), exibe seletor da cor específica */}
+                      {hasVariations && selectedParent && (
+                        <div style={{ flex: '1 1 240px' }}>
+                          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#92400e', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <span>🎨</span>
+                            <span>COR / VARIAÇÃO ESPECÍFICA *:</span>
+                          </label>
+                          <select
+                            value={selectedKitVariationId}
+                            onChange={(e) => setSelectedKitVariationId(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              fontSize: '0.85rem',
+                              borderRadius: '6px',
+                              border: selectedKitVariationId ? '1.5px solid #10b981' : '1.5px solid #f59e0b',
+                              backgroundColor: selectedKitVariationId ? '#f0fdf4' : '#fffbeb',
+                              color: selectedKitVariationId ? '#166534' : '#78350f',
+                              fontWeight: 600,
+                            }}
+                          >
+                            <option value="">-- Selecione a Cor da Peça --</option>
+                            {selectedParent.variations?.map((v) => {
+                              const stockNum = parseFloat(String(v.current_stock || '0')) || 0;
+                              const priceNum = v.sale_price ? Number(v.sale_price).toFixed(2) : null;
+                              return (
+                                <option key={v.id} value={v.id}>
+                                  {v.variation_name || v.color || 'Variação'} [{v.sku}] — Est: {stockNum.toFixed(0)} un {priceNum ? `| R$ ${priceNum}` : ''}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
+                      )}
+
+                      {/* Se o produto selecionado NÃO tiver variações, exibe tag de cor única */}
+                      {!hasVariations && selectedParent && (
+                        <div style={{ flex: '1 1 180px' }}>
+                          <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>
+                            COR DA PEÇA:
+                          </label>
+                          <div
+                            style={{
+                              padding: '8px 12px',
+                              fontSize: '0.85rem',
+                              borderRadius: '6px',
+                              border: '1px solid #e5e7eb',
+                              backgroundColor: '#f9fafb',
+                              color: '#374151',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              height: '38px',
+                              boxSizing: 'border-box',
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: '9px',
+                                height: '9px',
+                                borderRadius: '50%',
+                                backgroundColor: getColorHex(selectedParent.color),
+                                border: '1px solid rgba(0,0,0,0.2)',
+                                display: 'inline-block',
+                              }}
+                            />
+                            <span style={{ fontWeight: 600 }}>{selectedParent.color || 'Cor Única / Padrão'}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      <div style={{ width: '90px' }}>
+                        <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>
+                          QTD NO KIT:
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={selectedKitQuantity}
+                          onChange={(e) => setSelectedKitQuantity(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            fontSize: '0.85rem',
+                            borderRadius: '6px',
+                            border: '1px solid #d1d5db',
+                            textAlign: 'center',
+                          }}
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleAddKitItem}
+                        disabled={isAddDisabled}
+                        className="btn btn-primary"
+                        style={{
+                          padding: '8px 16px',
+                          fontSize: '0.84rem',
+                          fontWeight: 700,
+                          backgroundColor: isAddDisabled ? '#d1d5db' : '#d97706',
+                          borderColor: isAddDisabled ? '#d1d5db' : '#d97706',
+                          color: '#fff',
+                          cursor: isAddDisabled ? 'not-allowed' : 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          height: '38px',
+                        }}
+                      >
+                        <Plus size={15} /> Adicionar ao Kit
+                      </button>
+                    </div>
+                  );
+                })()}
 
                 {/* Tabela de Produtos Adicionados ao Kit */}
                 {kitItems.length === 0 ? (
@@ -3736,7 +3861,7 @@ export const ProductsPage: React.FC = () => {
                     <Package size={28} style={{ margin: '0 auto 8px', color: '#d97706', opacity: 0.6, display: 'block' }} />
                     Nenhum produto individual adicionado ao kit ainda.
                     <div style={{ fontSize: '0.76rem', color: '#b45309', marginTop: '4px' }}>
-                      Selecione um produto acima e clique em <b>"+ Adicionar ao Kit"</b>.
+                      Selecione um produto e a cor desejada acima e clique em <b>"+ Adicionar ao Kit"</b>.
                     </div>
                   </div>
                 ) : (
@@ -3763,14 +3888,69 @@ export const ProductsPage: React.FC = () => {
                           return (
                             <tr key={idx} style={{ borderBottom: idx < kitItems.length - 1 ? '1px solid #f3f4f6' : 'none' }}>
                               <td style={{ padding: '8px 12px' }}>
-                                <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                                  {prod?.name || `Produto #${item.component_product_id}`}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                                    {prod?.name || `Produto #${item.component_product_id}`}
+                                  </span>
+
+                                  {/* Tag destacada de Cor / Variação */}
+                                  {(prod?.color || prod?.variation_name) ? (
+                                    <span
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '5px',
+                                        fontSize: '0.74rem',
+                                        fontWeight: 600,
+                                        padding: '2px 8px',
+                                        borderRadius: '12px',
+                                        backgroundColor: '#fef3c7',
+                                        color: '#92400e',
+                                        border: '1px solid #fde68a',
+                                      }}
+                                      title={`Cor da peça: ${prod.color || prod.variation_name}`}
+                                    >
+                                      <span
+                                        style={{
+                                          width: '8px',
+                                          height: '8px',
+                                          borderRadius: '50%',
+                                          backgroundColor: getColorHex(prod.color || prod.variation_name),
+                                          border: '1px solid rgba(0,0,0,0.2)',
+                                          display: 'inline-block',
+                                        }}
+                                      />
+                                      Cor: {prod.color || prod.variation_name}
+                                    </span>
+                                  ) : (
+                                    <span
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        fontSize: '0.70rem',
+                                        fontWeight: 600,
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        backgroundColor: '#fee2e2',
+                                        color: '#991b1b',
+                                        border: '1px solid #fecaca',
+                                      }}
+                                      title="Peça sem cor específica vinculada. Recomenda-se remover e adicionar a cor desejada para baixar o estoque específico."
+                                    >
+                                      ⚠️ Sem cor definida
+                                    </span>
+                                  )}
                                 </div>
                                 <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'flex', gap: '8px', alignItems: 'center', marginTop: '2px' }}>
-                                  <span>SKU: {prod?.sku || '—'}</span>
-                                  {prod?.color && <span>• Cor: {prod.color}</span>}
+                                  <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>SKU: {prod?.sku || '—'}</span>
                                   {prod?.material && <span>• Mat.: {prod.material}</span>}
                                   {prod?.weight && <span>• Peso: {prod.weight}g</span>}
+                                  {prod?.current_stock !== undefined && prod?.current_stock !== null && (
+                                    <span style={{ color: '#047857', fontWeight: 600 }}>
+                                      • Est: {parseFloat(String(prod.current_stock)).toFixed(0)} un
+                                    </span>
+                                  )}
                                 </div>
                               </td>
 

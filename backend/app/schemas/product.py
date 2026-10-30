@@ -41,6 +41,7 @@ class KitComponentProductInfo(BaseModel):
     weight: Optional[Decimal] = None
     color: Optional[str] = None
     material: Optional[str] = None
+    variation_name: Optional[str] = None
     is_active: bool = True
 
     model_config = ConfigDict(from_attributes=True)

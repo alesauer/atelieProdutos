@@ -161,6 +161,8 @@ export interface ProductKitItem {
     weight?: number | string | null;
     color?: string | null;
     material?: string | null;
+    variation_name?: string | null;
+    current_stock?: number | string | null;
     is_active: boolean;
   };
 }
