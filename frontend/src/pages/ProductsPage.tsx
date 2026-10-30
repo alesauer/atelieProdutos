@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Plus,
+  X,
   Search,
   Image as ImageIcon,
   Edit2,
@@ -189,9 +190,146 @@ export const ProductsPage: React.FC = () => {
 
   // Composição de Kit de Produtos
   const [kitItems, setKitItems] = useState<ProductKitItem[]>([]);
-  const [selectedKitProductId, setSelectedKitProductId] = useState<string>('');
-  const [selectedKitVariationId, setSelectedKitVariationId] = useState<string>('');
+  const [selectedKitPieceId, setSelectedKitPieceId] = useState<string>('');
+  const [kitProductFilter, setKitProductFilter] = useState<string>('');
+  const [kitSearchTerm, setKitSearchTerm] = useState<string>('');
   const [selectedKitQuantity, setSelectedKitQuantity] = useState<string>('1');
+
+  // Peças e cores individuais disponíveis para compor o Kit
+  const allKitSelectablePieces = useMemo(() => {
+    const list: Array<{
+      id: number;
+      parent_id: number;
+      parent_name: string;
+      parent_sku: string;
+      name: string;
+      color: string;
+      variation_name?: string | null;
+      sku: string;
+      current_stock: number;
+      unit_cost: number;
+      sale_price: number | null;
+      weight: number | null;
+      material?: string | null;
+      is_variation: boolean;
+    }> = [];
+
+    const baseProducts = products.filter(
+      (p) => (!editingProduct || p.id !== editingProduct.id) && p.is_active && !p.is_kit
+    );
+
+    for (const p of baseProducts) {
+      if (p.variations && p.variations.length > 0) {
+        for (const v of p.variations) {
+          if (!v.is_active && v.is_active !== undefined) continue;
+          list.push({
+            id: v.id,
+            parent_id: p.id,
+            parent_name: p.name,
+            parent_sku: p.sku,
+            name: p.name,
+            color: v.color || v.variation_name || p.color || 'Padrão',
+            variation_name: v.variation_name || v.color,
+            sku: v.sku,
+            current_stock: parseFloat(String(v.current_stock ?? '0')) || 0,
+            unit_cost: v.unit_cost != null ? Number(v.unit_cost) : (p.unit_cost != null ? Number(p.unit_cost) : 0),
+            sale_price: v.sale_price != null ? Number(v.sale_price) : (p.sale_price != null ? Number(p.sale_price) : null),
+            weight: v.weight != null ? Number(v.weight) : (p.weight != null ? Number(p.weight) : null),
+            material: v.material || p.material,
+            is_variation: true,
+          });
+        }
+      } else {
+        list.push({
+          id: p.id,
+          parent_id: p.id,
+          parent_name: p.name,
+          parent_sku: p.sku,
+          name: p.name,
+          color: p.color || 'Cor Única',
+          variation_name: null,
+          sku: p.sku,
+          current_stock: parseFloat(String(p.current_stock ?? '0')) || 0,
+          unit_cost: p.unit_cost != null ? Number(p.unit_cost) : 0,
+          sale_price: p.sale_price != null ? Number(p.sale_price) : null,
+          weight: p.weight != null ? Number(p.weight) : null,
+          material: p.material,
+          is_variation: false,
+        });
+      }
+    }
+
+    return list;
+  }, [products, editingProduct]);
+
+  // Lista filtrada por produto pai ou busca textual rápida
+  const filteredKitSelectablePieces = useMemo(() => {
+    let result = allKitSelectablePieces;
+
+    if (kitProductFilter) {
+      const pId = Number(kitProductFilter);
+      result = result.filter((piece) => piece.parent_id === pId);
+    }
+
+    if (kitSearchTerm.trim()) {
+      const term = kitSearchTerm.trim().toLowerCase();
+      result = result.filter(
+        (piece) =>
+          piece.name.toLowerCase().includes(term) ||
+          piece.color.toLowerCase().includes(term) ||
+          piece.sku.toLowerCase().includes(term) ||
+          (piece.variation_name && piece.variation_name.toLowerCase().includes(term))
+      );
+    }
+
+    return result;
+  }, [allKitSelectablePieces, kitProductFilter, kitSearchTerm]);
+
+  // Agrupamento por Produto Pai para renderizar optgroups no select
+  const groupedKitSelectablePieces = useMemo(() => {
+    const groups: { [key: number]: { parent_name: string; parent_sku: string; items: typeof allKitSelectablePieces } } = {};
+    for (const piece of filteredKitSelectablePieces) {
+      if (!groups[piece.parent_id]) {
+        groups[piece.parent_id] = {
+          parent_name: piece.parent_name,
+          parent_sku: piece.parent_sku,
+          items: [],
+        };
+      }
+      groups[piece.parent_id].items.push(piece);
+    }
+    return Object.values(groups);
+  }, [filteredKitSelectablePieces]);
+
+  // Resumo de produtos com especificação das cores e estoques individuais
+  const kitParentProductsList = useMemo(() => {
+    const baseProducts = products.filter(
+      (p) => (!editingProduct || p.id !== editingProduct.id) && p.is_active && !p.is_kit
+    );
+    return baseProducts.map((p) => {
+      const variations = p.variations || [];
+      const varCount = variations.length;
+      let summaryText = '';
+      if (varCount > 0) {
+        const breakdown = variations
+          .slice(0, 4)
+          .map((v) => `${parseFloat(String(v.current_stock || '0')).toFixed(0)} un ${v.color || v.variation_name || 'Cor'}`)
+          .join(', ');
+        const extra = varCount > 4 ? ` (+${varCount - 4} mais)` : '';
+        summaryText = ` (${varCount} cores: ${breakdown}${extra})`;
+      } else {
+        const stock = parseFloat(String(p.current_stock || '0')).toFixed(0);
+        summaryText = ` (Est: ${stock} un${p.color ? ` • Cor: ${p.color}` : ''})`;
+      }
+      return {
+        id: p.id,
+        sku: p.sku,
+        name: p.name,
+        varCount,
+        summaryText,
+      };
+    });
+  }, [products, editingProduct]);
 
   // Insumos de Produção e Calculadora de Composição de Custo Estimado
   const [supplies, setSupplies] = useState<ProductSupply[]>([]);
@@ -762,8 +900,9 @@ export const ProductsPage: React.FC = () => {
     setNewLinkPlatform('Shopee');
     setNewLinkUrl('');
     setKitItems([]);
-    setSelectedKitProductId('');
-    setSelectedKitVariationId('');
+    setSelectedKitPieceId('');
+    setKitProductFilter('');
+    setKitSearchTerm('');
     setSelectedKitQuantity('1');
     setFormData({
       sku: '',
@@ -832,8 +971,9 @@ export const ProductsPage: React.FC = () => {
             setSalesLinks(dLinks);
             setCostItems(dCosts);
             setKitItems(dKits);
-            setSelectedKitProductId('');
-            setSelectedKitVariationId('');
+            setSelectedKitPieceId('');
+            setKitProductFilter('');
+            setKitSearchTerm('');
             setSelectedKitQuantity('1');
             setIsQuickGenOpen(false);
             setQuickGenSelectedColors([]);
@@ -867,8 +1007,9 @@ export const ProductsPage: React.FC = () => {
       setNewLinkPlatform('Shopee');
       setNewLinkUrl('');
       setKitItems([]);
-      setSelectedKitProductId('');
-      setSelectedKitVariationId('');
+      setSelectedKitPieceId('');
+      setKitProductFilter('');
+      setKitSearchTerm('');
       setSelectedKitQuantity('1');
       setFormData({
         sku: '',
@@ -931,8 +1072,9 @@ export const ProductsPage: React.FC = () => {
       }
     }
     setKitItems(initialKitItems);
-    setSelectedKitProductId('');
-    setSelectedKitVariationId('');
+    setSelectedKitPieceId('');
+    setKitProductFilter('');
+    setKitSearchTerm('');
     setSelectedKitQuantity('1');
 
     setIsQuickGenOpen(false);
@@ -1575,60 +1717,32 @@ export const ProductsPage: React.FC = () => {
 
   // Manipulação e cálculos de Kit de Produtos
   const handleAddKitItem = () => {
-    if (!selectedKitProductId) return;
-    const prodId = Number(selectedKitProductId);
-    const parentProduct = products.find((p) => p.id === prodId);
-    if (!parentProduct) return;
-
-    // Se o produto pai possuir variações cadastradas, a variação/cor específica deve ser selecionada
-    let targetComponentId = prodId;
-    let targetComponentProduct: any = parentProduct;
-
-    if (parentProduct.variations && parentProduct.variations.length > 0) {
-      if (!selectedKitVariationId) {
-        alert('Por favor, selecione a cor / variação específica da peça para adicionar ao kit.');
-        return;
-      }
-      const varId = Number(selectedKitVariationId);
-      const variation = parentProduct.variations.find((v) => v.id === varId);
-      if (!variation) {
-        alert('Variação de cor selecionada não encontrada.');
-        return;
-      }
-      targetComponentId = varId;
-      targetComponentProduct = {
-        id: variation.id,
-        sku: variation.sku,
-        name: parentProduct.name,
-        variation_name: variation.variation_name || variation.color,
-        unit_cost: variation.unit_cost != null ? variation.unit_cost : parentProduct.unit_cost,
-        sale_price: variation.sale_price != null ? variation.sale_price : parentProduct.sale_price,
-        weight: variation.weight != null ? variation.weight : parentProduct.weight,
-        color: variation.color || variation.variation_name || parentProduct.color,
-        material: variation.material || parentProduct.material,
-        is_active: variation.is_active,
-        current_stock: variation.current_stock,
-      };
-    } else {
-      targetComponentProduct = {
-        id: parentProduct.id,
-        sku: parentProduct.sku,
-        name: parentProduct.name,
-        variation_name: parentProduct.variation_name,
-        unit_cost: parentProduct.unit_cost,
-        sale_price: parentProduct.sale_price,
-        weight: parentProduct.weight,
-        color: parentProduct.color,
-        material: parentProduct.material,
-        is_active: parentProduct.is_active,
-        current_stock: parentProduct.current_stock,
-      };
+    if (!selectedKitPieceId) return;
+    const pieceId = Number(selectedKitPieceId);
+    const piece = allKitSelectablePieces.find((p) => p.id === pieceId);
+    if (!piece) {
+      alert('Por favor, selecione uma peça e cor específica para adicionar ao kit.');
+      return;
     }
 
     const qty = Math.max(1, parseFloat(selectedKitQuantity.replace(',', '.')) || 1);
 
+    const targetComponentProduct = {
+      id: piece.id,
+      sku: piece.sku,
+      name: piece.name,
+      variation_name: piece.variation_name || piece.color,
+      unit_cost: piece.unit_cost,
+      sale_price: piece.sale_price,
+      weight: piece.weight,
+      color: piece.color,
+      material: piece.material,
+      is_active: true,
+      current_stock: piece.current_stock,
+    };
+
     setKitItems((prev) => {
-      const existingIndex = prev.findIndex((item) => item.component_product_id === targetComponentId);
+      const existingIndex = prev.findIndex((item) => item.component_product_id === piece.id);
       if (existingIndex >= 0) {
         const updated = [...prev];
         const currentQty = typeof updated[existingIndex].quantity === 'string'
@@ -1644,15 +1758,14 @@ export const ProductsPage: React.FC = () => {
       return [
         ...prev,
         {
-          component_product_id: targetComponentId,
+          component_product_id: piece.id,
           quantity: qty,
           component_product: targetComponentProduct,
         },
       ];
     });
 
-    setSelectedKitProductId('');
-    setSelectedKitVariationId('');
+    setSelectedKitPieceId('');
     setSelectedKitQuantity('1');
   };
 
@@ -3684,163 +3797,315 @@ export const ProductsPage: React.FC = () => {
                   </span>
                 </div>
 
-                {/* Linha de Seleção e Quantidade */}
+                {/* Filtros e Barra de Seleção da Peça e Cor */}
                 {(() => {
-                  const selectedParent = selectedKitProductId
-                    ? products.find((p) => p.id === Number(selectedKitProductId))
+                  const selectedPiece = selectedKitPieceId
+                    ? allKitSelectablePieces.find((p) => p.id === Number(selectedKitPieceId))
                     : null;
-                  const hasVariations = Boolean(selectedParent?.variations && selectedParent.variations.length > 0);
-                  const isAddDisabled = !selectedParent || (hasVariations && !selectedKitVariationId);
+                  const isAddDisabled = !selectedPiece;
 
                   return (
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '16px' }}>
-                      <div style={{ flex: '1 1 260px' }}>
-                        <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>
-                          PRODUTO DO ATELIÊ:
-                        </label>
-                        <select
-                          value={selectedKitProductId}
-                          onChange={(e) => {
-                            setSelectedKitProductId(e.target.value);
-                            setSelectedKitVariationId('');
-                          }}
-                          style={{
-                            width: '100%',
-                            padding: '8px 10px',
-                            fontSize: '0.85rem',
-                            borderRadius: '6px',
-                            border: '1px solid #d1d5db',
-                            backgroundColor: '#fff',
-                          }}
-                        >
-                          <option value="">- Selecione um produto para o kit -</option>
-                          {products
-                            .filter((p) => (!editingProduct || p.id !== editingProduct.id) && p.is_active && !p.is_kit)
-                            .map((p) => {
-                              const varCount = p.variations ? p.variations.length : 0;
-                              const varLabel = varCount > 0 ? ` (${varCount} cores/variações)` : (p.color ? ` (Cor: ${p.color})` : '');
-                              return (
-                                <option key={p.id} value={p.id}>
-                                  [{p.sku}] {p.name}{varLabel}
-                                </option>
-                              );
-                            })}
-                        </select>
-                      </div>
-
-                      {/* Se o produto selecionado possuir variações (cores), exibe seletor da cor específica */}
-                      {hasVariations && selectedParent && (
+                    <div style={{ marginBottom: '16px' }}>
+                      {/* Linha de Filtros Rápidos (por Produto e Busca por Texto) */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: '10px',
+                          alignItems: 'center',
+                          flexWrap: 'wrap',
+                          padding: '10px 12px',
+                          backgroundColor: '#fffbeb',
+                          borderRadius: '8px',
+                          border: '1px solid #fde68a',
+                          marginBottom: '12px',
+                        }}
+                      >
                         <div style={{ flex: '1 1 240px' }}>
-                          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#92400e', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <span>🎨</span>
-                            <span>COR / VARIAÇÃO ESPECÍFICA *:</span>
+                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: '#92400e', marginBottom: '3px', display: 'block' }}>
+                            FILTRAR POR PRODUTO DO ATELIÊ:
                           </label>
                           <select
-                            value={selectedKitVariationId}
-                            onChange={(e) => setSelectedKitVariationId(e.target.value)}
+                            value={kitProductFilter}
+                            onChange={(e) => {
+                              setKitProductFilter(e.target.value);
+                              setSelectedKitPieceId('');
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '6px 10px',
+                              fontSize: '0.80rem',
+                              borderRadius: '6px',
+                              border: '1px solid #d1d5db',
+                              backgroundColor: '#fff',
+                            }}
+                          >
+                            <option value="">- Todos os Produtos ({kitParentProductsList.length}) -</option>
+                            {kitParentProductsList.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                [{p.sku}] {p.name}{p.summaryText}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div style={{ flex: '1 1 220px' }}>
+                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: '#92400e', marginBottom: '3px', display: 'block' }}>
+                            BUSCA RÁPIDA POR PEÇA OU COR:
+                          </label>
+                          <div style={{ position: 'relative' }}>
+                            <input
+                              type="text"
+                              value={kitSearchTerm}
+                              onChange={(e) => {
+                                setKitSearchTerm(e.target.value);
+                                setSelectedKitPieceId('');
+                              }}
+                              placeholder="Buscar por peça, cor ou SKU..."
+                              style={{
+                                width: '100%',
+                                padding: '6px 28px 6px 10px',
+                                fontSize: '0.80rem',
+                                borderRadius: '6px',
+                                border: '1px solid #d1d5db',
+                                backgroundColor: '#fff',
+                                boxSizing: 'border-box',
+                              }}
+                            />
+                            {kitSearchTerm && (
+                              <button
+                                type="button"
+                                onClick={() => setKitSearchTerm('')}
+                                style={{
+                                  position: 'absolute',
+                                  right: '6px',
+                                  top: '50%',
+                                  transform: 'translateY(-50%)',
+                                  border: 'none',
+                                  background: 'transparent',
+                                  color: '#9ca3af',
+                                  cursor: 'pointer',
+                                  padding: '2px',
+                                }}
+                                title="Limpar busca"
+                              >
+                                <X size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {(kitProductFilter || kitSearchTerm) && (
+                          <div style={{ alignSelf: 'flex-end' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setKitProductFilter('');
+                                setKitSearchTerm('');
+                                setSelectedKitPieceId('');
+                              }}
+                              className="btn btn-secondary"
+                              style={{
+                                padding: '6px 10px',
+                                fontSize: '0.76rem',
+                                height: '33px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                color: '#b45309',
+                                borderColor: '#fde68a',
+                              }}
+                            >
+                              <RotateCcw size={13} /> Limpar Filtros
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Linha Principal: Seleção da Peça/Cor + Quantidade + Botão Adicionar */}
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                        <div style={{ flex: '1 1 360px' }}>
+                          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#92400e', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span>🎨</span>
+                            <span>SELECIONE A PEÇA NA COR DESEJADA *:</span>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 400, color: 'var(--text-secondary)' }}>
+                              ({filteredKitSelectablePieces.length} opções com estoque individual)
+                            </span>
+                          </label>
+                          <select
+                            value={selectedKitPieceId}
+                            onChange={(e) => setSelectedKitPieceId(e.target.value)}
                             style={{
                               width: '100%',
                               padding: '8px 10px',
                               fontSize: '0.85rem',
                               borderRadius: '6px',
-                              border: selectedKitVariationId ? '1.5px solid #10b981' : '1.5px solid #f59e0b',
-                              backgroundColor: selectedKitVariationId ? '#f0fdf4' : '#fffbeb',
-                              color: selectedKitVariationId ? '#166534' : '#78350f',
+                              border: selectedKitPieceId ? '1.5px solid #10b981' : '1.5px solid #d97706',
+                              backgroundColor: selectedKitPieceId ? '#f0fdf4' : '#fff',
+                              color: selectedKitPieceId ? '#166534' : 'var(--text-primary)',
                               fontWeight: 600,
                             }}
                           >
-                            <option value="">-- Selecione a Cor da Peça --</option>
-                            {selectedParent.variations?.map((v) => {
-                              const stockNum = parseFloat(String(v.current_stock || '0')) || 0;
-                              const priceNum = v.sale_price ? Number(v.sale_price).toFixed(2) : null;
-                              return (
-                                <option key={v.id} value={v.id}>
-                                  {v.variation_name || v.color || 'Variação'} [{v.sku}] — Est: {stockNum.toFixed(0)} un {priceNum ? `| R$ ${priceNum}` : ''}
-                                </option>
-                              );
-                            })}
+                            <option value="">-- Selecione a peça na cor desejada com seu estoque --</option>
+                            {groupedKitSelectablePieces.map((group, gIdx) => (
+                              <optgroup
+                                key={gIdx}
+                                label={`📦 ${group.parent_name} [${group.parent_sku}] — ${group.items.length} ${group.items.length === 1 ? 'opção' : 'opções de cores'}`}
+                              >
+                                {group.items.map((piece) => {
+                                  const stockStr = piece.current_stock.toFixed(0);
+                                  const priceStr = piece.sale_price != null ? ` | R$ ${Number(piece.sale_price).toFixed(2)}` : '';
+                                  return (
+                                    <option key={piece.id} value={piece.id}>
+                                      [{piece.sku}] Cor: {piece.color} — Estoque: {stockStr} un{priceStr}
+                                    </option>
+                                  );
+                                })}
+                              </optgroup>
+                            ))}
                           </select>
                         </div>
-                      )}
 
-                      {/* Se o produto selecionado NÃO tiver variações, exibe tag de cor única */}
-                      {!hasVariations && selectedParent && (
-                        <div style={{ flex: '1 1 180px' }}>
+                        <div style={{ width: '90px' }}>
                           <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>
-                            COR DA PEÇA:
+                            QTD NO KIT:
                           </label>
-                          <div
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={selectedKitQuantity}
+                            onChange={(e) => setSelectedKitQuantity(e.target.value)}
                             style={{
-                              padding: '8px 12px',
+                              width: '100%',
+                              padding: '8px 10px',
                               fontSize: '0.85rem',
                               borderRadius: '6px',
-                              border: '1px solid #e5e7eb',
-                              backgroundColor: '#f9fafb',
-                              color: '#374151',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              height: '38px',
-                              boxSizing: 'border-box',
+                              border: '1px solid #d1d5db',
+                              textAlign: 'center',
                             }}
-                          >
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleAddKitItem}
+                          disabled={isAddDisabled}
+                          className="btn btn-primary"
+                          style={{
+                            padding: '8px 16px',
+                            fontSize: '0.84rem',
+                            fontWeight: 700,
+                            backgroundColor: isAddDisabled ? '#d1d5db' : '#d97706',
+                            borderColor: isAddDisabled ? '#d1d5db' : '#d97706',
+                            color: '#fff',
+                            cursor: isAddDisabled ? 'not-allowed' : 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            height: '38px',
+                          }}
+                        >
+                          <Plus size={15} /> Adicionar ao Kit
+                        </button>
+                      </div>
+
+                      {/* Card de Confirmação da Peça e Cor Selecionada */}
+                      {selectedPiece && (
+                        <div
+                          style={{
+                            marginTop: '10px',
+                            padding: '10px 14px',
+                            borderRadius: '8px',
+                            backgroundColor: '#fefce8',
+                            border: '1.5px solid #fde047',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: '10px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#78350f' }}>
+                              ✓ Peça: {selectedPiece.parent_name}
+                            </span>
                             <span
                               style={{
-                                width: '9px',
-                                height: '9px',
-                                borderRadius: '50%',
-                                backgroundColor: getColorHex(selectedParent.color),
-                                border: '1px solid rgba(0,0,0,0.2)',
-                                display: 'inline-block',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                backgroundColor: '#fff',
+                                color: '#92400e',
+                                border: '1px solid #fde68a',
                               }}
-                            />
-                            <span style={{ fontWeight: 600 }}>{selectedParent.color || 'Cor Única / Padrão'}</span>
+                            >
+                              <span
+                                style={{
+                                  width: '9px',
+                                  height: '9px',
+                                  borderRadius: '50%',
+                                  backgroundColor: getColorHex(selectedPiece.color),
+                                  border: '1px solid rgba(0,0,0,0.25)',
+                                  display: 'inline-block',
+                                }}
+                              />
+                              Cor: {selectedPiece.color}
+                            </span>
+                            <span style={{ fontSize: '0.76rem', color: '#6b7280', fontFamily: 'monospace', fontWeight: 600 }}>
+                              SKU: {selectedPiece.sku}
+                            </span>
+                            {selectedPiece.sale_price != null && (
+                              <span style={{ fontSize: '0.76rem', color: '#047857', fontWeight: 600 }}>
+                                • Preço Avulso: R$ {Number(selectedPiece.sale_price).toFixed(2)}
+                              </span>
+                            )}
+                          </div>
+
+                          <div>
+                            {selectedPiece.current_stock > 0 ? (
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                  fontSize: '0.78rem',
+                                  fontWeight: 700,
+                                  padding: '3px 10px',
+                                  borderRadius: '12px',
+                                  backgroundColor: '#dcfce7',
+                                  color: '#15803d',
+                                  border: '1px solid #bbf7d0',
+                                }}
+                              >
+                                <span>📦</span>
+                                <span>Estoque disponível desta cor: {selectedPiece.current_stock.toFixed(0)} un</span>
+                              </span>
+                            ) : (
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                  fontSize: '0.78rem',
+                                  fontWeight: 700,
+                                  padding: '3px 10px',
+                                  borderRadius: '12px',
+                                  backgroundColor: '#fee2e2',
+                                  color: '#b91c1c',
+                                  border: '1px solid #fecaca',
+                                }}
+                              >
+                                <span>⚠️</span>
+                                <span>Estoque zerado nesta cor (0 un)</span>
+                              </span>
+                            )}
                           </div>
                         </div>
                       )}
-
-                      <div style={{ width: '90px' }}>
-                        <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>
-                          QTD NO KIT:
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={selectedKitQuantity}
-                          onChange={(e) => setSelectedKitQuantity(e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '8px 10px',
-                            fontSize: '0.85rem',
-                            borderRadius: '6px',
-                            border: '1px solid #d1d5db',
-                            textAlign: 'center',
-                          }}
-                        />
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={handleAddKitItem}
-                        disabled={isAddDisabled}
-                        className="btn btn-primary"
-                        style={{
-                          padding: '8px 16px',
-                          fontSize: '0.84rem',
-                          fontWeight: 700,
-                          backgroundColor: isAddDisabled ? '#d1d5db' : '#d97706',
-                          borderColor: isAddDisabled ? '#d1d5db' : '#d97706',
-                          color: '#fff',
-                          cursor: isAddDisabled ? 'not-allowed' : 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          height: '38px',
-                        }}
-                      >
-                        <Plus size={15} /> Adicionar ao Kit
-                      </button>
                     </div>
                   );
                 })()}
