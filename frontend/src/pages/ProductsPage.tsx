@@ -7782,6 +7782,7 @@ export const ProductsPage: React.FC = () => {
         products={products}
         categories={categories}
         itemTypes={itemTypes}
+        colors={colors}
       />
     </div>
   );

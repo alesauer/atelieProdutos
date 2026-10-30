@@ -49,6 +49,11 @@
   position: relative;
 }
 
+/* Ocultar elementos exclusivos de impressão na visualização de tela */
+.print-only {
+  display: none !important;
+}
+
 /* Ocultar portal de impressão na tela */
 #catalog-print-portal {
   display: none;
@@ -58,6 +63,12 @@
    REGRAS DE IMPRESSÃO (@media print)
    ========================================================================== */
 @media print {
+  .print-only {
+    display: inline-block !important;
+  }
+  .no-print {
+    display: none !important;
+  }
   @page {
     size: A4 portrait;
     margin: 0 !important;

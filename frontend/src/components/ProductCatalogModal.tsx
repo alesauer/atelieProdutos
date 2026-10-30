@@ -9,7 +9,7 @@ import {
   Settings2,
   ShoppingBag,
 } from 'lucide-react';
-import type { Category, ItemTypeDefinition, Product, SalesLinkItem } from '../types';
+import type { Category, ItemTypeDefinition, Product, ProductColor, SalesLinkItem } from '../types';
 import { getProductImageUrl, handleImageError } from '../utils/imageUrl';
 
 const WhatsAppIcon: React.FC<{ size?: number; color?: string; style?: React.CSSProperties }> = ({
@@ -34,6 +34,7 @@ interface ProductCatalogModalProps {
   products: Product[];
   categories: Category[];
   itemTypes: ItemTypeDefinition[];
+  colors?: ProductColor[];
 }
 
 export const ProductCatalogModal: React.FC<ProductCatalogModalProps> = ({
@@ -41,6 +42,7 @@ export const ProductCatalogModal: React.FC<ProductCatalogModalProps> = ({
   onClose,
   products,
   categories,
+  colors,
 }) => {
   // Configurações do Catálogo
   const [selectedCategory, setSelectedCategory] = useState<string>('TODAS');
@@ -57,6 +59,49 @@ export const ProductCatalogModal: React.FC<ProductCatalogModalProps> = ({
   const [customSubtitle, setCustomSubtitle] = useState<string>('Arte em Cimento, Velas Aromáticas & Decoração Autoral');
   const [copiedShare, setCopiedShare] = useState<boolean>(false);
   const [isConfigOpen, setIsConfigOpen] = useState<boolean>(true);
+
+  // Estados de expansão e prévia das cores de variações
+  const [expandedProductIds, setExpandedProductIds] = useState<Set<number>>(new Set());
+  const [showAllVariationsAlways, setShowAllVariationsAlways] = useState<boolean>(false);
+  const [hoveredMoreId, setHoveredMoreId] = useState<number | null>(null);
+
+  const toggleExpandProduct = (productId: number) => {
+    setExpandedProductIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(productId)) {
+        next.delete(productId);
+      } else {
+        next.add(productId);
+      }
+      return next;
+    });
+  };
+
+  const getColorHex = (colorName?: string | null): string => {
+    if (!colorName) return '#ccc';
+    const foundColor = colors?.find((c) => c.name.toLowerCase() === colorName.toLowerCase().trim());
+    if (foundColor && foundColor.hex_code) {
+      return foundColor.hex_code;
+    }
+    const c = colorName.toLowerCase().trim();
+    if (c.includes('branco')) return '#ffffff';
+    if (c.includes('natural') || c.includes('cru') || c.includes('off-white')) return '#f7f4ea';
+    if (c.includes('baunilha') || c.includes('marfim')) return '#fef3c7';
+    if (c.includes('lavanda') || c.includes('lilás') || c.includes('lilas') || c.includes('roxa') || c.includes('roxo')) return '#d8b4fe';
+    if (c.includes('rosa')) return '#fbcfe8';
+    if (c.includes('terracota') || c.includes('marrom') || c.includes('cobre')) return '#c86d51';
+    if (c.includes('verde') || c.includes('oliva') || c.includes('menta')) return '#86efac';
+    if (c.includes('azul')) return '#93c5fd';
+    if (c.includes('dourad') || c.includes('ouro') || c.includes('amarelo')) return '#fde047';
+    if (c.includes('preto') || c.includes('grafite') || c.includes('cinza escuro')) return '#2c2824';
+    if (c.includes('cinza') || c.includes('prata')) return '#d1d5db';
+    if (c.includes('vermelh') || c.includes('vinho')) return '#f87171';
+    if (c.includes('laranja') || c.includes('âmbar') || c.includes('ambar')) return '#fb923c';
+    if (c.includes('granilite')) return '#e5e0d8';
+    if (c.includes('marmorizado')) return '#d6d3d1';
+    if (c.includes('bege')) return '#f5f5dc';
+    return '#e2d9cf';
+  };
 
   // Fechar no ESC
   useEffect(() => {
@@ -186,6 +231,12 @@ export const ProductCatalogModal: React.FC<ProductCatalogModalProps> = ({
     formatPrice,
     getProductStoreUrl,
     totalPages,
+    expandedProductIds,
+    toggleExpandProduct,
+    showAllVariationsAlways,
+    hoveredMoreId,
+    setHoveredMoreId,
+    getColorHex,
   };
 
   return (
@@ -393,6 +444,19 @@ export const ProductCatalogModal: React.FC<ProductCatalogModalProps> = ({
               <span>Variações (Cores/Modelos)</span>
             </label>
 
+            {showVariations && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: 0, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={showAllVariationsAlways}
+                  onChange={(e) => setShowAllVariationsAlways(e.target.checked)}
+                />
+                <span title="Exibe todas as cores e variações abertas diretamente nos cards">
+                  Expandir Todas as Cores
+                </span>
+              </label>
+            )}
+
             <label style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: 0, cursor: 'pointer' }}>
               <input
                 type="checkbox"
@@ -507,6 +571,12 @@ interface RenderParams {
   formatPrice: (val: string | number | null | undefined) => string;
   getProductStoreUrl: (prod: Product) => { url: string; platform: string };
   totalPages: number;
+  expandedProductIds: Set<number>;
+  toggleExpandProduct: (productId: number) => void;
+  showAllVariationsAlways: boolean;
+  hoveredMoreId: number | null;
+  setHoveredMoreId: (id: number | null) => void;
+  getColorHex: (colorName?: string | null) => string;
 }
 
 function renderCatalogContent({
@@ -524,6 +594,12 @@ function renderCatalogContent({
   formatPrice,
   getProductStoreUrl,
   totalPages,
+  expandedProductIds,
+  toggleExpandProduct,
+  showAllVariationsAlways,
+  hoveredMoreId,
+  setHoveredMoreId,
+  getColorHex,
 }: RenderParams) {
   // Foto de destaque da capa (primeiro produto com foto)
   const coverProduct = catalogProducts.find((p) => p.images && p.images.length > 0) || catalogProducts[0];
@@ -889,36 +965,205 @@ function renderCatalogContent({
                         </div>
 
                         {/* Variações de Cores/Tamanhos */}
-                        {showVariations && prod.variations && prod.variations.length > 0 && (
-                          <div style={{ marginBottom: '6px' }}>
-                            <span style={{ fontSize: '0.66rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                              Variações ({prod.variations.length}):
-                            </span>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '2px' }}>
-                              {prod.variations.slice(0, 3).map((v) => (
-                                <span
-                                  key={v.id}
-                                  style={{
-                                    fontSize: '0.63rem',
-                                    padding: '2px 6px',
-                                    backgroundColor: '#fff5f0',
-                                    border: '1px solid #ffdcd4',
-                                    borderRadius: '4px',
-                                    color: '#ee4d2d',
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  {v.variation_name || [v.color, v.size].filter(Boolean).join(' • ') || v.sku}
+                        {showVariations && prod.variations && prod.variations.length > 0 && (() => {
+                          const isExpanded = showAllVariationsAlways || expandedProductIds.has(prod.id);
+                          const displayedVars = isExpanded ? prod.variations : prod.variations.slice(0, 3);
+                          const remainingCount = prod.variations.length - 3;
+                          const hasMore = !isExpanded && remainingCount > 0;
+
+                          return (
+                            <div style={{ marginBottom: '6px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
+                                <span style={{ fontSize: '0.66rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                  Variações ({prod.variations.length}):
                                 </span>
-                              ))}
-                              {prod.variations.length > 3 && (
-                                <span style={{ fontSize: '0.63rem', color: 'var(--text-tertiary)', alignSelf: 'center' }}>
-                                  +{prod.variations.length - 3} mais
-                                </span>
-                              )}
+                                {isExpanded && !showAllVariationsAlways && prod.variations.length > 3 && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleExpandProduct(prod.id);
+                                    }}
+                                    className="no-print"
+                                    style={{
+                                      border: 'none',
+                                      background: 'none',
+                                      padding: '0 4px',
+                                      fontSize: '0.60rem',
+                                      color: 'var(--brand-accent)',
+                                      cursor: 'pointer',
+                                      fontWeight: 600,
+                                      textDecoration: 'underline',
+                                    }}
+                                    title="Recolher lista de variações"
+                                  >
+                                    Recolher
+                                  </button>
+                                )}
+                              </div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '2px', alignItems: 'center' }}>
+                                {displayedVars.map((v) => {
+                                  const colorDot = getColorHex(v.color || v.variation_name);
+                                  return (
+                                    <span
+                                      key={v.id}
+                                      style={{
+                                        fontSize: '0.63rem',
+                                        padding: '2px 6px',
+                                        backgroundColor: '#fff5f0',
+                                        border: '1px solid #ffdcd4',
+                                        borderRadius: '4px',
+                                        color: '#ee4d2d',
+                                        fontWeight: 600,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                      }}
+                                      title={`Variação: ${v.variation_name || v.color || v.sku}${v.size ? ` • Tam: ${v.size}` : ''}`}
+                                    >
+                                      <span
+                                        style={{
+                                          width: '7px',
+                                          height: '7px',
+                                          borderRadius: '50%',
+                                          backgroundColor: colorDot,
+                                          border: '1px solid rgba(0,0,0,0.18)',
+                                          display: 'inline-block',
+                                          flexShrink: 0,
+                                        }}
+                                      />
+                                      <span>
+                                        {v.variation_name || [v.color, v.size].filter(Boolean).join(' • ') || v.sku}
+                                      </span>
+                                    </span>
+                                  );
+                                })}
+
+                                {hasMore && (
+                                  <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleExpandProduct(prod.id);
+                                      }}
+                                      onMouseEnter={() => setHoveredMoreId(prod.id)}
+                                      onMouseLeave={() => setHoveredMoreId(null)}
+                                      className="no-print"
+                                      style={{
+                                        fontSize: '0.63rem',
+                                        padding: '2px 7px',
+                                        backgroundColor: '#ffffff',
+                                        border: '1px dashed #ee4d2d',
+                                        borderRadius: '4px',
+                                        color: '#ee4d2d',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '3px',
+                                        transition: 'all 0.15s ease',
+                                        boxShadow: '0 1px 3px rgba(238, 77, 45, 0.1)',
+                                      }}
+                                      title={`Clique para ver todas as cores:\n${prod.variations.slice(3).map((v) => `• ${v.variation_name || v.color || v.sku}`).join('\n')}`}
+                                    >
+                                      +{remainingCount} mais ▾
+                                    </button>
+
+                                    {/* Versão impressa limpa sem interatividade */}
+                                    <span
+                                      className="print-only"
+                                      style={{
+                                        fontSize: '0.63rem',
+                                        color: 'var(--text-tertiary)',
+                                      }}
+                                    >
+                                      +{remainingCount} mais
+                                    </span>
+
+                                    {/* Popover flutuante no hover listando as opções de cores */}
+                                    {hoveredMoreId === prod.id && (
+                                      <div
+                                        style={{
+                                          position: 'absolute',
+                                          bottom: 'calc(100% + 6px)',
+                                          left: '50%',
+                                          transform: 'translateX(-50%)',
+                                          backgroundColor: '#ffffff',
+                                          border: '1px solid #ffdcd4',
+                                          boxShadow: '0 8px 24px rgba(0,0,0,0.16)',
+                                          borderRadius: '8px',
+                                          padding: '8px 12px',
+                                          zIndex: 9999,
+                                          minWidth: '160px',
+                                          whiteSpace: 'nowrap',
+                                          pointerEvents: 'none',
+                                          textAlign: 'left',
+                                        }}
+                                      >
+                                        <div
+                                          style={{
+                                            fontSize: '0.67rem',
+                                            fontWeight: 700,
+                                            color: '#c2410c',
+                                            marginBottom: '5px',
+                                            borderBottom: '1px solid #ffedd5',
+                                            paddingBottom: '3px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                          }}
+                                        >
+                                          <span>🎨</span>
+                                          <span>Outras Cores Disponíveis ({remainingCount}):</span>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                          {prod.variations.slice(3).map((v) => (
+                                            <div
+                                              key={v.id}
+                                              style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                fontSize: '0.66rem',
+                                                color: '#334155',
+                                              }}
+                                            >
+                                              <span
+                                                style={{
+                                                  width: '8px',
+                                                  height: '8px',
+                                                  borderRadius: '50%',
+                                                  backgroundColor: getColorHex(v.color || v.variation_name),
+                                                  border: '1px solid rgba(0,0,0,0.2)',
+                                                  display: 'inline-block',
+                                                  flexShrink: 0,
+                                                }}
+                                              />
+                                              <span style={{ fontWeight: 600 }}>
+                                                {v.variation_name || [v.color, v.size].filter(Boolean).join(' • ') || v.sku}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                        <div
+                                          style={{
+                                            fontSize: '0.58rem',
+                                            color: '#94a3b8',
+                                            marginTop: '6px',
+                                            fontStyle: 'italic',
+                                          }}
+                                        >
+                                          👆 Clique no botão para fixar aberto no catálogo
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          );
+                        })()}
                       </div>
 
                       {/* Rodapé do Card: Preço e Botão "Comprar Produto" */}
