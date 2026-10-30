@@ -190,6 +190,12 @@ class StockService:
 
         balances: List[StockBalanceResponse] = []
         for p in products:
+            # Se for produto Pai com variações, não o exibimos no saldo físico de estoque,
+            # pois o estoque real é gerenciado nas variações filhas.
+            # Isso evita que o produto pai e suas variações pareçam duplicados na listagem de estoque.
+            if p.variations and len(p.variations) > 0:
+                continue
+
             curr_stock = round(StockService.get_product_balance(db, p.id), 2)
             # Regra de estoque mínimo padronizada em 5 peças para Alerta de Produção
             min_stock = Decimal("5.00")
@@ -199,8 +205,8 @@ class StockService:
             is_low = curr_stock <= Decimal("5.00") and not is_zero
             est_value = round(curr_stock * unit_cost, 2) if curr_stock > 0 else Decimal("0.00")
 
-            has_vars = bool(p.variations and len(p.variations) > 0)
-            vars_count = len(p.variations) if p.variations else 0
+            has_vars = False
+            vars_count = 0
 
             balances.append(
                 StockBalanceResponse(

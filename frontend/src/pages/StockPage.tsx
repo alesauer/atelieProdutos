@@ -124,7 +124,10 @@ export const StockPage: React.FC = () => {
     loadData();
   }, []);
 
-  const filteredBalances = balances.filter(
+  // Filtra itens de estoque desconsiderando produtos "Pai" com variações para evitar duplicidade
+  const activeBalances = balances.filter((b) => !b.has_variations);
+
+  const filteredBalances = activeBalances.filter(
     (b) =>
       b.name.toLowerCase().includes(search.toLowerCase()) ||
       b.sku.toLowerCase().includes(search.toLowerCase()) ||
@@ -132,14 +135,14 @@ export const StockPage: React.FC = () => {
       (b.variation_name && b.variation_name.toLowerCase().includes(search.toLowerCase()))
   );
 
-  const totalValue = balances.reduce(
+  const totalValue = activeBalances.reduce(
     (acc, b) => acc + Number(b.estimated_total_value || 0),
     0
   );
-  const lowStockCount = balances.filter(
+  const lowStockCount = activeBalances.filter(
     (b) => Number(b.current_stock) > 0 && Number(b.current_stock) <= 5
   ).length;
-  const zeroStockCount = balances.filter((b) => b.is_zero_stock || Number(b.current_stock) <= 0).length;
+  const zeroStockCount = activeBalances.filter((b) => b.is_zero_stock || Number(b.current_stock) <= 0).length;
 
   const handleCreateAdjustment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -296,7 +299,7 @@ export const StockPage: React.FC = () => {
             ITENS MONITORADOS
           </span>
           <h3 style={{ fontSize: '1.75rem', marginTop: '4px', color: 'var(--brand-primary)' }}>
-            {balances.length}
+            {activeBalances.length}
           </h3>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
             Produtos acabados, matérias-primas e embalagens

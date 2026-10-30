@@ -85,3 +85,56 @@ def test_negative_stock_is_blocked(client: TestClient, admin_token: str, sample_
     )
     assert adj_resp.status_code == 400
     assert "Saldo insuficiente" in adj_resp.json()["detail"]
+
+
+def test_stock_balance_excludes_parent_with_variations(
+    client: TestClient, admin_token: str, sample_product: Product
+):
+    # Cadastrar um produto com variações
+    prod_resp = client.post(
+        "/api/v1/products",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "sku": "GARRAF-01",
+            "name": "Garrafinha",
+            "item_type": "PRODUTO_ACABADO",
+            "category_id": sample_product.category_id,
+            "unit_id": sample_product.unit_id,
+            "unit_cost": "15.0000",
+            "sale_price": "25.00",
+            "has_variations": True,
+            "variations": [
+                {
+                    "variation_name": "Branco",
+                    "sku": "GARRAF-01-BRANCO",
+                    "color": "Branco",
+                    "initial_stock": "10.000",
+                },
+                {
+                    "variation_name": "Cinza",
+                    "sku": "GARRAF-01-CINZA",
+                    "color": "Cinza",
+                    "initial_stock": "5.000",
+                },
+            ],
+        },
+    )
+    assert prod_resp.status_code == 201
+
+    # Consultar saldos de estoque
+    resp = client.get("/api/v1/stock/balance", headers={"Authorization": f"Bearer {admin_token}"})
+    assert resp.status_code == 200
+    items = resp.json()
+
+    # O produto pai ('GARRAF-01') NÃO deve aparecer na listagem de estoque para não gerar duplicidade
+    assert not any(item["sku"] == "GARRAF-01" for item in items)
+
+    # Cada variação filha deve aparecer individualmente com seu respectivo saldo
+    var_branco = next((item for item in items if item["sku"] == "GARRAF-01-BRANCO"), None)
+    assert var_branco is not None
+    assert Decimal(str(var_branco["current_stock"])) == Decimal("10.000")
+
+    var_cinza = next((item for item in items if item["sku"] == "GARRAF-01-CINZA"), None)
+    assert var_cinza is not None
+    assert Decimal(str(var_cinza["current_stock"])) == Decimal("5.000")
+
