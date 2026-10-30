@@ -667,9 +667,22 @@ export const ProductsPage: React.FC = () => {
     setPreviewModalActiveVarId(activeVarId);
   };
 
+  const isKitProduct = (item: any): boolean => {
+    if (!item) return false;
+    if (item.is_kit) return true;
+    if (Array.isArray(item.kit_items) && item.kit_items.length > 0) return true;
+    const catName = typeof item.category === 'object' ? item.category?.name : (typeof item.category_name === 'string' ? item.category_name : '');
+    if (typeof catName === 'string') {
+      const cleanCat = catName.trim().toLowerCase();
+      if (cleanCat === 'kit' || cleanCat.startsWith('kit ') || cleanCat.endsWith(' kit')) return true;
+    }
+    if (item.parent && isKitProduct(item.parent)) return true;
+    return false;
+  };
+
   const renderStockDisplay = (item: Product | ProductVariation, isCompact = false) => {
     // Kits não possuem estoque físico próprio; o saldo é gerido pelas peças componentes individuais
-    if (('is_kit' in item && item.is_kit) || ('parent' in item && (item as any).parent?.is_kit)) {
+    if (isKitProduct(item)) {
       return (
         <span
           style={{
@@ -2369,6 +2382,7 @@ export const ProductsPage: React.FC = () => {
             const displayPrice = activeVar?.sale_price !== null && activeVar?.sale_price !== undefined ? activeVar.sale_price : prod.sale_price;
             const displayColor = activeVar ? (activeVar.color || activeVar.variation_name) : prod.color;
             const displayStockItem = activeVar || prod;
+            const isCardKit = isKitProduct(prod);
 
             return (
               <div
@@ -2444,7 +2458,7 @@ export const ProductsPage: React.FC = () => {
                     }}
                   >
                     <Badge type={prod.item_type} />
-                    {prod.is_kit && (
+                    {isCardKit && (
                       <span
                         style={{
                           backgroundColor: '#f59e0b',
@@ -2744,13 +2758,13 @@ export const ProductsPage: React.FC = () => {
                                 fontSize: '0.72rem',
                                 fontWeight: isSelected ? 700 : 500,
                                 backgroundColor: isSelected ? '#fff5f0' : '#ffffff',
-                                color: isSelected ? '#ee4d2d' : isOutOfStock ? 'var(--text-tertiary)' : 'var(--text-primary)',
+                                color: isSelected ? '#ee4d2d' : (!isCardKit && isOutOfStock) ? 'var(--text-tertiary)' : 'var(--text-primary)',
                                 border: isSelected ? '1.5px solid #ee4d2d' : '1px solid var(--border-subtle)',
                                 boxShadow: isSelected ? '0 1px 4px rgba(238, 77, 45, 0.25)' : 'none',
                                 cursor: 'pointer',
                                 transition: 'all 0.15s ease',
                               }}
-                              title={`${v.variation_name || v.color} - Estoque: ${vStock.toFixed(2)} UN (SKU: ${v.sku})`}
+                              title={isCardKit ? `${v.variation_name || v.color} (SKU: ${v.sku})` : `${v.variation_name || v.color} - Estoque: ${vStock.toFixed(2)} UN (SKU: ${v.sku})`}
                             >
                               {colorHex && (
                                 <span
@@ -2766,16 +2780,18 @@ export const ProductsPage: React.FC = () => {
                                 />
                               )}
                               <span>{v.variation_name || v.color || v.sku}</span>
-                              <span
-                                style={{
-                                  fontSize: '0.65rem',
-                                  fontWeight: 600,
-                                  color: isSelected ? '#ee4d2d' : isOutOfStock ? '#dc2626' : 'var(--text-secondary)',
-                                  paddingLeft: '2px',
-                                }}
-                              >
-                                ({vStock.toFixed(2)} un)
-                              </span>
+                              {!isCardKit && (
+                                <span
+                                  style={{
+                                    fontSize: '0.65rem',
+                                    fontWeight: 600,
+                                    color: isSelected ? '#ee4d2d' : isOutOfStock ? '#dc2626' : 'var(--text-secondary)',
+                                    paddingLeft: '2px',
+                                  }}
+                                >
+                                  ({vStock.toFixed(2)} un)
+                                </span>
+                              )}
                             </button>
                           );
                         })}
@@ -2922,12 +2938,35 @@ export const ProductsPage: React.FC = () => {
                         gap: '8px',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                          Estoque:
-                        </span>
-                        {renderStockDisplay(displayStockItem, true)}
-                      </div>
+                      {isCardKit ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              fontSize: '0.74rem',
+                              fontWeight: 700,
+                              backgroundColor: '#fef3c7',
+                              color: '#92400e',
+                              border: '1px solid #fde68a',
+                            }}
+                            title="Kit composto por peças avulsas — sem controle de estoque próprio"
+                          >
+                            <span>🎁</span>
+                            <span>Kit de Peças</span>
+                          </span>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                            Estoque:
+                          </span>
+                          {renderStockDisplay(displayStockItem, true)}
+                        </div>
+                      )}
 
                       <button
                         type="button"
@@ -3356,7 +3395,7 @@ export const ProductsPage: React.FC = () => {
                       <td style={{ padding: '12px 20px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
                           <Badge type={prod.item_type} />
-                          {prod.is_kit && (
+                          {isKitProduct(prod) && (
                             <span
                               style={{
                                 display: 'inline-flex',
@@ -3587,7 +3626,9 @@ export const ProductsPage: React.FC = () => {
                                       </div>
                                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', marginTop: '2px' }}>
                                         <span style={{ fontWeight: 600, color: 'var(--brand-accent)' }}>R$ {Number(v.sale_price || prod.sale_price || 0).toFixed(2)}</span>
-                                        <span style={{ fontWeight: 700, color: vStock <= 0 ? '#dc2626' : vStock <= 5 ? '#b45309' : '#15803d' }}>{vStock.toFixed(2)} UN</span>
+                                        {!isKitProduct(prod) && (
+                                          <span style={{ fontWeight: 700, color: vStock <= 0 ? '#dc2626' : vStock <= 5 ? '#b45309' : '#15803d' }}>{vStock.toFixed(2)} UN</span>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
@@ -7421,6 +7462,7 @@ export const ProductsPage: React.FC = () => {
           const hasImage = !!rawPrimary;
           const imgUrl = getProductImageUrl(rawPrimary);
           const unitCode = previewProductModal.unit?.code || 'UN';
+          const isModalKit = isKitProduct(previewProductModal);
           const currentStockNum = activeVar
             ? Number(activeVar.current_stock ?? 0)
             : Number(previewProductModal.current_stock ?? 0);
@@ -7497,7 +7539,7 @@ export const ProductsPage: React.FC = () => {
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px', alignItems: 'center' }}>
                 <Badge type={previewProductModal.item_type} />
                 <Badge status={previewProductModal.is_active ? 'active' : 'inactive'} />
-                {previewProductModal.is_kit && (
+                {isModalKit && (
                   <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#b45309', backgroundColor: '#fef3c7', border: '1px solid #fde68a', padding: '2px 8px', borderRadius: '10px' }}>
                     🎁 Kit de Produtos
                   </span>
@@ -7605,19 +7647,21 @@ export const ProductsPage: React.FC = () => {
                             />
                           )}
                           <span>{v.variation_name || v.color}</span>
-                          <span
-                            style={{
-                              fontSize: '0.74rem',
-                              padding: '1px 5px',
-                              borderRadius: '6px',
-                              backgroundColor: vStock <= 0 ? 'var(--status-danger-bg)' : '#fff',
-                              color: vStock <= 0 ? 'var(--status-danger-text)' : 'var(--text-secondary)',
-                              fontWeight: 700,
-                              border: '1px solid var(--border-subtle)',
-                            }}
-                          >
-                            {vStock <= 0 ? '0.00 un (Esgotado)' : `${vStock.toFixed(2)} un`}
-                          </span>
+                          {!isModalKit && (
+                            <span
+                              style={{
+                                fontSize: '0.74rem',
+                                padding: '1px 5px',
+                                borderRadius: '6px',
+                                backgroundColor: vStock <= 0 ? 'var(--status-danger-bg)' : '#fff',
+                                color: vStock <= 0 ? 'var(--status-danger-text)' : 'var(--text-secondary)',
+                                fontWeight: 700,
+                                border: '1px solid var(--border-subtle)',
+                              }}
+                            >
+                              {vStock <= 0 ? '0.00 un (Esgotado)' : `${vStock.toFixed(2)} un`}
+                            </span>
+                          )}
                         </button>
                       );
                     })}
@@ -7625,25 +7669,27 @@ export const ProductsPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Bloco de Estoque Total com Alerta */}
-              <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-sm)', backgroundColor: isLowStock ? '#fffbeb' : 'var(--bg-sand-light)', border: isLowStock ? '1px solid #fde68a' : '1px solid var(--border-subtle)', marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', fontWeight: 700, color: isLowStock ? '#92400e' : 'var(--text-secondary)', display: 'block' }}>
-                      {activeVar ? `Estoque da Variação (${activeVar.variation_name || activeVar.color})` : 'Estoque Total Disponível'}
-                    </span>
-                    <span style={{ fontSize: '1.15rem', fontWeight: 800, color: isLowStock ? '#b45309' : 'var(--brand-primary)' }}>
-                      {currentStockNum.toFixed(2)} {unitCode}
-                    </span>
+              {/* Bloco de Estoque Total com Alerta (Apenas para peças individuais) */}
+              {!isModalKit && (
+                <div style={{ padding: '12px 16px', borderRadius: 'var(--radius-sm)', backgroundColor: isLowStock ? '#fffbeb' : 'var(--bg-sand-light)', border: isLowStock ? '1px solid #fde68a' : '1px solid var(--border-subtle)', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', fontWeight: 700, color: isLowStock ? '#92400e' : 'var(--text-secondary)', display: 'block' }}>
+                        {activeVar ? `Estoque da Variação (${activeVar.variation_name || activeVar.color})` : 'Estoque Total Disponível'}
+                      </span>
+                      <span style={{ fontSize: '1.15rem', fontWeight: 800, color: isLowStock ? '#b45309' : 'var(--brand-primary)' }}>
+                        {currentStockNum.toFixed(2)} {unitCode}
+                      </span>
+                    </div>
+                    {activeVar ? renderStockDisplay(activeVar) : renderStockDisplay(previewProductModal)}
                   </div>
-                  {activeVar ? renderStockDisplay(activeVar) : renderStockDisplay(previewProductModal)}
+                  {isLowStock && (
+                    <p style={{ margin: '6px 0 0', fontSize: '0.82rem', color: '#b45309', fontWeight: 600 }}>
+                      ⚠️ {currentStockNum <= 0 ? 'Item esgotado no depósito!' : `Atenção: Apenas ${currentStockNum.toFixed(2)} ${unitCode} no estoque (alerta configurado para ≤ 5.00 peças).`}
+                    </p>
+                  )}
                 </div>
-                {isLowStock && (
-                  <p style={{ margin: '6px 0 0', fontSize: '0.82rem', color: '#b45309', fontWeight: 600 }}>
-                    ⚠️ {currentStockNum <= 0 ? 'Item esgotado no depósito!' : `Atenção: Apenas ${currentStockNum.toFixed(2)} ${unitCode} no estoque (alerta configurado para ≤ 5.00 peças).`}
-                  </p>
-                )}
-              </div>
+              )}
 
               {/* Bloco Financeiro */}
               <div style={{ padding: '14px 16px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-surface-hover)', border: '1px solid var(--border-subtle)', marginBottom: '16px' }}>
@@ -7704,7 +7750,7 @@ export const ProductsPage: React.FC = () => {
               </div>
 
               {/* Composição de Itens do Kit no Modal de Detalhes */}
-              {previewProductModal.is_kit && previewProductModal.kit_items && previewProductModal.kit_items.length > 0 && (
+              {isModalKit && previewProductModal.kit_items && previewProductModal.kit_items.length > 0 && (
                 <div
                   style={{
                     marginBottom: '16px',
@@ -8029,9 +8075,11 @@ export const ProductsPage: React.FC = () => {
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div>
-                            {renderStockDisplay(v, true)}
-                          </div>
+                          {!isKitProduct(variationManageModalProduct) && (
+                            <div>
+                              {renderStockDisplay(v, true)}
+                            </div>
+                          )}
                           <button
                             type="button"
                             onClick={() => handleUnlinkVariation(v.id)}

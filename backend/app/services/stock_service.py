@@ -187,12 +187,15 @@ class StockService:
             pass
 
         products = list(db.execute(select(Product).order_by(Product.name)).scalars().all())
-        kit_ids = {p.id for p in products if p.is_kit}
+        kit_ids = {
+            p.id for p in products
+            if p.is_kit or (p.category and p.category.name.strip().lower() == "kit") or (p.kit_items and len(p.kit_items) > 0)
+        }
 
         balances: List[StockBalanceResponse] = []
         for p in products:
             # Kits não possuem estoque físico próprio; o saldo reside exclusivamente nas peças componentes individuais.
-            if p.is_kit or (p.parent_id and p.parent_id in kit_ids):
+            if p.id in kit_ids or p.is_kit or (p.parent_id and p.parent_id in kit_ids):
                 continue
 
             # Se for produto Pai com variações, não o exibimos no saldo físico de estoque,

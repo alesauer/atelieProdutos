@@ -741,6 +741,14 @@ class ProductService:
                     detail=f"Categoria ID {product_in.category_id} não encontrada.",
                 )
 
+        resolved_is_kit = product_in.is_kit
+        if not resolved_is_kit and product_in.category_id:
+            cat = db.get(Category, product_in.category_id)
+            if cat and (cat.name.strip().lower() == "kit" or cat.name.strip().lower().startswith("kit")):
+                resolved_is_kit = True
+        if not resolved_is_kit and product_in.kit_items:
+            resolved_is_kit = True
+
         product = Product(
             sku=product_in.sku.strip().upper(),
             name=product_in.name.strip(),
@@ -758,7 +766,7 @@ class ProductService:
             weight=product_in.weight,
             min_stock=product_in.min_stock,
             is_active=product_in.is_active,
-            is_kit=product_in.is_kit,
+            is_kit=resolved_is_kit,
             parent_id=product_in.parent_id if product_in.parent_id and product_in.parent_id > 0 else None,
             variation_name=product_in.variation_name.strip() if product_in.variation_name else None,
         )
@@ -818,6 +826,7 @@ class ProductService:
                     weight=weight,
                     min_stock=var_in.min_stock if var_in.min_stock is not None else Decimal("0.000"),
                     is_active=True,
+                    is_kit=product.is_kit,
                     parent_id=product.id,
                     variation_name=clean_name,
                 )
@@ -897,6 +906,12 @@ class ProductService:
             product.is_active = product_in.is_active
         if product_in.is_kit is not None:
             product.is_kit = product_in.is_kit
+        elif product.category_id:
+            cat = db.get(Category, product.category_id)
+            if cat and (cat.name.strip().lower() == "kit" or cat.name.strip().lower().startswith("kit")):
+                product.is_kit = True
+        elif product_in.kit_items:
+            product.is_kit = True
         if product_in.parent_id is not None:
             product.parent_id = product_in.parent_id if product_in.parent_id > 0 else None
         if product_in.variation_name is not None:
@@ -969,6 +984,7 @@ class ProductService:
                         target_var.weight = var_in.weight
                     if var_in.min_stock is not None:
                         target_var.min_stock = var_in.min_stock
+                    target_var.is_kit = product.is_kit
 
                     # Atualização de saldo em estoque para variação existente (ignorado para kits)
                     if not product.is_kit and var_in.initial_stock is not None:
@@ -1019,6 +1035,7 @@ class ProductService:
                         weight=weight,
                         min_stock=var_in.min_stock if var_in.min_stock is not None else Decimal("0.000"),
                         is_active=True,
+                        is_kit=product.is_kit,
                         parent_id=product.id,
                         variation_name=var_in.variation_name.strip(),
                     )
@@ -1125,6 +1142,7 @@ class ProductService:
 
         clean_var_name = variation_name.strip() if variation_name else (child.color or child.name)
         child.parent_id = parent.id
+        child.is_kit = parent.is_kit
         child.variation_name = clean_var_name
         db.commit()
         db.refresh(parent)
@@ -1140,6 +1158,7 @@ class ProductService:
                 detail=f"Variação ID {child_id} não encontrada.",
             )
         child.parent_id = None
+        child.is_kit = False
         db.commit()
         db.refresh(child)
         return child
