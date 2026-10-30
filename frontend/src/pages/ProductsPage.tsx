@@ -27,6 +27,8 @@ import {
   FileText,
   Scale,
   Sparkles,
+  RotateCcw,
+  Save,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { Badge } from '../components/Badge';
@@ -112,6 +114,8 @@ const formatWeight = (val?: number | string | null): string => {
   return `${Math.round(num)} g`;
 };
 
+const PRODUCT_CREATE_DRAFT_KEY = 'casaluma_product_create_draft';
+
 export const ProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -121,6 +125,9 @@ export const ProductsPage: React.FC = () => {
   const [materials, setMaterials] = useState<ProductMaterial[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Memória recente / Rascunho automático do cadastro de produto
+  const [draftRestoredAt, setDraftRestoredAt] = useState<string | null>(null);
 
   // Filtros
   const [search, setSearch] = useState('');
@@ -678,20 +685,65 @@ export const ProductsPage: React.FC = () => {
     return matchSearch && matchType && matchCategory;
   });
 
-  // Abertura do formulário de criação/edição
-  const handleOpenCreateModal = () => {
-    pendingImages.forEach((p) => URL.revokeObjectURL(p.previewUrl));
-    setPendingImages([]);
-    setDeletedVariationIds([]);
-    setFormError(null);
-    setCostItems([]);
-    setSalesLinks([]);
-    setNewLinkPlatform('Shopee');
-    setNewLinkUrl('');
-    setKitItems([]);
-    setSelectedKitProductId('');
-    setSelectedKitQuantity('1');
-    setEditingProduct(null);
+  // Auto-save da memória recente / rascunho de cadastro no localStorage
+  useEffect(() => {
+    if (!isFormModalOpen || editingProduct) return;
+
+    const hasContent = !!(
+      formData.sku?.trim() ||
+      formData.name?.trim() ||
+      formData.description?.trim() ||
+      formData.color?.trim() ||
+      formData.size?.trim() ||
+      formData.material?.trim() ||
+      (formData.sale_price && formData.sale_price !== '' && formData.sale_price !== '0,00') ||
+      (formData.unit_cost && formData.unit_cost !== '' && formData.unit_cost !== '0,00' && formData.unit_cost !== '0') ||
+      (formData.weight && formData.weight !== '') ||
+      formData.category_id ||
+      formData.is_kit ||
+      hasVariations ||
+      formVariations.length > 0 ||
+      kitItems.length > 0 ||
+      salesLinks.length > 0 ||
+      costItems.length > 0
+    );
+
+    if (hasContent) {
+      const now = new Date();
+      const formattedTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const formattedDate = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      const draftPayload = {
+        savedAt: `${formattedDate} às ${formattedTime}`,
+        formData,
+        hasVariations,
+        formVariations,
+        salesLinks,
+        costItems,
+        kitItems,
+      };
+      try {
+        localStorage.setItem(PRODUCT_CREATE_DRAFT_KEY, JSON.stringify(draftPayload));
+      } catch (err) {
+        console.warn('Erro ao salvar rascunho de produto no localStorage:', err);
+      }
+    }
+  }, [
+    isFormModalOpen,
+    editingProduct,
+    formData,
+    hasVariations,
+    formVariations,
+    salesLinks,
+    costItems,
+    kitItems,
+  ]);
+
+  // Limpeza explícita do rascunho de novo produto
+  const handleClearDraft = () => {
+    try {
+      localStorage.removeItem(PRODUCT_CREATE_DRAFT_KEY);
+    } catch {}
+    setDraftRestoredAt(null);
 
     const defaultUnit = units.find(
       (u) => u.code.toUpperCase() === 'UN' || u.name.toLowerCase().includes('unidade')
@@ -704,6 +756,13 @@ export const ProductsPage: React.FC = () => {
     setQuickGenSelectedSizes([]);
     setQuickGenCustomColor('');
     setQuickGenCustomSize('');
+    setCostItems([]);
+    setSalesLinks([]);
+    setNewLinkPlatform('Shopee');
+    setNewLinkUrl('');
+    setKitItems([]);
+    setSelectedKitProductId('');
+    setSelectedKitQuantity('1');
     setFormData({
       sku: '',
       name: '',
@@ -723,10 +782,116 @@ export const ProductsPage: React.FC = () => {
       is_active: true,
       is_kit: false,
     });
+  };
+
+  // Abertura do formulário de criação/edição
+  const handleOpenCreateModal = () => {
+    pendingImages.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+    setPendingImages([]);
+    setDeletedVariationIds([]);
+    setFormError(null);
+    setEditingProduct(null);
+
+    // Tentar restaurar rascunho recente salvo no localStorage
+    let restored = false;
+    try {
+      const savedDraftStr = localStorage.getItem(PRODUCT_CREATE_DRAFT_KEY);
+      if (savedDraftStr) {
+        const draft = JSON.parse(savedDraftStr);
+        if (draft && draft.formData) {
+          const dData = draft.formData;
+          const dVars = draft.formVariations || [];
+          const dKits = draft.kitItems || [];
+          const dLinks = draft.salesLinks || [];
+          const dCosts = draft.costItems || [];
+          const hasContent = !!(
+            dData.sku?.trim() ||
+            dData.name?.trim() ||
+            dData.description?.trim() ||
+            dData.color?.trim() ||
+            dData.size?.trim() ||
+            dData.material?.trim() ||
+            (dData.sale_price && dData.sale_price !== '' && dData.sale_price !== '0,00') ||
+            (dData.unit_cost && dData.unit_cost !== '' && dData.unit_cost !== '0,00' && dData.unit_cost !== '0') ||
+            (dData.weight && dData.weight !== '') ||
+            dData.category_id ||
+            dData.is_kit ||
+            draft.hasVariations ||
+            dVars.length > 0 ||
+            dKits.length > 0 ||
+            dLinks.length > 0 ||
+            dCosts.length > 0
+          );
+
+          if (hasContent) {
+            setFormData(dData);
+            setHasVariations(!!draft.hasVariations);
+            setFormVariations(dVars);
+            setSalesLinks(dLinks);
+            setCostItems(dCosts);
+            setKitItems(dKits);
+            setSelectedKitProductId('');
+            setSelectedKitQuantity('1');
+            setIsQuickGenOpen(false);
+            setQuickGenSelectedColors([]);
+            setQuickGenSelectedSizes([]);
+            setQuickGenCustomColor('');
+            setQuickGenCustomSize('');
+            setDraftRestoredAt(draft.savedAt || 'recentemente');
+            restored = true;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Erro ao restaurar rascunho:', err);
+    }
+
+    if (!restored) {
+      setDraftRestoredAt(null);
+      const defaultUnit = units.find(
+        (u) => u.code.toUpperCase() === 'UN' || u.name.toLowerCase().includes('unidade')
+      ) || (units.length > 0 ? units[0] : null);
+
+      setHasVariations(false);
+      setFormVariations([]);
+      setIsQuickGenOpen(false);
+      setQuickGenSelectedColors([]);
+      setQuickGenSelectedSizes([]);
+      setQuickGenCustomColor('');
+      setQuickGenCustomSize('');
+      setCostItems([]);
+      setSalesLinks([]);
+      setNewLinkPlatform('Shopee');
+      setNewLinkUrl('');
+      setKitItems([]);
+      setSelectedKitProductId('');
+      setSelectedKitQuantity('1');
+      setFormData({
+        sku: '',
+        name: '',
+        description: '',
+        color: '',
+        size: '',
+        material: '',
+        item_type: 'PRODUTO_ACABADO',
+        category_id: null,
+        unit_id: defaultUnit ? defaultUnit.id : 1,
+        unit_cost: '0,00',
+        cost_breakdown: '',
+        sales_links: '',
+        sale_price: '',
+        weight: '',
+        min_stock: '0',
+        is_active: true,
+        is_kit: false,
+      });
+    }
+
     setIsFormModalOpen(true);
   };
 
   const handleOpenEditModal = async (prod: Product) => {
+    setDraftRestoredAt(null);
     pendingImages.forEach((p) => URL.revokeObjectURL(p.previewUrl));
     setPendingImages([]);
     setDeletedVariationIds([]);
@@ -1619,6 +1784,12 @@ export const ProductsPage: React.FC = () => {
       pendingImages.forEach((p) => URL.revokeObjectURL(p.previewUrl));
       setPendingImages([]);
       setIsFormModalOpen(false);
+      if (!editingProduct) {
+        try {
+          localStorage.removeItem(PRODUCT_CREATE_DRAFT_KEY);
+        } catch {}
+        setDraftRestoredAt(null);
+      }
       await loadData();
     } catch (err: any) {
       setFormError(err.message || 'Erro ao salvar produto.');
@@ -3271,6 +3442,49 @@ export const ProductsPage: React.FC = () => {
         maxWidth={hasVariations ? '960px' : '720px'}
       >
         <form onSubmit={handleSaveProduct}>
+          {/* Banner de Rascunho / Memória Recente Restaurada */}
+          {!editingProduct && draftRestoredAt && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 14px',
+                marginBottom: '16px',
+                borderRadius: '8px',
+                backgroundColor: '#fffbeb',
+                border: '1px solid #fde68a',
+                color: '#92400e',
+                fontSize: '0.82rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <RotateCcw size={16} color="#d97706" style={{ flexShrink: 0 }} />
+                <span>
+                  <strong>Memória recente recuperada:</strong> Restauramos os dados que você estava preenchendo ({draftRestoredAt}).
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleClearDraft}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#b45309',
+                  cursor: 'pointer',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  textDecoration: 'underline',
+                  padding: '2px 6px',
+                  whiteSpace: 'nowrap',
+                }}
+                title="Descartar rascunho e limpar todos os campos"
+              >
+                Limpar rascunho
+              </button>
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
             <div>
               <label htmlFor="prod-sku">Código / SKU *</label>
@@ -5117,6 +5331,11 @@ export const ProductsPage: React.FC = () => {
                 <Trash2 size={15} />
                 <span>Excluir Item</span>
               </button>
+            ) : !editingProduct ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--text-tertiary, #9ca3af)' }}>
+                <Save size={14} color="#10b981" />
+                <span>Rascunho salvo automaticamente</span>
+              </div>
             ) : <div />}
 
             <div style={{ display: 'flex', gap: '12px' }}>
